@@ -343,11 +343,12 @@ pip install -r requirements.txt
 python main.py
 ```
 
-### Docker (Production-like)
+### Docker (Production-like / Portainer)
 ```powershell
 docker compose up --build
 ```
-Services: `backend:3000`, `bot`, `frontend:80`, `db` (SQLite volume `./data`).
+Services: `backend` (intern :3000, nicht published), `bot`, `frontend` (host `${FRONTEND_PORT:-8080}` → :80, nginx serviert die SPA + reverse-proxyt `/api` → backend). **Kein `db`-Service** (SQLite ist dateibasiert; Persistenz über das Named Volume `projectx-data` an `/data`). Alle Dockerfiles liegen im Root und builden mit `context: .` (COPY aus `backend/`,`bot/`,`frontend/`). **VITE_*-Variablen sind Build-Args** (in `docker-compose.yml` unter `frontend.build.args`), nicht Runtime-Env. `VITE_BACKEND_URL=/api` hält Frontend+API same-origin (keine CORS-/Cookie-Probleme).
+Portainer: als **Stack** aus dem Git-Repo deployen, Env-Vars im Stack setzen (siehe Kopf von [docker-compose.yml](docker-compose.yml)). **HTTPS davor nötig** (Reverse-Proxy/TLS), da `NODE_ENV=production` das Session-Cookie auf `Secure` setzt.
 
 ---
 

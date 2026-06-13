@@ -1,16 +1,23 @@
-FROM node:20-alpine as builder
-
+# ---- build the Vue/Vite static bundle ----
+FROM node:20-alpine AS builder
 WORKDIR /app
+
+# VITE_* must be present BEFORE `npm run build` — they are inlined into the
+# bundle. Passed from docker-compose build.args (see docker-compose.yml).
+ARG VITE_BACKEND_URL=/api
+ARG VITE_DISCORD_CLIENT_ID
+ARG VITE_DISCORD_REDIRECT_URI
+ENV VITE_BACKEND_URL=$VITE_BACKEND_URL \
+    VITE_DISCORD_CLIENT_ID=$VITE_DISCORD_CLIENT_ID \
+    VITE_DISCORD_REDIRECT_URI=$VITE_DISCORD_REDIRECT_URI
 
 COPY frontend/package*.json ./
 RUN npm ci
-
 COPY frontend/ .
 RUN npm run build
 
+# ---- serve via nginx (also reverse-proxies /api → backend) ----
 FROM nginx:alpine
-
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-
 EXPOSE 80
