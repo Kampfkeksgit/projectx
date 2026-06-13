@@ -8,7 +8,13 @@ version: "3.8"
 #            DISCORD_REDIRECT_URI FRONTEND_URL SESSION_SECRET BOT_API_KEY OWNER_DISCORD_ID
 # Optional:  APPLICATION_ID SKU_BASIC_ID SKU_PRO_ID
 #            YOUTUBE_API_KEY TWITCH_CLIENT_ID TWITCH_CLIENT_SECRET KICK_CLIENT_ID KICK_CLIENT_SECRET
-#            FRONTEND_PORT (host port for the web UI, default 8080)
+#
+# TLS/Domain via Nginx Proxy Manager: the `frontend` joins the external `proxy`
+# network and is NOT published on a host port — NPM forwards to `frontend:80`.
+# Create the network once (Portainer → Networks → Add → name "proxy", bridge),
+# then deploy nginx-proxy-manager.yml. To run WITHOUT NPM instead, drop the
+# `proxy` network from `frontend`, add a `ports: ["8080:80"]` and remove the
+# top-level `networks:` block.
 
 services:
   backend:
@@ -72,10 +78,18 @@ services:
         VITE_DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
         VITE_DISCORD_REDIRECT_URI: ${DISCORD_REDIRECT_URI}
     restart: unless-stopped
-    ports:
-      - "${FRONTEND_PORT:-8080}:80"
+    expose:
+      - "80"
+    networks:
+      - default
+      - proxy
     depends_on:
       - backend
 
 volumes:
   projectx-data:
+
+networks:
+  # Shared with Nginx Proxy Manager so it can reach `frontend` by name.
+  proxy:
+    external: true

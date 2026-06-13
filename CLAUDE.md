@@ -269,7 +269,8 @@ projectx/
 ├── Dockerfile.backend
 ├── Dockerfile.bot
 ├── Dockerfile.frontend
-├── nginx.conf                  # Reverse-Proxy für Frontend-Container
+├── nginx.conf                  # Frontend-Container: SPA + /api-Reverse-Proxy → backend
+├── nginx-proxy-manager.yml     # Separater Portainer-Stack: NPM (TLS/Let's Encrypt) vor dem Frontend (Netzwerk `proxy`)
 ├── docs/                       # Öffentliche Endnutzer-Doku für GitBook (Git-Sync-Quelle): README.md + SUMMARY.md
 │                               # + getting-started/modules/premium/faq. NICHT die internen Architektur-Files hier reinmischen.
 ├── ARCHITECTURE.md             # System-Design (autoritativ für Architektur-Fragen)
@@ -347,8 +348,9 @@ python main.py
 ```powershell
 docker compose up --build
 ```
-Services: `backend` (intern :3000, nicht published), `bot`, `frontend` (host `${FRONTEND_PORT:-8080}` → :80, nginx serviert die SPA + reverse-proxyt `/api` → backend). **Kein `db`-Service** (SQLite ist dateibasiert; Persistenz über das Named Volume `projectx-data` an `/data`). Alle Dockerfiles liegen im Root und builden mit `context: .` (COPY aus `backend/`,`bot/`,`frontend/`). **VITE_*-Variablen sind Build-Args** (in `docker-compose.yml` unter `frontend.build.args`), nicht Runtime-Env. `VITE_BACKEND_URL=/api` hält Frontend+API same-origin (keine CORS-/Cookie-Probleme).
-Portainer: als **Stack** aus dem Git-Repo deployen, Env-Vars im Stack setzen (siehe Kopf von [docker-compose.yml](docker-compose.yml)). **HTTPS davor nötig** (Reverse-Proxy/TLS), da `NODE_ENV=production` das Session-Cookie auf `Secure` setzt.
+Services: `backend` (intern :3000, nicht published), `bot`, `frontend` (nginx serviert die SPA + reverse-proxyt `/api` → backend). **Kein `db`-Service** (SQLite ist dateibasiert; Persistenz über das Named Volume `projectx-data` an `/data`). Alle Dockerfiles liegen im Root und builden mit `context: .` (COPY aus `backend/`,`bot/`,`frontend/`). **VITE_*-Variablen sind Build-Args** (in `docker-compose.yml` unter `frontend.build.args`), nicht Runtime-Env. `VITE_BACKEND_URL=/api` hält Frontend+API same-origin (keine CORS-/Cookie-Probleme).
+Portainer: als **Stack** aus dem Git-Repo deployen, Env-Vars im Stack setzen (siehe Kopf von [docker-compose.yml](docker-compose.yml)).
+**TLS via Nginx Proxy Manager:** Der `frontend` ist **nicht** auf einen Host-Port gemappt, sondern hängt am externen Docker-Netzwerk `proxy`; NPM ([nginx-proxy-manager.yml](nginx-proxy-manager.yml), eigener Stack) leitet die Domain auf `frontend:80` und macht Let's-Encrypt-TLS. Netzwerk `proxy` muss einmalig in Portainer angelegt werden. **HTTPS ist Pflicht**, da `NODE_ENV=production` das Session-Cookie auf `Secure` setzt. Ohne NPM betreiben: `proxy`-Netz am `frontend` entfernen + `ports: ["8080:80"]` setzen.
 
 ---
 

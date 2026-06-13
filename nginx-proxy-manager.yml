@@ -1,0 +1,35 @@
+version: "3.8"
+
+# Nginx Proxy Manager — TLS / reverse proxy in front of the ProjectX stack.
+# Deploy as its OWN Portainer stack.
+#
+# Prereq: create the shared network once (Portainer → Networks → Add →
+#         name "proxy", driver bridge). The projectx stack's `frontend` joins
+#         the same network, so NPM forwards to host "frontend", port 80.
+#
+# After deploy: open the admin UI at http://<host>:81
+#   default login  admin@example.com / changeme  (change it immediately)
+# Then add a Proxy Host:  Domain → Forward http://frontend:80, request a
+# Let's Encrypt cert, enable "Websockets Support" + "Force SSL".
+
+services:
+  npm:
+    image: jc21/nginx-proxy-manager:latest
+    restart: unless-stopped
+    ports:
+      - "80:80"      # HTTP (Let's Encrypt http-01 + redirect)
+      - "443:443"    # HTTPS
+      - "81:81"      # Admin UI
+    volumes:
+      - npm-data:/data
+      - npm-letsencrypt:/etc/letsencrypt
+    networks:
+      - proxy
+
+volumes:
+  npm-data:
+  npm-letsencrypt:
+
+networks:
+  proxy:
+    external: true
