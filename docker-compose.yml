@@ -66,8 +66,7 @@ services:
       KICK_CLIENT_ID: ${KICK_CLIENT_ID:-}
       KICK_CLIENT_SECRET: ${KICK_CLIENT_SECRET:-}
     depends_on:
-      backend:
-        condition: service_healthy
+      - backend
 
   frontend:
     build:
