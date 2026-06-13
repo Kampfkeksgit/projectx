@@ -11,6 +11,12 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
+// Resolves once initializeDatabase() has created every table. server.js awaits
+// this BEFORE running migrations, so a fresh DB never ALTERs a not-yet-created
+// table (root cause of "SQLITE_ERROR: no such table: users" on first boot).
+let resolveDbReady;
+export const whenDbReady = new Promise((resolve) => { resolveDbReady = resolve; });
+
 export const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
     console.error('Error opening database:', err);
@@ -996,6 +1002,9 @@ function initializeDatabase() {
     });
 
     console.log('Database schema initialization complete');
+    // Final serialized statement: its callback runs after every CREATE above,
+    // so this is the safe point to signal "all tables exist".
+    db.run('SELECT 1', () => resolveDbReady());
   });
 }
 

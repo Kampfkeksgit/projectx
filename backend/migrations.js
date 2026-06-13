@@ -17,12 +17,11 @@ export function initializeSchemaVersion() {
         applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )`,
       (err) => {
-        if (err) {
-          reject(err);
-        } else {
-          checkAndApplyMigrations();
-          resolve();
-        }
+        // Just ensure the schema_version table exists. server.js calls
+        // checkAndApplyMigrations() exactly once after this — calling it here
+        // too caused two concurrent migration runs (race → corrupt upgrades).
+        if (err) reject(err);
+        else resolve();
       }
     );
   });
@@ -55,48 +54,40 @@ export function checkAndApplyMigrations() {
 }
 
 /**
- * Apply migrations between versions
+ * Apply migrations between versions — SEQUENTIALLY. Each migration must finish
+ * before the next starts; running them concurrently let e.g. migrationV2
+ * (ALTER users) fire before migrationV1's table existed → "no such table".
  */
-function applyMigrations(fromVersion, toVersion) {
-  return new Promise((resolve, reject) => {
-    const migrations = {
-      1: migrationV1,
-      2: migrationV2,
-      3: migrationV3,
-      4: migrationV4,
-      5: migrationV5,
-      6: migrationV6,
-      7: migrationV7,
-      8: migrationV8,
-      9: migrationV9,
-      10: migrationV10,
-      11: migrationV11,
-      12: migrationV12,
-      13: migrationV13,
-      14: migrationV14,
-      15: migrationV15,
-      16: migrationV16,
-      17: migrationV17,
-      18: migrationV18,
-      19: migrationV19,
-      20: migrationV20,
-      21: migrationV21
-    };
+async function applyMigrations(fromVersion, toVersion) {
+  const migrations = {
+    1: migrationV1,
+    2: migrationV2,
+    3: migrationV3,
+    4: migrationV4,
+    5: migrationV5,
+    6: migrationV6,
+    7: migrationV7,
+    8: migrationV8,
+    9: migrationV9,
+    10: migrationV10,
+    11: migrationV11,
+    12: migrationV12,
+    13: migrationV13,
+    14: migrationV14,
+    15: migrationV15,
+    16: migrationV16,
+    17: migrationV17,
+    18: migrationV18,
+    19: migrationV19,
+    20: migrationV20,
+    21: migrationV21
+  };
 
-    let completed = 0;
-    for (let v = fromVersion; v <= toVersion; v++) {
-      if (migrations[v]) {
-        migrations[v]()
-          .then(() => {
-            completed++;
-            if (completed === toVersion - fromVersion + 1) {
-              resolve();
-            }
-          })
-          .catch(reject);
-      }
+  for (let v = fromVersion; v <= toVersion; v++) {
+    if (migrations[v]) {
+      await migrations[v]();
     }
-  });
+  }
 }
 
 /**

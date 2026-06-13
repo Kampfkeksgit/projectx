@@ -3,6 +3,7 @@ import cors from 'cors'
 import cookieParser from 'cookie-parser'
 import dotenv from 'dotenv'
 import { initializeSchemaVersion, checkAndApplyMigrations } from './migrations.js'
+import { whenDbReady } from './db.js'
 import authRoutes from './routes/auth.js'
 import guildRoutes from './routes/guilds.js'
 import settingsRoutes from './routes/settings.js'
@@ -53,10 +54,12 @@ app.use(cookieParser())
 // Initialize database on startup
 let dbReady = false
 
-initializeSchemaVersion()
-  .then(() => {
-    return checkAndApplyMigrations()
-  })
+// Wait until every table is created, THEN ensure the schema_version table and
+// run migrations exactly once, sequentially. This ordering avoids the fresh-DB
+// race that crashed startup with "no such table: users".
+whenDbReady
+  .then(() => initializeSchemaVersion())
+  .then(() => checkAndApplyMigrations())
   .then(() => {
     dbReady = true
     console.log('✅​ Database ready')
