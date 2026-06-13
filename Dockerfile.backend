@@ -17,7 +17,8 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY backend/ .
 RUN mkdir -p /data
 EXPOSE 3000
-# Node 20 ships a global fetch — no extra tooling needed for the healthcheck.
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD node -e "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+# Use 127.0.0.1 (not localhost → avoids IPv6 ::1 while the server binds IPv4)
+# and the http module (more robust than fetch in the healthcheck context).
+HEALTHCHECK --interval=15s --timeout=5s --start-period=40s --retries=5 \
+  CMD node -e "require('http').get('http://127.0.0.1:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
 CMD ["npm", "start"]
