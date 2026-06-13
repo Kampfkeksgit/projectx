@@ -23,9 +23,9 @@ services:
       dockerfile: Dockerfile.backend
     restart: unless-stopped
     environment:
-      NODE_ENV: production
+      NODE_ENV: ${NODE_ENV:-production}
       PORT: "3000"
-      DATABASE_URL: /data/bot.db
+      DATABASE_URL: ${DATABASE_URL:-/data/bot.db}
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
       DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET}
       DISCORD_REDIRECT_URI: ${DISCORD_REDIRECT_URI}
@@ -53,18 +53,20 @@ services:
       DISCORD_TOKEN: ${DISCORD_TOKEN}
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
       DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET}
-      BACKEND_URL: http://backend:3000
+      BACKEND_URL: ${BACKEND_URL:-http://backend:3000}
       BOT_API_KEY: ${BOT_API_KEY}
       # Premium / SKU monetization (optional — cog stays inert if empty)
       APPLICATION_ID: ${APPLICATION_ID:-}
       SKU_BASIC_ID: ${SKU_BASIC_ID:-}
       SKU_PRO_ID: ${SKU_PRO_ID:-}
+      PREMIUM_POLL_INTERVAL: ${PREMIUM_POLL_INTERVAL:-300}
       # Social notifications (optional — platforms without creds are skipped)
       YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
       TWITCH_CLIENT_ID: ${TWITCH_CLIENT_ID:-}
       TWITCH_CLIENT_SECRET: ${TWITCH_CLIENT_SECRET:-}
       KICK_CLIENT_ID: ${KICK_CLIENT_ID:-}
       KICK_CLIENT_SECRET: ${KICK_CLIENT_SECRET:-}
+      SOCIAL_POLL_INTERVAL: ${SOCIAL_POLL_INTERVAL:-180}
     depends_on:
       - backend
 
@@ -75,7 +77,7 @@ services:
       args:
         # VITE_* are baked in at build time. /api keeps the dashboard same-origin
         # with the API (nginx proxies /api → backend) — no CORS, cookies just work.
-        VITE_BACKEND_URL: /api
+        VITE_BACKEND_URL: ${VITE_BACKEND_URL:-/api}
         VITE_DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
         VITE_DISCORD_REDIRECT_URI: ${DISCORD_REDIRECT_URI}
     restart: unless-stopped
