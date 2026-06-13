@@ -1,0 +1,19 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ProjectX">
+  <defs>
+    <linearGradient id="pxm-brand" x1="120" y1="120" x2="392" y2="392" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5865F2"/>
+      <stop offset="0.55" stop-color="#A78BFA"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+    <linearGradient id="pxm-node" x1="312" y1="120" x2="384" y2="192" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#EAFCFF"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+  </defs>
+  <g stroke="url(#pxm-brand)" stroke-width="64" stroke-linecap="round">
+    <path d="M150 150 L362 362"/>
+    <path d="M362 150 L150 362"/>
+  </g>
+  <circle cx="362" cy="150" r="46" fill="url(#pxm-node)"/>
+  <circle cx="349" cy="137" r="9" fill="#FFFFFF" opacity="0.9"/>
+</svg>

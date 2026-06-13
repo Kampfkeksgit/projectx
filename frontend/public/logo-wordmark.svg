@@ -1,0 +1,31 @@
+<svg width="760" height="200" viewBox="0 0 760 200" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ProjectX">
+  <defs>
+    <linearGradient id="pxw-brand" x1="36" y1="36" x2="164" y2="164" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5865F2"/>
+      <stop offset="0.55" stop-color="#A78BFA"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+    <linearGradient id="pxw-node" x1="120" y1="48" x2="150" y2="78" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#EAFCFF"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+    <linearGradient id="pxw-x" x1="612" y1="64" x2="704" y2="150" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A78BFA"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Icon tile -->
+  <rect x="20" y="36" width="128" height="128" rx="34" fill="url(#pxw-brand)"/>
+  <g stroke="#FFFFFF" stroke-width="15" stroke-linecap="round" transform="translate(20 36) scale(0.25)">
+    <path d="M172 172 L340 340"/>
+    <path d="M340 172 L172 340"/>
+  </g>
+  <circle cx="125" cy="63" r="12" fill="url(#pxw-node)"/>
+  <circle cx="125" cy="63" r="12" stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="1.5"/>
+
+  <!-- Wordmark -->
+  <text x="180" y="120" font-family="'Space Grotesk','Segoe UI',Arial,sans-serif" font-size="82" font-weight="700" letter-spacing="-2">
+    <tspan fill="#EDEEF4">Project</tspan><tspan fill="url(#pxw-x)">X</tspan>
+  </text>
+</svg>

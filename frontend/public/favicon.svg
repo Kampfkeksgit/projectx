@@ -1,0 +1,20 @@
+<svg width="64" height="64" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ProjectX">
+  <defs>
+    <linearGradient id="pxf-brand" x1="40" y1="32" x2="472" y2="480" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5865F2"/>
+      <stop offset="0.55" stop-color="#A78BFA"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+    <linearGradient id="pxf-node" x1="312" y1="138" x2="376" y2="202" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#EAFCFF"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="120" fill="url(#pxf-brand)"/>
+  <g stroke="#FFFFFF" stroke-width="60" stroke-linecap="round">
+    <path d="M172 172 L340 340"/>
+    <path d="M340 172 L172 340"/>
+  </g>
+  <circle cx="340" cy="172" r="44" fill="url(#pxf-node)"/>
+  <circle cx="340" cy="172" r="44" stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="3"/>
+</svg>

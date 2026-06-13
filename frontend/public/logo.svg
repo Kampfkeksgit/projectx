@@ -1,0 +1,47 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ProjectX">
+  <defs>
+    <linearGradient id="px-brand" x1="40" y1="32" x2="472" y2="480" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5865F2"/>
+      <stop offset="0.55" stop-color="#A78BFA"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+    <radialGradient id="px-gloss" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(150 120) rotate(58) scale(360)">
+      <stop stop-color="#FFFFFF" stop-opacity="0.38"/>
+      <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="px-vignette" x1="256" y1="180" x2="256" y2="496" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#0B0D12" stop-opacity="0.22"/>
+    </linearGradient>
+    <linearGradient id="px-node" x1="312" y1="138" x2="376" y2="202" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#EAFCFF"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+    <filter id="px-shadow" x="100" y="120" width="312" height="312" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#0B0D12" flood-opacity="0.34"/>
+    </filter>
+    <filter id="px-glow" x="280" y="106" width="128" height="128" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="10"/>
+    </filter>
+  </defs>
+
+  <!-- App tile -->
+  <rect x="16" y="16" width="480" height="480" rx="124" fill="url(#px-brand)"/>
+  <rect x="16" y="16" width="480" height="480" rx="124" fill="url(#px-gloss)"/>
+  <rect x="16" y="16" width="480" height="480" rx="124" fill="url(#px-vignette)"/>
+  <rect x="16.75" y="16.75" width="478.5" height="478.5" rx="123.25" stroke="#FFFFFF" stroke-opacity="0.16" stroke-width="1.5"/>
+
+  <!-- X monogram -->
+  <g filter="url(#px-shadow)">
+    <g stroke="#FFFFFF" stroke-width="56" stroke-linecap="round">
+      <path d="M174 174 L338 338"/>
+      <path d="M338 174 L174 338"/>
+    </g>
+  </g>
+
+  <!-- Cyan connection node on the top-right terminal -->
+  <circle cx="338" cy="174" r="46" fill="#22D3EE" opacity="0.45" filter="url(#px-glow)"/>
+  <circle cx="338" cy="174" r="40" fill="url(#px-node)"/>
+  <circle cx="338" cy="174" r="40" stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="3"/>
+  <circle cx="326" cy="162" r="8" fill="#FFFFFF" opacity="0.85"/>
+</svg>

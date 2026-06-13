@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
+      - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET}
+      - DATABASE_URL=/data/bot.db
+      - FRONTEND_URL=http://localhost:3000
+    volumes:
+      - ./data:/data
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  bot:
+    build: ./bot
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - BACKEND_URL=http://backend:3000
+      - DATABASE_URL=/data/bot.db
+    volumes:
+      - ./data:/data
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    environment:
+      - VITE_BACKEND_URL=http://localhost:3000
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  db:
+    image: sqlite
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
