@@ -81,6 +81,10 @@ services:
         VITE_DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
         VITE_DISCORD_REDIRECT_URI: ${DISCORD_REDIRECT_URI}
     restart: unless-stopped
+    ports:
+      # Direct/LAN access at http://<host>:8080. NPM still reaches the container
+      # via the `proxy` network, so both work. Remove this for NPM-only/prod.
+      - "${FRONTEND_PORT:-8080}:80"
     expose:
       - "80"
     networks:
