@@ -1099,12 +1099,12 @@ export default {
         {
           id: 'contact',
           heading: 'Kontaktdaten',
-          bodyHtml: '<!-- Diese Platzhalter MÜSSEN vor dem Live-Gang ausgefüllt werden. --><p>Anbieter dieser Website:</p><ul><li>[Bitte ausfüllen — Vor- und Nachname]</li><li>[Straße, PLZ, Ort]</li><li>E-Mail: [E-Mail]</li><li>Telefon (optional): [Telefon (optional)]</li></ul>'
+          bodyHtml: '<p>Anbieter dieser Website:</p><ul><li>Ahmet Can Aydogduoglu</li><li>Friedrich-Frank-Bogen 27a, 21033 Hamburg</li><li>E-Mail: admin@kampfkekse.eu</li></ul>'
         },
         {
           id: 'responsible',
           heading: 'Verantwortlich für den Inhalt',
-          bodyHtml: '<p>Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV: [Name, Anschrift wie oben].</p>'
+          bodyHtml: '<p>Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV: Ahmet Can Aydogduoglu, Friedrich-Frank-Bogen 27a, 21033 Hamburg.</p>'
         },
         {
           id: 'disclaimer',
@@ -1125,7 +1125,7 @@ export default {
         {
           id: 'controller',
           heading: '1. Verantwortlicher',
-          bodyHtml: '<p>Verantwortlicher im Sinne der DSGVO:</p><ul><li>[Bitte ausfüllen — Name]</li><li>E-Mail: [Datenschutz-Kontakt]</li></ul>'
+          bodyHtml: '<p>Verantwortlicher im Sinne der DSGVO:</p><ul><li>Ahmet Can Aydogduoglu, Friedrich-Frank-Bogen 27a, 21033 Hamburg</li><li>E-Mail: admin@kampfkekse.eu</li></ul>'
         },
         {
           id: 'dataCollected',
@@ -1150,7 +1150,7 @@ export default {
         {
           id: 'recipients',
           heading: '6. Empfänger',
-          bodyHtml: '<p>Wir geben deine Daten ausschließlich an folgende Empfänger weiter, soweit dies zwingend erforderlich ist:</p><ul><li><strong>Discord</strong> (Discord Inc., USA) — für OAuth-Login und Bot-Betrieb.</li><li><strong>Hosting-Anbieter:</strong> [Hosting-Anbieter] — die Infrastruktur, auf der unser Server läuft.</li></ul><p>Eine Weitergabe oder ein Verkauf an sonstige Dritte findet nicht statt.</p>'
+          bodyHtml: '<p>Wir geben deine Daten ausschließlich an folgende Empfänger weiter, soweit dies zwingend erforderlich ist:</p><ul><li><strong>Discord</strong> (Discord Inc., USA) — für OAuth-Login und Bot-Betrieb.</li><li><strong>Hosting:</strong> Der Server wird vom Betreiber selbst betrieben (Self-Hosting auf eigener Infrastruktur). Ein externer Hosting-Dienstleister ist nicht eingebunden.</li></ul><p>Eine Weitergabe oder ein Verkauf an sonstige Dritte findet nicht statt.</p>'
         },
         {
           id: 'transferToThirdCountries',
@@ -1160,7 +1160,7 @@ export default {
         {
           id: 'rights',
           heading: '8. Deine Rechte',
-          bodyHtml: '<p>Dir stehen folgende Rechte bezüglich deiner personenbezogenen Daten zu:</p><ul><li>Recht auf Auskunft — Art. 15 DSGVO</li><li>Recht auf Berichtigung — Art. 16 DSGVO</li><li>Recht auf Löschung — Art. 17 DSGVO</li><li>Recht auf Einschränkung der Verarbeitung — Art. 18 DSGVO</li><li>Recht auf Datenübertragbarkeit — Art. 20 DSGVO</li><li>Widerspruchsrecht — Art. 21 DSGVO</li><li>Beschwerderecht bei einer Aufsichtsbehörde — Art. 77 DSGVO</li></ul><p>Zur Ausübung dieser Rechte erreichst du uns unter: [Datenschutz-Kontakt-E-Mail].</p>'
+          bodyHtml: '<p>Dir stehen folgende Rechte bezüglich deiner personenbezogenen Daten zu:</p><ul><li>Recht auf Auskunft — Art. 15 DSGVO</li><li>Recht auf Berichtigung — Art. 16 DSGVO</li><li>Recht auf Löschung — Art. 17 DSGVO</li><li>Recht auf Einschränkung der Verarbeitung — Art. 18 DSGVO</li><li>Recht auf Datenübertragbarkeit — Art. 20 DSGVO</li><li>Widerspruchsrecht — Art. 21 DSGVO</li><li>Beschwerderecht bei einer Aufsichtsbehörde — Art. 77 DSGVO</li></ul><p>Zur Ausübung dieser Rechte erreichst du uns unter: admin@kampfkekse.eu.</p>'
         },
         {
           id: 'cookies',
@@ -1180,7 +1180,7 @@ export default {
         {
           id: 'contact',
           heading: '12. Kontakt',
-          bodyHtml: '<p>Bei Fragen zum Datenschutz erreichst du uns unter: [Datenschutz-Kontakt-E-Mail].</p>'
+          bodyHtml: '<p>Bei Fragen zum Datenschutz erreichst du uns unter: admin@kampfkekse.eu.</p>'
         }
       ]
     },

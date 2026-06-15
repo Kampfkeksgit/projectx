@@ -1099,12 +1099,12 @@ export default {
         {
           id: 'contact',
           heading: 'Contact details',
-          bodyHtml: '<p>Operator of this website:</p><ul><li>[Please fill in — first and last name]</li><li>[Street, postal code, city]</li><li>Email: [email address]</li><li>Phone (optional): [phone number]</li></ul>'
+          bodyHtml: '<p>Operator of this website:</p><ul><li>Ahmet Can Aydogduoglu</li><li>Friedrich-Frank-Bogen 27a, 21033 Hamburg, Germany</li><li>Email: admin@kampfkekse.eu</li></ul>'
         },
         {
           id: 'responsible',
           heading: 'Responsible for content',
-          bodyHtml: '<p>Responsible for the content pursuant to § 18 (2) MStV: [Name, address as above].</p>'
+          bodyHtml: '<p>Responsible for the content pursuant to § 18 (2) MStV: Ahmet Can Aydogduoglu, Friedrich-Frank-Bogen 27a, 21033 Hamburg, Germany.</p>'
         },
         {
           id: 'disclaimer',
@@ -1125,7 +1125,7 @@ export default {
         {
           id: 'controller',
           heading: '1. Controller',
-          bodyHtml: '<p>Controller within the meaning of the GDPR:</p><ul><li>[Please fill in — name]</li><li>Email: [data-protection contact]</li></ul>'
+          bodyHtml: '<p>Controller within the meaning of the GDPR:</p><ul><li>Ahmet Can Aydogduoglu, Friedrich-Frank-Bogen 27a, 21033 Hamburg, Germany</li><li>Email: admin@kampfkekse.eu</li></ul>'
         },
         {
           id: 'dataCollected',
@@ -1150,7 +1150,7 @@ export default {
         {
           id: 'recipients',
           heading: '6. Recipients',
-          bodyHtml: '<p>We share your data with the following recipients only as far as strictly necessary:</p><ul><li><strong>Discord</strong> (Discord Inc., USA) — for OAuth login and to operate the bot.</li><li><strong>Hosting provider:</strong> [Hosting provider] — the infrastructure on which our server runs.</li></ul><p>We do not sell or share your data with anyone else.</p>'
+          bodyHtml: '<p>We share your data with the following recipients only as far as strictly necessary:</p><ul><li><strong>Discord</strong> (Discord Inc., USA) — for OAuth login and to operate the bot.</li><li><strong>Hosting:</strong> The server is operated by the operator themselves (self-hosted on their own infrastructure). No external hosting provider is involved.</li></ul><p>We do not sell or share your data with anyone else.</p>'
         },
         {
           id: 'transferToThirdCountries',
@@ -1160,7 +1160,7 @@ export default {
         {
           id: 'rights',
           heading: '8. Your rights',
-          bodyHtml: '<p>You have the following rights regarding your personal data:</p><ul><li>Right of access — Art. 15 GDPR</li><li>Right to rectification — Art. 16 GDPR</li><li>Right to erasure — Art. 17 GDPR</li><li>Right to restriction of processing — Art. 18 GDPR</li><li>Right to data portability — Art. 20 GDPR</li><li>Right to object — Art. 21 GDPR</li><li>Right to lodge a complaint with a supervisory authority — Art. 77 GDPR</li></ul><p>To exercise any of these rights, please contact us at: [data-protection contact email].</p>'
+          bodyHtml: '<p>You have the following rights regarding your personal data:</p><ul><li>Right of access — Art. 15 GDPR</li><li>Right to rectification — Art. 16 GDPR</li><li>Right to erasure — Art. 17 GDPR</li><li>Right to restriction of processing — Art. 18 GDPR</li><li>Right to data portability — Art. 20 GDPR</li><li>Right to object — Art. 21 GDPR</li><li>Right to lodge a complaint with a supervisory authority — Art. 77 GDPR</li></ul><p>To exercise any of these rights, please contact us at: admin@kampfkekse.eu.</p>'
         },
         {
           id: 'cookies',
@@ -1180,7 +1180,7 @@ export default {
         {
           id: 'contact',
           heading: '12. Contact',
-          bodyHtml: '<p>For any data-protection question, please email: [data-protection contact email].</p>'
+          bodyHtml: '<p>For any data-protection question, please email: admin@kampfkekse.eu.</p>'
         }
       ]
     },
