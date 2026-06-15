@@ -1,5 +1,9 @@
 <template>
-  <div class="app">
+  <!-- Native App / ?mobile=1 → eigene Handy-Oberfläche (eigene Top-Bar +
+       Bottom-Navigation). Desktop-Web rendert unverändert die klassische Shell. -->
+  <MobileShell v-if="isMobileUI" />
+
+  <div v-else class="app">
     <AppNavBar />
     <main class="app__main">
       <router-view v-slot="{ Component }">
@@ -9,9 +13,11 @@
       </router-view>
     </main>
     <AppFooter />
-    <AppToast />
     <CookieBanner />
   </div>
+
+  <!-- Toasts global über beiden Shells. -->
+  <AppToast />
 </template>
 
 <script setup>
@@ -19,6 +25,8 @@ import AppNavBar from './components/AppNavBar.vue'
 import AppToast from './components/AppToast.vue'
 import AppFooter from './components/AppFooter.vue'
 import CookieBanner from './components/CookieBanner.vue'
+import MobileShell from './mobile/MobileShell.vue'
+import { isMobileUI } from './mobile/platform.js'
 </script>
 
 <style>

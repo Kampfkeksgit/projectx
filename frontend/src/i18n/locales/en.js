@@ -27,6 +27,15 @@ export default {
     logout: 'Log out',
     loginWithDiscord: 'Login with Discord'
   },
+  mobile: {
+    nav: 'Main navigation',
+    back: 'Back',
+    login: 'Login',
+    language: 'Language',
+    tabServers: 'Servers',
+    tabModules: 'Modules',
+    tabAccount: 'Account'
+  },
   admin: {
     eyebrow: 'Owner only',
     title: 'Admin panel',

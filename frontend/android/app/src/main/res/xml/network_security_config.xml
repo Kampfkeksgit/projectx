@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Erlaubt Cleartext-HTTP NUR für lokale Dev-Hosts (Android-Emulator erreicht
+  den Host über 10.0.2.2). Produktion läuft über HTTPS; Cleartext bleibt dort
+  durch das Standard-Android-Verhalten (API 28+) blockiert.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">10.0.2.2</domain>
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">127.0.0.1</domain>
+    </domain-config>
+</network-security-config>

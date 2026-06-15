@@ -43,3 +43,18 @@ Thumbs.db
 
 # ---- Local secret helpers ----
 .gitbook-token
+
+# ---- Capacitor / Android ----
+# Das generierte android/-Projekt wird committet (buildbar), aber seine
+# lokalen/Build-Artefakte nicht. Die nested android/.gitignore deckt das
+# meiste ab; hier zur Sicherheit die kritischen lokalen Pfade.
+frontend/android/local.properties
+frontend/android/.gradle/
+frontend/android/app/build/
+frontend/android/build/
+frontend/android/app/release/
+frontend/android/.idea/
+frontend/android/app/src/main/assets/public/
+**/*.keystore
+**/*.jks
+!debug.keystore

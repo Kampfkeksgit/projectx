@@ -1,0 +1,84 @@
+/* ============================================================
+ * ProjectX — Mobile-UI-Schicht
+ *
+ * Alle Regeln hängen an `.mobile-ui` (auf <html>, gesetzt von platform.js).
+ * Greift NUR in der nativen App bzw. mit ?mobile=1 — die Desktop-Website
+ * bleibt unberührt. Hier werden ausschließlich bestehende Seiten/Komponenten
+ * für kleine Touch-Screens nachjustiert; die eigene App-Chrome (Top-Bar +
+ * Bottom-Navigation) kommt aus den MobileShell-Komponenten.
+ * ============================================================ */
+
+.mobile-ui {
+  /* Sticky-Offsets der Seiten richten sich nach --nav-height — auf die Höhe
+     der mobilen Top-Bar mappen, damit sticky Previews/Sidebars korrekt sitzen. */
+  --nav-height: 56px;
+  --mobile-topbar-h: 56px;
+  --mobile-tabbar-h: 64px;
+}
+
+/* Schmalere Scrollbar — die fette Desktop-Scrollbar wirkt auf dem Handy falsch. */
+.mobile-ui ::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+/* Formularfelder: 16px verhindert Auto-Zoom beim Fokussieren auf Mobilgeräten. */
+.mobile-ui input,
+.mobile-ui textarea,
+.mobile-ui select {
+  font-size: 16px;
+}
+
+/* Dashboard-Layout: kompakteres Padding, keine Desktop-Sidebar-Lücke. */
+.mobile-ui .dashboard-layout {
+  padding: var(--space-4) var(--space-4) var(--space-5);
+  min-height: auto;
+}
+.mobile-ui .dashboard-layout__inner {
+  gap: 0;
+}
+.mobile-ui .dashboard-layout__main {
+  max-width: none;
+  margin: 0;
+}
+
+/* Modul-Übersicht (Overview) = mobiler Modul-Hub → einspaltig + kompakter. */
+.mobile-ui .overview__grid {
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
+}
+.mobile-ui .overview__head {
+  margin-bottom: var(--space-5);
+}
+.mobile-ui .config-card {
+  padding: var(--space-4);
+  gap: var(--space-3);
+}
+/* Hover-Lift auf Touch deaktivieren (kein echter Hover). */
+.mobile-ui .config-card:hover {
+  transform: none;
+}
+
+/* Generische Seiten-Container etwas schmaler bepolstern. */
+.mobile-ui .page,
+.mobile-ui .config,
+.mobile-ui .servers,
+.mobile-ui .admin,
+.mobile-ui .premium {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* Sticky „Ungespeicherte Änderungen"-Leiste über die Bottom-Navigation heben. */
+.mobile-ui .config__footer {
+  bottom: calc(var(--mobile-tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--space-2));
+  z-index: 45;
+}
+
+/* Tabellen (Leaderboard/Admin) horizontal scrollbar machen statt zu überlaufen. */
+.mobile-ui table {
+  display: block;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  white-space: nowrap;
+}

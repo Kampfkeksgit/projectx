@@ -27,6 +27,15 @@ export default {
     logout: 'Abmelden',
     loginWithDiscord: 'Mit Discord anmelden'
   },
+  mobile: {
+    nav: 'Hauptnavigation',
+    back: 'Zurück',
+    login: 'Anmelden',
+    language: 'Sprache',
+    tabServers: 'Server',
+    tabModules: 'Module',
+    tabAccount: 'Konto'
+  },
   admin: {
     eyebrow: 'Nur für Owner',
     title: 'Admin-Bereich',

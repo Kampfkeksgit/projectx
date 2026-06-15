@@ -1,12 +1,13 @@
 <template>
   <div class="dashboard-layout">
     <div class="dashboard-layout__inner">
-      <button class="mobile-trigger" @click="mobileOpen = !mobileOpen">
+      <button v-if="!isMobileUI" class="mobile-trigger" @click="mobileOpen = !mobileOpen">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
         Menu
       </button>
 
       <Sidebar
+        v-if="!isMobileUI"
         v-show="!isMobile || mobileOpen"
         :guild-id="guildId"
         :guild-name="guildName"
@@ -46,6 +47,7 @@ import AppButton from '../components/AppButton.vue'
 import PremiumLock from '../components/PremiumLock.vue'
 import { useGuildSettings } from '../stores/guildSettings.js'
 import { usePremium } from '../stores/premium.js'
+import { isMobileUI } from '../mobile/platform.js'
 import { useI18n } from '../i18n/index.js'
 
 const { t } = useI18n()

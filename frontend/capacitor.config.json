@@ -1,0 +1,36 @@
+{
+  "appId": "com.projectx.dashboard",
+  "appName": "ProjectX",
+  "webDir": "dist",
+  "server": {
+    "url": "https://kampfkekse.eu",
+    "cleartext": false,
+    "allowNavigation": [
+      "discord.com",
+      "*.discord.com",
+      "discordapp.com",
+      "*.discordapp.com"
+    ]
+  },
+  "backgroundColor": "#0b0d12",
+  "android": {
+    "backgroundColor": "#0b0d12",
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2500,
+      "launchAutoHide": true,
+      "backgroundColor": "#0b0d12",
+      "showSpinner": false,
+      "androidScaleType": "CENTER_INSIDE",
+      "splashFullScreen": true,
+      "splashImmersive": false
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#0b0d12",
+      "overlaysWebView": false
+    }
+  }
+}

@@ -177,9 +177,27 @@ projectx/
 │   ├── index.html              # Inter / Space Grotesk / JetBrains Mono via Google Fonts
 │   ├── vite.config.js
 │   ├── package.json
+│   ├── capacitor.config.json   # Capacitor-Config (Android-App): appId com.projectx.dashboard,
+│   │                           # server.url = deployte Dashboard-Domain (Remote-URL-Modus),
+│   │                           # allowNavigation discord.com, dunkles Theme + Splash/StatusBar
+│   ├── resources/              # Icon/Splash-Quellen (icon.png/splash.png) für @capacitor/assets
+│   ├── android/                # Generiertes Capacitor-Android-Projekt (committet, buildbar);
+│   │                           # AndroidManifest + network_security_config (Dev-Cleartext 10.0.2.2)
 │   └── src/
-│       ├── main.js             # App-Bootstrap, lädt tokens.css, kickstartet useAuth().fetchMe()
-│       ├── App.vue             # Layout-Shell mit AppNavBar + <router-view> + AppToast
+│       ├── main.js             # App-Bootstrap, lädt tokens.css + mobile/mobile.css, kickstartet
+│       │                       # useAuth().fetchMe(), ruft applyMobileClass() + initNative() (Capacitor — No-Op auf Web)
+│       ├── native/capacitor.js # Native (Android) Integration: Statusbar/Splash/Back-Button/
+│       │                       # externe Links → System-Browser. Hinter isNativePlatform() (No-Op auf Web)
+│       ├── mobile/             # Dedizierte Handy-Oberfläche (NUR in nativer App / ?mobile=1 aktiv; Desktop-Web unberührt)
+│       │   ├── platform.js     # isMobileUI (computed: Capacitor.isNativePlatform() ODER ?mobile=1-Override in
+│       │   │                   # localStorage projectx_force_mobile) + applyMobileClass() (setzt .mobile-ui auf <html>)
+│       │   ├── mobile.css      # Globale Mobile-Schicht unter .mobile-ui (mappt --nav-height auf Top-Bar-Höhe,
+│       │   │                   # Overview einspaltig, Save-Bar über Bottom-Nav heben, Tabellen-Scroll). Greift NICHT auf Desktop.
+│       │   ├── MobileShell.vue # App-Shell für Mobile: TopBar + <router-view> + TabBar + AccountSheet (statt NavBar/Footer/Sidebar)
+│       │   ├── MobileTopBar.vue# Sticky Top-Bar: Zurück (Modul-Seite → Overview-Hub) / Brand, Titel (Route→i18n), Avatar→AccountSheet
+│       │   ├── MobileTabBar.vue# Fixe Bottom-Nav, kontextabhängig (ohne Guild: Home/Server/Konto; in Guild: Server/Module/Premium/Konto)
+│       │   └── MobileAccountSheet.vue # Bottom-Sheet: User, LanguageSwitcher, Server-Link, Admin (Owner), Logout
+│       ├── App.vue             # Branch: <MobileShell> wenn isMobileUI, sonst Desktop-Shell (AppNavBar + <router-view> + Footer); AppToast global
 │       ├── router/index.js     # async beforeEach, wartet auf Auth-Resolution
 │       ├── services/api.js     # axios mit withCredentials:true (KEIN Bearer-Header,
 │       │                       # KEIN localStorage). 401 → CustomEvent + redirect /
@@ -313,6 +331,13 @@ projectx/
 - Build: `vite ^4.4.9`, `@vitejs/plugin-vue ^4.3.4`
 - **Bewusst keine** Tailwind / Pinia / VueUse / UI-Kit — Styling vanilla via `<style scoped>` + `styles/tokens.css`.
 
+### Android-App (Capacitor — wrappt das Frontend)
+- `@capacitor/core ^6.1.2`, `@capacitor/cli ^6.1.2`, `@capacitor/android ^6.1.2` (Capacitor **6** — passt zu JDK 17; Cap 7 bräuchte JDK 21).
+- Plugins: `@capacitor/app`, `@capacitor/status-bar`, `@capacitor/splash-screen`, `@capacitor/browser` (alle ^6).
+- Dev-Tool: `@capacitor/assets ^3.0.5` (Icon-/Splash-Generierung aus `frontend/resources/`).
+- **Architektur „Remote-URL":** Die native Hülle lädt **das deployte Dashboard (HTTPS)** in einer WebView (`server.url` in [frontend/capacitor.config.json](frontend/capacitor.config.json)) — KEIN gebundeltes Offline-Frontend. Grund: So bleiben HTTP-only-Session-Cookie und Discord-OAuth-Redirect unverändert funktionsfähig (alles same-origin in der WebView, kein Token-Umbau — respektiert das „kein localStorage-Token"-Verbot). `allowNavigation` enthält `discord.com`, damit der OAuth-Login in der WebView bleibt und das Cookie korrekt setzt.
+- **Native Integration** in [frontend/src/native/capacitor.js](frontend/src/native/capacitor.js) (aus `main.js` aufgerufen) — auf dem Web ein **No-Op** (alles hinter `Capacitor.isNativePlatform()`): dunkle Statusbar, Splash-Hide, Hardware-Back → History/Exit, externe Links im System-Browser via `@capacitor/browser`. **Damit die nativen Features greifen, muss das deployte Web-Frontend das aktualisierte `main.js` enthalten (nach Änderungen neu deployen).**
+
 > Beim Hinzufügen/Upgraden einer Dependency: diesen Block aktualisieren.
 
 ---
@@ -343,6 +368,24 @@ python -m venv venv
 pip install -r requirements.txt
 python main.py
 ```
+
+### Android-App (Capacitor)
+Voraussetzungen: JDK 17, Android SDK (via Android Studio), `frontend/android/local.properties` mit `sdk.dir=...` (lokal, gitignored).
+```powershell
+cd X:\projectx\frontend
+# 1) server.url in capacitor.config.json auf die DEPLOYTE Dashboard-Domain setzen
+#    (Platzhalter: https://CHANGE-ME.example.com). Für Emulator-Dev gegen den
+#    lokalen Vite-Server: "url": "http://10.0.2.2:5173", "cleartext": true.
+npm run cap:sync     # vite build + cap sync android  (Web-Assets + Plugins → android/)
+npm run cap:open     # öffnet android/ in Android Studio (dort Run/Build APK)
+npm run cap:assets   # Icons/Splash aus frontend/resources/ neu generieren
+npm run cap:run      # build + sync + auf angeschlossenem Gerät/Emulator starten
+
+# APK per CLI (ohne Android Studio):
+cd X:\projectx\frontend\android
+.\gradlew.bat assembleDebug   # → app\build\outputs\apk\debug\app-debug.apk
+```
+Verifiziert: Debug-APK baut grün (Capacitor 6, JDK 17, AGP via Wrapper). Das generierte `frontend/android/`-Projekt ist committet (buildbar); Build-Artefakte/`local.properties`/Keystores sind gitignored.
 
 ### Docker (Production-like / Portainer)
 ```powershell
@@ -862,6 +905,20 @@ Empfehlung aus [README.md](README.md): SQLite → PostgreSQL für Multi-Instance
 
 ## 14. Letzte Aktualisierung
 
+- **Datum:** 2026-06-15
+- **Dedizierte Handy-Oberfläche (kein Schema-Change):** Eigene Mobile-UI **im selben Frontend-Projekt**, die NUR in der nativen App (Capacitor) bzw. mit `?mobile=1` aktiv wird — die Desktop-Website rendert unverändert, der Login (Discord-OAuth + Session-Cookie) bleibt heil, weil alles same-origin auf derselben Domain läuft (kein getrenntes/gebündeltes Frontend).
+  - **Schaltlogik:** [frontend/src/mobile/platform.js](frontend/src/mobile/platform.js) `isMobileUI` = `Capacitor.isNativePlatform()` ODER `?mobile=1` (persistiert in `localStorage.projectx_force_mobile`, `?mobile=0` schaltet ab). `applyMobileClass()` (aus [main.js](frontend/src/main.js)) setzt die Klasse `.mobile-ui` auf `<html>`.
+  - **App-Chrome:** [App.vue](frontend/src/App.vue) branched: `<MobileShell>` statt Desktop-Shell (AppNavBar/Footer/Sidebar). [MobileShell.vue](frontend/src/mobile/MobileShell.vue) = sticky **MobileTopBar** (Zurück-Pfeil auf Modul-Seiten → Overview-Hub / Brand, Route→i18n-Titel, Avatar→AccountSheet) + `<router-view>` + fixe **MobileTabBar** (kontextabhängig: ohne Guild Home/Server/Konto, in Guild Server/Module/Premium/Konto) + **MobileAccountSheet** (Bottom-Sheet: User, LanguageSwitcher, Server-Link, Admin für Owner, Logout). AppToast bleibt global über beiden Shells.
+  - **Navigation:** Die bestehende [Overview.vue](frontend/src/pages/Overview.vue) dient als Modul-Hub (einspaltig via mobile.css), Modul-Seiten werden 1:1 wiederverwendet. [DashboardLayout.vue](frontend/src/pages/DashboardLayout.vue) blendet Sidebar + Hamburger aus, wenn `isMobileUI`.
+  - **CSS:** [frontend/src/mobile/mobile.css](frontend/src/mobile/mobile.css) (global, nur unter `.mobile-ui`): mappt `--nav-height` auf die Top-Bar-Höhe (sticky Previews sitzen korrekt), Overview einspaltig + kompakter, Sticky-Save-Bar (`.config__footer`) über die Bottom-Nav heben, Form-Felder 16px (kein iOS-Auto-Zoom), Tabellen horizontal scrollbar, Safe-Area-Insets (Notch/Gesten-Leiste).
+  - **i18n:** neuer Namespace `mobile` (nav/back/login/language/tabServers/tabModules/tabAccount) in EN+DE; Modul-Titel + Premium-Tab nutzen die vorhandenen `sidebar.link*`-Keys.
+  - **Wichtig:** Da die App im Remote-URL-Modus die deployte Domain lädt, erscheint die Mobile-UI in der **installierten App erst nach erneutem Deploy des Web-Frontends**. Sofort testbar: deployte/lokale Seite mit `?mobile=1` im Handy-Browser öffnen. Frontend-Build grün (Mobile-Shell im Haupt-Bundle).
+- **Android-App via Capacitor (kein Schema-Change):** Das bestehende Vue-Frontend wird in eine native Android-App gewrappt — vollständige Feature-Parität (alle 21 Module, Admin, Premium), da dieselbe SPA läuft.
+  - **Ansatz „Remote-URL":** [frontend/capacitor.config.json](frontend/capacitor.config.json) `server.url` zeigt auf die deployte Dashboard-Domain; die native WebView lädt das Live-Dashboard. Damit bleiben **HTTP-only-Session-Cookie + Discord-OAuth-Redirect** unverändert funktionsfähig (same-origin in der WebView) — **kein** Token-/Auth-Umbau, respektiert das „kein localStorage-Token"-Verbot. `allowNavigation: discord.com` hält den OAuth-Login in der WebView (Cookie wird gesetzt).
+  - **Native Integration:** [frontend/src/native/capacitor.js](frontend/src/native/capacitor.js) (aus [main.js](frontend/src/main.js) aufgerufen, **No-Op auf Web** via `Capacitor.isNativePlatform()`): dunkle Statusbar (`#0b0d12`), Splash-Hide, Hardware-Back → History/`exitApp`, externe Links (GitHub/Bot-Invite/Discord-Store) im System-Browser via `@capacitor/browser` (der OAuth-Login via `window.location` bleibt bewusst in der WebView).
+  - **Setup:** Capacitor 6 (`core`/`cli`/`android` + Plugins `app`/`browser`/`status-bar`/`splash-screen`, dev `@capacitor/assets`) in [frontend/package.json](frontend/package.json); Scripts `cap:sync`/`cap:open`/`cap:run`/`cap:assets`. Generiertes [frontend/android/](frontend/android/)-Projekt committet (buildbar), `network_security_config.xml` erlaubt Cleartext nur für Dev-Hosts (10.0.2.2/localhost). Icons/Splash aus [frontend/resources/](frontend/resources/) (Logo) generiert. `.gitignore` um Android-Build-Artefakte/`local.properties`/Keystores erweitert.
+  - **Verifiziert:** `npm run build` grün, `cap add android` + `cap sync` grün, **Debug-APK gebaut** (`gradlew assembleDebug` → `android/app/build/outputs/apk/debug/app-debug.apk`, ~12 MB, JDK 17).
+  - **Noch zu tun vorm Release:** (1) `server.url` auf die echte Domain setzen (Platzhalter `https://CHANGE-ME.example.com`). (2) Web-Frontend **neu deployen** (damit das deployte `main.js` die native Integration enthält). (3) Für Play Store: Release-Keystore + `assembleRelease` (signiert) + App-Icons final.
 - **Datum:** 2026-06-13
 - **Premium-Tiers + Landing-Ausbau (Schema v21):** Neues Monetarisierungs-/Gating-System (Free/Basic/Pro) plus komplett erweiterte Landing-Page.
   - **Tier-Modell:** `MODULE_TIERS` in [db.js](backend/db.js) ist Single Source (Modul-Key = Dashboard-Route-Segment → min Tier). **Free:** welcome/leave/autorole/logs/moderation/reaction-roles/verification/suggestions/custom-commands. **Basic:** leveling/starboard/tempvoice/birthday/rolemenus/antiraid. **Pro:** social/stats/tickets/giveaways/scheduled. `guilds.premium_tier`/`premium_source`/`premium_until` (Migration v21, idempotent + Mirror). `effectiveTier()` behandelt abgelaufenes `premium_until` als `free`.
