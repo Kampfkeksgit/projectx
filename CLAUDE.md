@@ -212,9 +212,12 @@ projectx/
 │       │   ├── index.js        # useI18n(): { t, locale, setLocale }, ref-based,
 │       │   │                   # persistiert in localStorage (key: projectx_locale).
 │       │   │                   # Setzt document.documentElement.lang. KEINE Dep.
-│       │   └── locales/
+│       │   └── locales/        # 5 Sprachen, je 1088 Keys (Key-Parität Pflicht)
 │       │       ├── en.js       # English (Quell-/Fallback-Sprache)
-│       │       └── de.js       # Deutsch
+│       │       ├── de.js       # Deutsch
+│       │       ├── tr.js       # Türkçe (Türkisch)
+│       │       ├── ru.js       # Русский (Russisch)
+│       │       └── pl.js       # Polski (Polnisch)
 │       ├── composables/
 │       │   ├── useToast.js     # Toast-System-Composable
 │       │   └── useGuildResources.js # Per-Guild-Cache (channels + roles) mit 5min stale-while-revalidate
@@ -829,7 +832,7 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - Toasts über `useToast()`-Composable, nicht über lokale `message`-Refs.
 - Welcome/Leave: vor jedem PUT die **vollständige** erweiterte Settings-Shape mergen (via `stores/guildSettings.js`), damit die jeweils andere Kategorie nicht überschrieben wird. Die nested Embed-Objekte (`welcome_embed`, `leave_embed`) werden **deep-merged** gegen `defaultEmbed()` — sonst würde ein Welcome-Edit das Leave-Embed wegblasen.
 - Placeholder-Helper-Liste lebt in [components/embedPlaceholders.js](frontend/src/components/embedPlaceholders.js) (export `PLACEHOLDERS` + `insertAtCaret(el, current, token)`). Nutze diese auch in neuen Forms mit Text-Templates; nie eigene Placeholder-Listen anlegen.
-- **i18n**: alle user-sichtbaren Strings laufen über `t('key')` aus [`useI18n()`](frontend/src/i18n/index.js). Quell-Sprache ist EN, DE ist gleichwertig gepflegt. **Beim Hinzufügen neuer UI-Strings**: Key in beiden Locales (en.js + de.js) ergänzen — fehlt ein DE-Key, fällt der `t()`-Lookup automatisch auf EN zurück, aber das ist Bug-Verhalten, nicht der Soll-Zustand. Reactive: `locale.value` wird in `t()` gelesen, jede Template-Stelle aktualisiert sich automatisch bei Sprachwechsel. HTML-Strings (z. B. `messageHintHtml`) mit `v-html` rendern.
+- **i18n**: alle user-sichtbaren Strings laufen über `t('key')` aus [`useI18n()`](frontend/src/i18n/index.js). Quell-Sprache ist EN; **5 Sprachen gleichwertig gepflegt: EN, DE, TR (Türkçe), RU (Русский), PL (Polski)** — je 1088 Keys, **Key-Parität ist Pflicht** (alle Locales müssen exakt dieselben Key-Pfade haben). **Beim Hinzufügen neuer UI-Strings**: Key in **allen fünf** Locales (en/de/tr/ru/pl.js) ergänzen — fehlt ein Key, fällt der `t()`-Lookup automatisch auf EN zurück, aber das ist Bug-Verhalten, nicht der Soll-Zustand. Platzhalter-Tokens (`{count}` etc.) müssen in jeder Übersetzung erhalten bleiben. `SUPPORTED_LOCALES` in [index.js](frontend/src/i18n/index.js) ist die Liste fürs Dropdown. Reactive: `locale.value` wird in `t()` gelesen, jede Template-Stelle aktualisiert sich automatisch bei Sprachwechsel. HTML-Strings (z. B. `messageHintHtml`) mit `v-html` rendern.
 
 ### Git/Workflow
 - Sekret-Dateien (`.env`, `.env.production.*`, `bot.db`) **nie** stagen.
@@ -905,6 +908,8 @@ Empfehlung aus [README.md](README.md): SQLite → PostgreSQL für Multi-Instance
 
 ## 14. Letzte Aktualisierung
 
+- **Datum:** 2026-06-16
+- **3 neue Sprachen — Türkisch, Russisch, Polnisch (kein Schema-Change):** Die i18n deckt jetzt **5 Sprachen** ab (EN, DE, TR, RU, PL). Neue Locale-Dateien [tr.js](frontend/src/i18n/locales/tr.js)/[ru.js](frontend/src/i18n/locales/ru.js)/[pl.js](frontend/src/i18n/locales/pl.js) — vollständige Übersetzung aller Module + Legal-Seiten, je 1088 Keys (Key-Parität gegen en.js verifiziert: 0 missing/extra, Platzhalter-Token-Parität ok). Registriert in [index.js](frontend/src/i18n/index.js) (`messages` + `SUPPORTED_LOCALES` mit Labels Türkçe/Русский/Polski). LanguageSwitcher zieht die Liste dynamisch → Dropdown zeigt automatisch alle 5. Legal-Texte übersetzt, aber Paragraphen-Referenzen (§ TMG/MStV, DSGVO/GDPR-Artikel) + Kontaktdaten unverändert. **Hinweis:** Locales werden eager gebündelt → Haupt-Bundle ~309 kB → ~481 kB (gzip ~168 kB); bei Bedarf später lazy-loadbar. Build grün.
 - **Datum:** 2026-06-15
 - **Dedizierte Handy-Oberfläche (kein Schema-Change):** Eigene Mobile-UI **im selben Frontend-Projekt**, die NUR in der nativen App (Capacitor) bzw. mit `?mobile=1` aktiv wird — die Desktop-Website rendert unverändert, der Login (Discord-OAuth + Session-Cookie) bleibt heil, weil alles same-origin auf derselben Domain läuft (kein getrenntes/gebündeltes Frontend).
   - **Schaltlogik:** [frontend/src/mobile/platform.js](frontend/src/mobile/platform.js) `isMobileUI` = `Capacitor.isNativePlatform()` ODER `?mobile=1` (persistiert in `localStorage.projectx_force_mobile`, `?mobile=0` schaltet ab). `applyMobileClass()` (aus [main.js](frontend/src/main.js)) setzt die Klasse `.mobile-ui` auf `<html>`.

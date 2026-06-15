@@ -1,12 +1,18 @@
 import { ref } from 'vue'
 import en from './locales/en.js'
 import de from './locales/de.js'
+import tr from './locales/tr.js'
+import ru from './locales/ru.js'
+import pl from './locales/pl.js'
 
-const messages = { en, de }
+const messages = { en, de, tr, ru, pl }
 
 export const SUPPORTED_LOCALES = [
   { code: 'en', label: 'English', flag: 'EN' },
-  { code: 'de', label: 'Deutsch', flag: 'DE' }
+  { code: 'de', label: 'Deutsch', flag: 'DE' },
+  { code: 'tr', label: 'Türkçe', flag: 'TR' },
+  { code: 'ru', label: 'Русский', flag: 'RU' },
+  { code: 'pl', label: 'Polski', flag: 'PL' }
 ]
 
 const STORAGE_KEY = 'projectx_locale'
