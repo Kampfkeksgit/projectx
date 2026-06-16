@@ -80,11 +80,12 @@ function initializeDatabase() {
       if (err && !/duplicate column name/i.test(err.message)) console.error('Warning: guilds.premium_until:', err.message);
     });
 
-    // Defensive ALTERs for the V17 owner-block flags (guilds).
+    // Defensive ALTERs for the V17 owner-block flags (guilds) + V22 temp-ban expiry.
     const guildBlockAlters = [
       'ALTER TABLE guilds ADD COLUMN blocked BOOLEAN DEFAULT 0',
       'ALTER TABLE guilds ADD COLUMN blocked_reason TEXT',
-      'ALTER TABLE guilds ADD COLUMN blocked_at INTEGER'
+      'ALTER TABLE guilds ADD COLUMN blocked_at INTEGER',
+      'ALTER TABLE guilds ADD COLUMN blocked_until INTEGER'
     ];
     for (const stmt of guildBlockAlters) {
       db.run(stmt, (err) => {
@@ -193,11 +194,12 @@ function initializeDatabase() {
       }
     });
 
-    // Defensive ALTERs for the V17 owner-block flags (users).
+    // Defensive ALTERs for the V17 owner-block flags (users) + V22 temp-ban expiry.
     const userBlockAlters = [
       'ALTER TABLE users ADD COLUMN blocked BOOLEAN DEFAULT 0',
       'ALTER TABLE users ADD COLUMN blocked_reason TEXT',
-      'ALTER TABLE users ADD COLUMN blocked_at INTEGER'
+      'ALTER TABLE users ADD COLUMN blocked_at INTEGER',
+      'ALTER TABLE users ADD COLUMN blocked_until INTEGER'
     ];
     for (const stmt of userBlockAlters) {
       db.run(stmt, (err) => {
@@ -1001,6 +1003,18 @@ function initializeDatabase() {
       else console.log('✓ Audit log table initialized');
     });
 
+    // V22 system settings (key/value) — backs the global maintenance mode.
+    db.run(`
+      CREATE TABLE IF NOT EXISTS system_settings (
+        key        TEXT PRIMARY KEY,
+        value      TEXT,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `, (err) => {
+      if (err) console.error('Error creating system_settings table:', err);
+      else console.log('✓ System settings table initialized');
+    });
+
     console.log('Database schema initialization complete');
     // Final serialized statement: its callback runs after every CREATE above,
     // so this is the safe point to signal "all tables exist".
@@ -1664,9 +1678,9 @@ export function getGuildAuditLog(guildId, limit = 100) {
  */
 export function isUserBlocked(discordId) {
   return new Promise((resolve, reject) => {
-    db.get('SELECT blocked FROM users WHERE discord_id = ?', [discordId], (err, row) => {
+    db.get('SELECT blocked, blocked_until FROM users WHERE discord_id = ?', [discordId], (err, row) => {
       if (err) reject(err);
-      else resolve(!!(row && row.blocked));
+      else resolve(isEffectivelyBlocked(row));
     });
   });
 }
@@ -1677,11 +1691,22 @@ export function isUserBlocked(discordId) {
  */
 export function isGuildBlocked(guildId) {
   return new Promise((resolve, reject) => {
-    db.get('SELECT blocked FROM guilds WHERE id = ?', [guildId], (err, row) => {
+    db.get('SELECT blocked, blocked_until FROM guilds WHERE id = ?', [guildId], (err, row) => {
       if (err) reject(err);
-      else resolve(!!(row && row.blocked));
+      else resolve(isEffectivelyBlocked(row));
     });
   });
+}
+
+/**
+ * A row is effectively blocked when `blocked = 1` AND either it's a permanent
+ * block (`blocked_until` is null) or the expiry is still in the future. An
+ * elapsed temp-ban auto-expires here — no background sweeper needed.
+ */
+function isEffectivelyBlocked(row) {
+  if (!row || !row.blocked) return false;
+  if (!row.blocked_until) return true;
+  return row.blocked_until > Math.floor(Date.now() / 1000);
 }
 
 /**
@@ -1698,7 +1723,7 @@ export function getAdminUsers({ search = '', limit = 50, offset = 0 } = {}) {
     db.get(`SELECT COUNT(*) AS total FROM users ${where}`, whereParams, (cErr, cRow) => {
       if (cErr) return reject(cErr);
       db.all(
-        `SELECT discord_id, username, email, avatar_url, blocked, blocked_reason, blocked_at, created_at
+        `SELECT discord_id, username, email, avatar_url, blocked, blocked_reason, blocked_at, blocked_until, created_at
          FROM users ${where}
          ORDER BY blocked DESC, username COLLATE NOCASE ASC
          LIMIT ? OFFSET ?`,
@@ -1710,9 +1735,10 @@ export function getAdminUsers({ search = '', limit = 50, offset = 0 } = {}) {
             username: r.username,
             email: r.email,
             avatar_url: r.avatar_url,
-            blocked: !!r.blocked,
+            blocked: isEffectivelyBlocked(r),
             blocked_reason: r.blocked_reason || null,
             blocked_at: r.blocked_at || null,
+            blocked_until: r.blocked_until || null,
             created_at: r.created_at
           }));
           resolve({ users, total: cRow?.total || 0 });
@@ -1726,20 +1752,32 @@ export function getAdminUsers({ search = '', limit = 50, offset = 0 } = {}) {
  * Owner admin: set/clear the blocked flag on a user.
  * Returns the number of affected rows (0 if the user does not exist).
  */
-export function setUserBlocked(discordId, blocked, reason = null) {
+export function setUserBlocked(discordId, blocked, reason = null, until = null) {
   return new Promise((resolve, reject) => {
     const isBlocked = blocked ? 1 : 0;
     const at = isBlocked ? Math.floor(Date.now() / 1000) : null;
     const cleanReason = isBlocked ? (reason ? String(reason).slice(0, 500) : null) : null;
+    const cleanUntil = isBlocked ? sanitizeBlockUntil(until) : null;
     db.run(
-      'UPDATE users SET blocked = ?, blocked_reason = ?, blocked_at = ?, updated_at = CURRENT_TIMESTAMP WHERE discord_id = ?',
-      [isBlocked, cleanReason, at, discordId],
+      'UPDATE users SET blocked = ?, blocked_reason = ?, blocked_at = ?, blocked_until = ?, updated_at = CURRENT_TIMESTAMP WHERE discord_id = ?',
+      [isBlocked, cleanReason, at, cleanUntil, discordId],
       function (err) {
         if (err) reject(err);
         else resolve(this.changes);
       }
     );
   });
+}
+
+/**
+ * Coerce a temp-ban expiry into a future unix-seconds timestamp, or null for a
+ * permanent block. Past/invalid values collapse to null (= permanent).
+ */
+function sanitizeBlockUntil(until) {
+  const n = parseInt(until, 10);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const now = Math.floor(Date.now() / 1000);
+  return n > now ? n : null;
 }
 
 /**
@@ -1756,7 +1794,7 @@ export function getAdminGuilds({ search = '', limit = 100, offset = 0 } = {}) {
     db.get(`SELECT COUNT(*) AS total FROM guilds ${where}`, whereParams, (cErr, cRow) => {
       if (cErr) return reject(cErr);
       db.all(
-        `SELECT id, guild_name, guild_icon_url, bot_present, blocked, blocked_reason, blocked_at, premium_tier, premium_source, premium_until, created_at
+        `SELECT id, guild_name, guild_icon_url, bot_present, blocked, blocked_reason, blocked_at, blocked_until, premium_tier, premium_source, premium_until, created_at
          FROM guilds ${where}
          ORDER BY blocked DESC, guild_name COLLATE NOCASE ASC
          LIMIT ? OFFSET ?`,
@@ -1768,9 +1806,10 @@ export function getAdminGuilds({ search = '', limit = 100, offset = 0 } = {}) {
             guild_name: r.guild_name,
             guild_icon_url: r.guild_icon_url,
             bot_present: !!r.bot_present,
-            blocked: !!r.blocked,
+            blocked: isEffectivelyBlocked(r),
             blocked_reason: r.blocked_reason || null,
             blocked_at: r.blocked_at || null,
+            blocked_until: r.blocked_until || null,
             premium_tier: PREMIUM_TIERS.includes(r.premium_tier) ? r.premium_tier : 'free',
             premium_source: r.premium_source || null,
             premium_until: r.premium_until || null,
@@ -1788,20 +1827,310 @@ export function getAdminGuilds({ search = '', limit = 100, offset = 0 } = {}) {
  * Owner admin: set/clear the blocked flag on a guild.
  * Returns the number of affected rows (0 if the guild does not exist).
  */
-export function setGuildBlocked(guildId, blocked, reason = null) {
+export function setGuildBlocked(guildId, blocked, reason = null, until = null) {
   return new Promise((resolve, reject) => {
     const isBlocked = blocked ? 1 : 0;
     const at = isBlocked ? Math.floor(Date.now() / 1000) : null;
     const cleanReason = isBlocked ? (reason ? String(reason).slice(0, 500) : null) : null;
+    const cleanUntil = isBlocked ? sanitizeBlockUntil(until) : null;
     db.run(
-      'UPDATE guilds SET blocked = ?, blocked_reason = ?, blocked_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-      [isBlocked, cleanReason, at, guildId],
+      'UPDATE guilds SET blocked = ?, blocked_reason = ?, blocked_at = ?, blocked_until = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [isBlocked, cleanReason, at, cleanUntil, guildId],
       function (err) {
         if (err) reject(err);
         else resolve(this.changes);
       }
     );
   });
+}
+
+// ===== Admin v2: overview, audit viewer, guild inspector, system settings =====
+
+/**
+ * Per-module metadata for the overview adoption counts and the guild inspector.
+ * `flag` modules have an `enabled` column on their settings table; `count`
+ * modules are "active" when at least one configured row exists (optionally
+ * narrowed by `where`). Keys mirror the dashboard route segments / MODULE_TIERS.
+ */
+const FLAG_MODULE_TABLES = [
+  { key: 'autorole', table: 'guild_autorole_settings' },
+  { key: 'logs', table: 'guild_log_settings' },
+  { key: 'moderation', table: 'guild_moderation_settings' },
+  { key: 'leveling', table: 'guild_leveling_settings' },
+  { key: 'stats', table: 'guild_stats_settings' },
+  { key: 'tempvoice', table: 'guild_tempvoice_settings' },
+  { key: 'starboard', table: 'guild_starboard_settings' },
+  { key: 'suggestions', table: 'guild_suggestion_settings' },
+  { key: 'birthday', table: 'guild_birthday_settings' },
+  { key: 'antiraid', table: 'guild_antiraid_settings' },
+  { key: 'verification', table: 'guild_verification_settings' },
+  { key: 'tickets', table: 'guild_ticket_settings' }
+];
+
+const COUNT_MODULE_TABLES = [
+  { key: 'reaction-roles', table: 'guild_reaction_role_messages' },
+  { key: 'custom-commands', table: 'guild_custom_commands' },
+  { key: 'social', table: 'guild_social_subscriptions', where: 'enabled = 1' },
+  { key: 'scheduled', table: 'guild_scheduled_messages', where: 'enabled = 1' },
+  { key: 'rolemenus', table: 'guild_role_menus' },
+  { key: 'giveaways', table: 'guild_giveaways', where: 'ended = 0' }
+];
+
+function dbGet(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.get(sql, params, (err, row) => (err ? reject(err) : resolve(row)));
+  });
+}
+
+function dbAll(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.all(sql, params, (err, rows) => (err ? reject(err) : resolve(rows || [])));
+  });
+}
+
+/**
+ * Owner admin: aggregated system metrics for the overview dashboard.
+ * Premium counts are expiry-aware (an elapsed `premium_until` counts as free).
+ */
+export async function getAdminOverview() {
+  const now = Math.floor(Date.now() / 1000);
+  const activePremium = `premium_tier IS NOT NULL AND premium_tier != 'free' AND (premium_until IS NULL OR premium_until > ${now})`;
+
+  const [userTotals, guildTotals, premium, expiring] = await Promise.all([
+    dbGet('SELECT COUNT(*) AS total, SUM(CASE WHEN blocked = 1 THEN 1 ELSE 0 END) AS blocked FROM users'),
+    dbGet('SELECT COUNT(*) AS total, SUM(CASE WHEN bot_present = 1 THEN 1 ELSE 0 END) AS present, SUM(CASE WHEN blocked = 1 THEN 1 ELSE 0 END) AS blocked FROM guilds'),
+    dbGet(`SELECT
+        SUM(CASE WHEN premium_tier = 'basic' AND (premium_until IS NULL OR premium_until > ${now}) THEN 1 ELSE 0 END) AS basic,
+        SUM(CASE WHEN premium_tier = 'pro' AND (premium_until IS NULL OR premium_until > ${now}) THEN 1 ELSE 0 END) AS pro
+      FROM guilds`),
+    dbAll(`SELECT id, guild_name, guild_icon_url, premium_tier, premium_until
+      FROM guilds
+      WHERE ${activePremium} AND premium_until IS NOT NULL AND premium_until <= ${now + 7 * 86400}
+      ORDER BY premium_until ASC LIMIT 20`)
+  ]);
+
+  // Module adoption — count of guilds with each module active.
+  const adoption = {};
+  await Promise.all([
+    ...FLAG_MODULE_TABLES.map(async (m) => {
+      const row = await dbGet(`SELECT COUNT(*) AS n FROM ${m.table} WHERE enabled = 1`);
+      adoption[m.key] = row?.n || 0;
+    }),
+    ...COUNT_MODULE_TABLES.map(async (m) => {
+      const w = m.where ? ` WHERE ${m.where}` : '';
+      const row = await dbGet(`SELECT COUNT(DISTINCT guild_id) AS n FROM ${m.table}${w}`);
+      adoption[m.key] = row?.n || 0;
+    }),
+    (async () => {
+      const w = await dbGet('SELECT COUNT(*) AS n FROM guild_settings WHERE welcome_enabled = 1');
+      adoption['welcome'] = w?.n || 0;
+      const l = await dbGet('SELECT COUNT(*) AS n FROM guild_settings WHERE leave_enabled = 1');
+      adoption['leave'] = l?.n || 0;
+    })()
+  ]);
+
+  const recentAudit = await dbGet(`SELECT COUNT(*) AS n FROM audit_log WHERE created_at >= datetime('now', '-1 day')`);
+
+  const totalUsers = userTotals?.total || 0;
+  const totalGuilds = guildTotals?.total || 0;
+  const basic = premium?.basic || 0;
+  const pro = premium?.pro || 0;
+
+  return {
+    users: { total: totalUsers, blocked: userTotals?.blocked || 0 },
+    guilds: {
+      total: totalGuilds,
+      bot_present: guildTotals?.present || 0,
+      bot_absent: totalGuilds - (guildTotals?.present || 0),
+      blocked: guildTotals?.blocked || 0
+    },
+    premium: { free: Math.max(totalGuilds - basic - pro, 0), basic, pro },
+    premium_expiring: expiring.map((r) => ({
+      id: r.id,
+      guild_name: r.guild_name,
+      guild_icon_url: r.guild_icon_url,
+      premium_tier: r.premium_tier,
+      premium_until: r.premium_until
+    })),
+    module_adoption: adoption,
+    audit_last_24h: recentAudit?.n || 0
+  };
+}
+
+/**
+ * Owner admin: paginated, filterable global audit-log feed (newest first).
+ * Joins the actor's username + guild name for display. `action` is an exact
+ * match; `target` matches actor id, guild id, or guild name.
+ */
+export function getAuditLogEntries({ action = '', target = '', limit = 50, offset = 0 } = {}) {
+  return new Promise((resolve, reject) => {
+    const lim = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+    const off = Math.max(parseInt(offset, 10) || 0, 0);
+    const clauses = [];
+    const params = [];
+    if (action) { clauses.push('a.action = ?'); params.push(String(action)); }
+    if (target) {
+      const term = `%${String(target).trim()}%`;
+      clauses.push('(a.user_id LIKE ? OR a.guild_id LIKE ? OR g.guild_name LIKE ?)');
+      params.push(term, term, term);
+    }
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+    const base = `FROM audit_log a
+      LEFT JOIN users u ON u.discord_id = a.user_id
+      LEFT JOIN guilds g ON g.id = a.guild_id
+      ${where}`;
+    db.get(`SELECT COUNT(*) AS total ${base}`, params, (cErr, cRow) => {
+      if (cErr) return reject(cErr);
+      db.all(
+        `SELECT a.id, a.user_id, a.guild_id, a.action, a.changes, a.created_at,
+                u.username AS actor_username, g.guild_name
+         ${base}
+         ORDER BY a.id DESC
+         LIMIT ? OFFSET ?`,
+        [...params, lim, off],
+        (err, rows) => {
+          if (err) return reject(err);
+          const entries = (rows || []).map((r) => {
+            let changes = null;
+            try { changes = r.changes ? JSON.parse(r.changes) : null; } catch { changes = r.changes; }
+            return {
+              id: r.id,
+              action: r.action,
+              user_id: r.user_id || null,
+              actor_username: r.actor_username || null,
+              guild_id: r.guild_id || null,
+              guild_name: r.guild_name || null,
+              changes,
+              created_at: r.created_at
+            };
+          });
+          resolve({ entries, total: cRow?.total || 0 });
+        }
+      );
+    });
+  });
+}
+
+/**
+ * Distinct list of audit-log action names (for the viewer's filter dropdown).
+ */
+export function getAuditActions() {
+  return new Promise((resolve, reject) => {
+    db.all('SELECT DISTINCT action FROM audit_log ORDER BY action ASC', [], (err, rows) => {
+      if (err) reject(err);
+      else resolve((rows || []).map((r) => r.action));
+    });
+  });
+}
+
+/**
+ * Owner admin: read-only snapshot of which modules a guild has active, plus its
+ * premium + presence + block state. Powers the support-focused guild inspector.
+ */
+export async function getGuildInspect(guildId) {
+  const guild = await dbGet(
+    `SELECT id, guild_name, guild_icon_url, bot_present, blocked, blocked_reason, blocked_at, blocked_until,
+            premium_tier, premium_source, premium_until, created_at
+     FROM guilds WHERE id = ?`, [guildId]);
+  if (!guild) return null;
+
+  const modules = [];
+  await Promise.all([
+    ...FLAG_MODULE_TABLES.map(async (m) => {
+      const row = await dbGet(`SELECT enabled FROM ${m.table} WHERE guild_id = ?`, [guildId]);
+      modules.push({ key: m.key, kind: 'flag', enabled: !!(row && row.enabled), configured: !!row });
+    }),
+    ...COUNT_MODULE_TABLES.map(async (m) => {
+      const w = m.where ? ` AND ${m.where}` : '';
+      const row = await dbGet(`SELECT COUNT(*) AS n FROM ${m.table} WHERE guild_id = ?${w}`, [guildId]);
+      const n = row?.n || 0;
+      modules.push({ key: m.key, kind: 'count', enabled: n > 0, count: n, configured: n > 0 });
+    }),
+    (async () => {
+      const row = await dbGet('SELECT welcome_enabled, leave_enabled FROM guild_settings WHERE guild_id = ?', [guildId]);
+      modules.push({ key: 'welcome', kind: 'flag', enabled: !!(row && row.welcome_enabled), configured: !!row });
+      modules.push({ key: 'leave', kind: 'flag', enabled: !!(row && row.leave_enabled), configured: !!row });
+    })()
+  ]);
+
+  modules.sort((a, b) => a.key.localeCompare(b.key));
+
+  const memberCount = await dbGet('SELECT COUNT(*) AS n FROM user_guilds WHERE guild_id = ?', [guildId]);
+
+  return {
+    id: guild.id,
+    guild_name: guild.guild_name,
+    guild_icon_url: guild.guild_icon_url,
+    bot_present: !!guild.bot_present,
+    blocked: isEffectivelyBlocked(guild),
+    blocked_reason: guild.blocked_reason || null,
+    blocked_until: guild.blocked_until || null,
+    premium_tier: PREMIUM_TIERS.includes(guild.premium_tier) ? guild.premium_tier : 'free',
+    premium_source: guild.premium_source || null,
+    premium_until: guild.premium_until || null,
+    premium_effective: effectiveTier(guild),
+    dashboard_members: memberCount?.n || 0,
+    created_at: guild.created_at,
+    modules
+  };
+}
+
+// ----- System settings (maintenance mode) -----
+
+export function getSystemSetting(key) {
+  return new Promise((resolve, reject) => {
+    db.get('SELECT value FROM system_settings WHERE key = ?', [key], (err, row) => {
+      if (err) reject(err);
+      else resolve(row ? row.value : null);
+    });
+  });
+}
+
+export function setSystemSetting(key, value) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`,
+      [key, value == null ? null : String(value)],
+      function (err) { if (err) reject(err); else resolve(this.changes); }
+    );
+  });
+}
+
+/**
+ * Global maintenance state. When `enabled`, non-owner dashboard writes are
+ * rejected with 503 and a banner is shown across the app.
+ */
+export async function getMaintenanceState() {
+  const raw = await getSystemSetting('maintenance');
+  if (!raw) return { enabled: false, message: '' };
+  try {
+    const parsed = JSON.parse(raw);
+    return { enabled: !!parsed.enabled, message: typeof parsed.message === 'string' ? parsed.message : '' };
+  } catch {
+    return { enabled: false, message: '' };
+  }
+}
+
+export function setMaintenanceState({ enabled, message = '' }) {
+  const payload = JSON.stringify({ enabled: !!enabled, message: String(message || '').slice(0, 500) });
+  return setSystemSetting('maintenance', payload);
+}
+
+// ----- CSV export (owner-only) -----
+
+export function getUsersForExport() {
+  return dbAll(
+    `SELECT discord_id, username, email, blocked, blocked_until, created_at
+     FROM users ORDER BY created_at ASC`
+  );
+}
+
+export function getGuildsForExport() {
+  return dbAll(
+    `SELECT id, guild_name, bot_present, blocked, blocked_until, premium_tier, premium_source, premium_until, created_at
+     FROM guilds ORDER BY created_at ASC`
+  );
 }
 
 /**

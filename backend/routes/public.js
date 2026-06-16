@@ -1,6 +1,6 @@
 import express from 'express'
 import { getPublicStats } from '../state/botStats.js'
-import { PLAN_CATALOG } from '../db.js'
+import { PLAN_CATALOG, getMaintenanceState } from '../db.js'
 
 const router = express.Router()
 
@@ -29,6 +29,23 @@ router.get('/stats', (req, res) => {
 router.get('/plans', (req, res) => {
   res.set('Cache-Control', 'public, max-age=300')
   res.json(PLAN_CATALOG)
+})
+
+/**
+ * Public maintenance state — no auth. The frontend polls this to show a global
+ * banner. Mirrors the owner-only GET /api/admin/maintenance.
+ *
+ *   GET /api/public/maintenance
+ *   Returns: { enabled, message }
+ */
+router.get('/maintenance', async (req, res) => {
+  res.set('Cache-Control', 'public, max-age=15')
+  try {
+    const state = await getMaintenanceState()
+    res.json(state)
+  } catch (error) {
+    res.json({ enabled: false, message: '' })
+  }
 })
 
 export default router

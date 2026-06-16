@@ -8,7 +8,15 @@ import {
   PREMIUM_TIERS,
   getUser,
   getGuild,
-  logAuditAction
+  logAuditAction,
+  getAdminOverview,
+  getAuditLogEntries,
+  getAuditActions,
+  getGuildInspect,
+  getMaintenanceState,
+  setMaintenanceState,
+  getUsersForExport,
+  getGuildsForExport
 } from '../db.js'
 import { requireSession, requireOwner, isOwner } from '../middleware/session.js'
 
@@ -41,6 +49,7 @@ router.post('/users/:user_id/block', async (req, res) => {
     const userId = req.params.user_id
     const blocked = !!req.body?.blocked
     const reason = req.body?.reason
+    const until = blocked ? (req.body?.until ?? null) : null
 
     if (blocked && isOwner(userId)) {
       return res.status(400).json({ error: 'The system owner cannot be blocked' })
@@ -51,10 +60,11 @@ router.post('/users/:user_id/block', async (req, res) => {
       return res.status(404).json({ error: 'User not found' })
     }
 
-    await setUserBlocked(userId, blocked, reason)
+    await setUserBlocked(userId, blocked, reason, until)
     await logAuditAction(req.user.id, null, blocked ? 'ADMIN_BLOCK_USER' : 'ADMIN_UNBLOCK_USER', {
       target_user_id: userId,
-      reason: blocked ? (reason || null) : null
+      reason: blocked ? (reason || null) : null,
+      until: blocked ? (until || null) : null
     })
 
     res.json({ success: true, user_id: userId, blocked })
@@ -89,15 +99,17 @@ router.post('/guilds/:guild_id/block', async (req, res) => {
     const guildId = req.params.guild_id
     const blocked = !!req.body?.blocked
     const reason = req.body?.reason
+    const until = blocked ? (req.body?.until ?? null) : null
 
     const existing = await getGuild(guildId)
     if (!existing) {
       return res.status(404).json({ error: 'Guild not found' })
     }
 
-    await setGuildBlocked(guildId, blocked, reason)
+    await setGuildBlocked(guildId, blocked, reason, until)
     await logAuditAction(req.user.id, guildId, blocked ? 'ADMIN_BLOCK_GUILD' : 'ADMIN_UNBLOCK_GUILD', {
-      reason: blocked ? (reason || null) : null
+      reason: blocked ? (reason || null) : null,
+      until: blocked ? (until || null) : null
     })
 
     res.json({ success: true, guild_id: guildId, blocked })
@@ -136,5 +148,137 @@ router.post('/guilds/:guild_id/premium', async (req, res) => {
     res.status(500).json({ error: 'Failed to update premium' })
   }
 })
+
+/**
+ * GET /api/admin/overview
+ * Aggregated system metrics for the admin overview dashboard.
+ */
+router.get('/overview', async (req, res) => {
+  try {
+    const overview = await getAdminOverview()
+    res.json({ success: true, overview })
+  } catch (error) {
+    console.error('Admin overview error:', error.message)
+    res.status(500).json({ error: 'Failed to load overview' })
+  }
+})
+
+/**
+ * GET /api/admin/audit?action=&target=&limit=&offset=
+ * Paginated, filterable global audit-log feed (newest first).
+ */
+router.get('/audit', async (req, res) => {
+  try {
+    const { action = '', target = '', limit = 50, offset = 0 } = req.query
+    const result = await getAuditLogEntries({ action, target, limit, offset })
+    res.json({ success: true, ...result })
+  } catch (error) {
+    console.error('Admin audit error:', error.message)
+    res.status(500).json({ error: 'Failed to load audit log' })
+  }
+})
+
+/**
+ * GET /api/admin/audit/actions — distinct action names for the filter dropdown.
+ */
+router.get('/audit/actions', async (req, res) => {
+  try {
+    const actions = await getAuditActions()
+    res.json({ success: true, actions })
+  } catch (error) {
+    console.error('Admin audit actions error:', error.message)
+    res.status(500).json({ error: 'Failed to load audit actions' })
+  }
+})
+
+/**
+ * GET /api/admin/guilds/:guild_id/inspect
+ * Read-only snapshot of a guild's module/premium/presence state (support tool).
+ */
+router.get('/guilds/:guild_id/inspect', async (req, res) => {
+  try {
+    const inspect = await getGuildInspect(req.params.guild_id)
+    if (!inspect) return res.status(404).json({ error: 'Guild not found' })
+    res.json({ success: true, inspect })
+  } catch (error) {
+    console.error('Admin inspect guild error:', error.message)
+    res.status(500).json({ error: 'Failed to inspect guild' })
+  }
+})
+
+/**
+ * GET /api/admin/maintenance — current global maintenance state.
+ * PUT /api/admin/maintenance  Body: { enabled, message? } — toggle it.
+ */
+router.get('/maintenance', async (req, res) => {
+  try {
+    const state = await getMaintenanceState()
+    res.json({ success: true, ...state })
+  } catch (error) {
+    console.error('Admin get maintenance error:', error.message)
+    res.status(500).json({ error: 'Failed to load maintenance state' })
+  }
+})
+
+router.put('/maintenance', async (req, res) => {
+  try {
+    const enabled = !!req.body?.enabled
+    const message = typeof req.body?.message === 'string' ? req.body.message : ''
+    await setMaintenanceState({ enabled, message })
+    await logAuditAction(req.user.id, null, 'ADMIN_MAINTENANCE', { enabled, message: message || null })
+    res.json({ success: true, enabled, message })
+  } catch (error) {
+    console.error('Admin set maintenance error:', error.message)
+    res.status(500).json({ error: 'Failed to update maintenance state' })
+  }
+})
+
+/**
+ * GET /api/admin/users/export  +  /api/admin/guilds/export — CSV download.
+ */
+router.get('/users/export', async (req, res) => {
+  try {
+    const rows = await getUsersForExport()
+    const csv = toCsv(
+      ['discord_id', 'username', 'email', 'blocked', 'blocked_until', 'created_at'],
+      rows.map((r) => [r.discord_id, r.username, r.email, r.blocked ? 1 : 0, r.blocked_until || '', r.created_at])
+    )
+    sendCsv(res, 'projectx-users.csv', csv)
+  } catch (error) {
+    console.error('Admin export users error:', error.message)
+    res.status(500).json({ error: 'Failed to export users' })
+  }
+})
+
+router.get('/guilds/export', async (req, res) => {
+  try {
+    const rows = await getGuildsForExport()
+    const csv = toCsv(
+      ['id', 'guild_name', 'bot_present', 'blocked', 'blocked_until', 'premium_tier', 'premium_source', 'premium_until', 'created_at'],
+      rows.map((r) => [r.id, r.guild_name, r.bot_present ? 1 : 0, r.blocked ? 1 : 0, r.blocked_until || '', r.premium_tier || 'free', r.premium_source || '', r.premium_until || '', r.created_at])
+    )
+    sendCsv(res, 'projectx-guilds.csv', csv)
+  } catch (error) {
+    console.error('Admin export guilds error:', error.message)
+    res.status(500).json({ error: 'Failed to export guilds' })
+  }
+})
+
+function csvCell(value) {
+  const s = value == null ? '' : String(value)
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+
+function toCsv(header, rows) {
+  const lines = [header.map(csvCell).join(',')]
+  for (const row of rows) lines.push(row.map(csvCell).join(','))
+  return lines.join('\r\n')
+}
+
+function sendCsv(res, filename, csv) {
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+  res.send('﻿' + csv) // BOM so Excel reads UTF-8 correctly
+}
 
 export default router

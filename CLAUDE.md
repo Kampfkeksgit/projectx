@@ -133,7 +133,9 @@ projectx/
 │   │   │                       # requireSession (lehnt gesperrte User ab, setzt req.user.is_owner) /
 │   │   │                       # requireBotToken (constant-time compare) / requireOwner / isOwner (OWNER_DISCORD_ID)
 │   │   ├── auth.js             # requireGuildAccess (verifyToken entfernt; lehnt gesperrte Guilds ab)
-│   │   └── premium.js          # requirePremiumModule(key) — write-gate für Premium-Module (GET frei, PUT/POST/DELETE → 403 premium_required)
+│   │   ├── premium.js          # requirePremiumModule(key) — write-gate für Premium-Module (GET frei, PUT/POST/DELETE → 403 premium_required)
+│   │   └── maintenance.js      # maintenanceGate — global vor /api/guilds gemountet; blockt Nicht-Owner-Writes (POST/PUT/PATCH/DELETE)
+│   │                           # mit 503 bei aktivem Wartungsmodus (Owner via JWT-Decode ausgenommen, 5s-Cache, fail-open)
 │   ├── routes/
 │   │   ├── auth.js             # /api/auth/{callback,me,logout,refresh-guilds}
 │   │   ├── guilds.js           # /api/guilds/* (cookie-protected)
@@ -158,8 +160,10 @@ projectx/
 │   │   ├── giveaways.js        # /api/guilds/:id/giveaways (GET list + DELETE, cookie)
 │   │   ├── public.js           # /api/public/stats + /api/public/plans (KEIN Auth — Landing-Page Stats + Tarif-Katalog)
 │   │   ├── premium.js          # /api/guilds/:id/premium (GET, cookie) — Tier + Modul-Unlock-Map fürs Dashboard
-│   │   ├── admin.js            # /api/admin/{users,guilds} (GET list + POST .../block + POST .../premium, requireSession+requireOwner)
-│   │   │                       # Owner-only: User/Guilds sperren/entsperren + Tier setzen (Audit ADMIN_BLOCK_*/UNBLOCK_*/SET_PREMIUM)
+│   │   ├── admin.js            # /api/admin/{users,guilds} (GET list + POST .../block[until] + POST .../premium, requireSession+requireOwner)
+│   │   │                       # Owner-only: User/Guilds sperren/entsperren (+Temp-Ban) + Tier setzen (Audit ADMIN_BLOCK_*/UNBLOCK_*/SET_PREMIUM)
+│   │   │                       # + /overview (Metriken), /audit(+/actions) (Audit-Viewer), /guilds/:id/inspect (Modul-Snapshot),
+│   │   │                       # /maintenance (GET/PUT Wartungsmodus, Audit ADMIN_MAINTENANCE), /{users,guilds}/export (CSV)
 │   │   └── bot.js              # /api/bot/guilds/:id/settings(/*) + .../channels/roles/presence +
 │   │                           # .../reaction-roles + .../leveling/{settings,rewards,xp} +
 │   │                           # .../custom-commands + /social/subscriptions(/:id/state) +
@@ -231,6 +235,8 @@ projectx/
 │       │   ├── AppToast.vue
 │       │   ├── AppFooter.vue   # Globaler Footer (Brand/©/Version, Legal-Links, GitHub)
 │       │   ├── CookieBanner.vue # Cookie-Consent-Banner (bottom-right, localStorage projectx_cookie_consent)
+│       │   ├── MaintenanceBanner.vue # Globaler Wartungs-Banner; pollt GET /api/public/maintenance (60s), rendert nur bei enabled
+│       │   │                       # (Normal-Flow oben in beiden Shells — App.vue + MobileShell.vue)
 │       │   ├── ChipInput.vue   # Reusable Chip-Input — nur noch für Banned-Words in Moderation
 │       │   ├── ChannelSelector.vue # Searchable Dropdown (single) — :types filter (text/voice/category/...)
 │       │   ├── RoleSelector.vue    # Searchable Dropdown — single oder :multiple, Color-Dots, Hierarchie
@@ -279,7 +285,9 @@ projectx/
 │           │                        # Welcome-Embed+Preview/Bewertung/Kategorien-Liste via TicketCategoryRow — Settings-Save + per-Row-CRUD)
 │           ├── Giveaways.vue        # /dashboard/:guild_id/giveaways (Read-only Liste + Löschen; Start via !gstart)
 │           ├── Premium.vue         # /dashboard/:guild_id/premium (Tarif-Übersicht Free/Basic/Pro + aktueller Tier + Upgrade-CTA)
-│           ├── Admin.vue           # /admin (OWNER-only — Tabs User/Server, Suche, Sperren/Entsperren + Tier-Select; Router-Guard requiresOwner)
+│           ├── Admin.vue           # /admin (OWNER-only — Tabs Overview/Users/Guilds/Audit/System; Router-Guard requiresOwner)
+│           │                       # Overview (Metrik-Karten + Premium-läuft-ab + Modul-Adoption), Users/Guilds (Sperren mit Temp-Ban-Dauer,
+│           │                       # Tier-Select, CSV-Export, Guild-Inspektor-Modal), Audit (filterbarer Log), System (Wartungsmodus-Toggle)
 │           ├── AuthCallback.vue     # /auth/callback (OAuth-Return → /dashboard)
 │           └── legal/
 │               ├── LegalLayout.vue  # Shared Typography-Wrapper (TOC, Sections, Last-Updated)
@@ -562,12 +570,17 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - `PUT /api/bot/stats` body `{ guild_count, user_count, started_at }` → `{ success: true }`. Befüllt den In-Memory-Cache in [state/botStats.js](backend/state/botStats.js) für die Landing-Page. `started_at` ist unix-seconds (Bot setzt das einmal beim ersten `on_ready` und behält es über Reconnects hinweg). Wird zusammen mit `presence` alle 5 Minuten aufgerufen.
 - `PUT /api/bot/premium` body `{ entitlements: [{ guild_id, tier, until? }] }` → `{ success, synced, downgraded }`. Bulk-Sync der Discord-SKU-Entitlements: setzt `source = 'sku'`-Premium für entitled Guilds und downgradet Guilds, deren SKU-Premium nicht mehr aktiv ist (Owner-`manual`-Premium bleibt unberührt). Vom `premium_sync`-Cog aufgerufen. Nicht unter dem `/guilds/:id`-Guard (guild-übergreifend).
 
-**Admin** (Cookie required + Owner-only via `requireOwner`/`OWNER_DISCORD_ID`) — System-Owner sperrt User/Guilds.
-- `GET  /api/admin/users?search=&limit=&offset=` → `{ success, users: [{ discord_id, username, email, avatar_url, blocked, blocked_reason, blocked_at, created_at }], total }`. Suche matcht Username/ID. Keine Tokens in der Response.
-- `POST /api/admin/users/:user_id/block` body `{ blocked, reason? }` → `{ success, user_id, blocked }`. Der Owner kann nicht gesperrt werden (**400**). 404 wenn User unbekannt. Audit `ADMIN_BLOCK_USER`/`ADMIN_UNBLOCK_USER`.
-- `GET  /api/admin/guilds?search=&limit=&offset=` → `{ success, guilds: [{ id, guild_name, guild_icon_url, bot_present, blocked, blocked_reason, blocked_at, created_at }], total }`.
-- `POST /api/admin/guilds/:guild_id/block` body `{ blocked, reason? }` → `{ success, guild_id, blocked }`. 404 wenn Guild unbekannt. Audit `ADMIN_BLOCK_GUILD`/`ADMIN_UNBLOCK_GUILD`.
+**Admin** (Cookie required + Owner-only via `requireOwner`/`OWNER_DISCORD_ID`) — System-Owner sperrt User/Guilds, sieht System-Metriken, das Audit-Log, inspiziert Guilds und schaltet den Wartungsmodus.
+- `GET  /api/admin/users?search=&limit=&offset=` → `{ success, users: [{ discord_id, username, email, avatar_url, blocked, blocked_reason, blocked_at, blocked_until, created_at }], total }`. Suche matcht Username/ID. Keine Tokens in der Response.
+- `POST /api/admin/users/:user_id/block` body `{ blocked, reason?, until? }` → `{ success, user_id, blocked }`. `until` (unix-seconds, in der Zukunft) = Temp-Ban; ohne/abgelaufen = permanent. Der Owner kann nicht gesperrt werden (**400**). 404 wenn User unbekannt. Audit `ADMIN_BLOCK_USER`/`ADMIN_UNBLOCK_USER`.
+- `GET  /api/admin/guilds?search=&limit=&offset=` → `{ success, guilds: [{ id, guild_name, guild_icon_url, bot_present, blocked, blocked_reason, blocked_at, blocked_until, premium_tier, premium_source, premium_until, premium_effective, created_at }], total }`.
+- `POST /api/admin/guilds/:guild_id/block` body `{ blocked, reason?, until? }` → `{ success, guild_id, blocked }`. `until` = Temp-Ban (s. o.). 404 wenn Guild unbekannt. Audit `ADMIN_BLOCK_GUILD`/`ADMIN_UNBLOCK_GUILD`.
 - `POST /api/admin/guilds/:guild_id/premium` body `{ tier ∈ {free|basic|pro}, until? }` → `{ success, guild_id, tier, until }`. Owner setzt den Tier manuell (`source = 'manual'`, `free` löscht Premium). 400 bei ungültigem Tier, 404 wenn Guild unbekannt. Audit `ADMIN_SET_PREMIUM`. `getAdminGuilds` liefert jetzt zusätzlich `premium_tier`/`premium_source`/`premium_until`/`premium_effective`.
+- `GET /api/admin/overview` → `{ success, overview: { users:{total,blocked}, guilds:{total,bot_present,bot_absent,blocked}, premium:{free,basic,pro}, premium_expiring:[{id,guild_name,guild_icon_url,premium_tier,premium_until}], module_adoption:{[key]:count}, audit_last_24h } }`. Aggregierte System-Metriken (Premium-Counts expiry-aware). `getAdminOverview`.
+- `GET /api/admin/audit?action=&target=&limit=&offset=` → `{ success, entries: [{ id, action, user_id, actor_username, guild_id, guild_name, changes, created_at }], total }`. Filterbarer globaler Audit-Feed (newest first; `target` matcht Actor-/Guild-ID oder Guild-Name). `GET /api/admin/audit/actions` → `{ success, actions: [...] }` (distinct Action-Namen fürs Filter-Dropdown). `getAuditLogEntries`/`getAuditActions`.
+- `GET /api/admin/guilds/:guild_id/inspect` → `{ success, inspect: { id, guild_name, guild_icon_url, bot_present, blocked, blocked_reason, blocked_until, premium_tier, premium_source, premium_until, premium_effective, dashboard_members, created_at, modules:[{key,kind,enabled,configured,count?}] } }`. Read-only Modul-/Premium-/Presence-Snapshot (Support-Tool). 404 wenn Guild unbekannt. `getGuildInspect`.
+- `GET /api/admin/maintenance` → `{ success, enabled, message }`. `PUT /api/admin/maintenance` body `{ enabled, message? }` → `{ success, enabled, message }`. Globaler Wartungsmodus. Audit `ADMIN_MAINTENANCE`. `getMaintenanceState`/`setMaintenanceState`.
+- `GET /api/admin/users/export` + `GET /api/admin/guilds/export` → CSV-Download (`text/csv`, UTF-8 BOM). `getUsersForExport`/`getGuildsForExport`.
 
 **Premium / Tiers** (Cookie required) — Modul-Gating Free/Basic/Pro (`MODULE_TIERS` in [db.js](backend/db.js) ist Single Source).
 - `GET /api/guilds/:id/premium` → `{ success, tier, source, until, module_tiers: { key: tier }, modules: { key: bool } }`. Liefert dem Dashboard den effektiven Tier (abgelaufenes Premium → `free`) + die Unlock-Map pro Modul-Key (= Dashboard-Route-Segment).
@@ -578,6 +591,7 @@ Mount-Points aus [backend/server.js](backend/server.js):
 **Public** (KEIN Auth — wird von der Landing-Page gefetched)
 - `GET /api/public/stats` → `{ servers, users, uptime_seconds, online }`. Liest aus dem `botStats`-Cache. Wenn der letzte Bot-Stats-Push > 15min zurückliegt: `servers/users` werden auf 0 gesetzt und `online: false` zurückgegeben, damit das Frontend einen Offline-Indicator zeigen kann. `Cache-Control: public, max-age=30`.
 - `GET /api/public/plans` → `{ currency, tiers: [{ key, price_monthly }], modules: [{ key, tier }] }`. Tarif-/Preis-Katalog (`PLAN_CATALOG` aus [db.js](backend/db.js)) für die Landing-Pricing-Sektion + Modul-Tier-Badges. `Cache-Control: public, max-age=300`.
+- `GET /api/public/maintenance` → `{ enabled, message }`. Globaler Wartungsmodus-Status (kein Auth) — der `MaintenanceBanner` im Frontend pollt das alle 60s. `Cache-Control: public, max-age=15`.
 - `PUT /api/bot/guilds/:guild_id/channels` body `{ channels: [{ id, name, type, parent_id, position }], guild_name?, guild_icon_url? }` → `{ success: true, count }`. Vollständiges Replace via `replaceGuildChannels` (DELETE + bulk INSERT in einer Transaktion). Items ohne snowflake-id / Name werden gedroppt. `type`-Enum `text|voice|category|announcement|forum|stage|thread` (fallback `text`). **Optional `guild_name` und `guild_icon_url` im Body**: triggern einen UPSERT der `guilds`-Row vor dem Channel-Replace, damit der FK-Constraint nicht knallt, wenn die Guild noch nicht in der DB ist (z. B. weil kein Dashboard-User dort eingeloggt war). Wird vom Bot-Cog `guild_sync.py` aufgerufen.
 - `PUT /api/bot/guilds/:guild_id/roles` body `{ roles: [{ id, name, color, position, managed, is_default }], guild_name?, guild_icon_url? }` → `{ success: true, count }`. Gleiches Replace-Pattern + gleicher optionaler Guild-Seed. `color` als Integer (clamped `[0, 0xFFFFFF]`). `@everyone` wird mit `is_default: true` mitgesendet, damit der Dashboard-Read-Path es per Default ausfiltern kann.
 
@@ -683,9 +697,9 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - Engine: **SQLite3** (Datei via `DATABASE_URL`, default `./data/bot.db`)
 - Connection: [backend/db.js](backend/db.js)
 - Migrations: [backend/migrations.js](backend/migrations.js)
-  - **Aktuelle Schema-Version: `21`**
+  - **Aktuelle Schema-Version: `22`**
   - `CURRENT_SCHEMA_VERSION` Konstante steuert Upgrades.
-  - `applyMigrations(from, to)` mappt Versionsnummern → Migration-Funktionen (`migrationV1`, …, `migrationV21`).
+  - `applyMigrations(from, to)` mappt Versionsnummern → Migration-Funktionen (`migrationV1`, …, `migrationV22`).
   - Versionstabelle: `schema_version (version PK, applied_at)`.
   - `migrationV2` fügt `users.token_expires_at INTEGER` hinzu (idempotent).
   - `migrationV3` legt `guild_autorole_settings`, `guild_log_settings`, `guild_moderation_settings` an (`CREATE TABLE IF NOT EXISTS` — idempotent; werden parallel auch im `initializeDatabase()`-Pfad erzeugt, damit Fresh-DBs auch ohne Migrations-Run funktionieren).
@@ -709,11 +723,12 @@ Mount-Points aus [backend/server.js](backend/server.js):
   - `migrationV19` (Command-Manager, idempotenter ALTER + neue Tabelle + Mirror): `guilds.command_prefix` (Default `'!'`, per-Guild Prefix für Built-in-Prefix-Befehle); neue Tabelle `guild_command_settings` (PK `(guild_id, command_key)`, `enabled`, FK CASCADE — nur Rows für umgeschaltete Befehle, Abwesenheit = aktiviert).
   - `migrationV20` (Rollen-Menü-Embed-Designer, idempotente ALTERs + Mirror): `guild_role_menus.use_embed` (Default 0 → Auto-Liste, legacy) und `guild_role_menus.embed` (TEXT/JSON, gleiche Embed-Shape wie Welcome/Tickets). Bei `use_embed = 1` postet der Bot das eigene Embed statt der auto-generierten Name+Rollen-Liste.
   - `migrationV21` (Premium-Tiers, idempotente ALTERs + Mirror): `guilds.premium_tier` (Default `'free'`), `guilds.premium_source` (`'sku'|'manual'|null`), `guilds.premium_until` (unix-seconds Ablauf, null = unbegrenzt). Steuert das Modul-Gating (Free/Basic/Pro). Effektiver Tier wird abgelaufen → `'free'` (siehe `effectiveTier` in [db.js](backend/db.js)).
+  - `migrationV22` (Admin v2, idempotente ALTERs + neue Tabelle + Mirror): `users.blocked_until` + `guilds.blocked_until` (unix-seconds; null = permanente Sperre, sonst Temp-Ban-Ablauf — `isUserBlocked`/`isGuildBlocked` behandeln abgelaufene Sperren automatisch als „nicht gesperrt", kein Sweeper nötig); neue Tabelle `system_settings (key PK, value, updated_at)` — Key/Value-Store für den globalen Wartungsmodus.
   - `migrationV18` (Ticket-Überarbeitung, idempotente ALTERs + neue Tabelle + Mirror): `guild_ticket_settings` +10 Spalten (`panel_type ∈ {dropdown|buttons}`, `panel_embed`/`welcome_embed` JSON, `ping_role_id`, `naming_template`, `claim_enabled`, `close_confirm`, `rating_enabled`, `rating_mode ∈ {channel|dm|both}`, `log_channel_id`); `guild_tickets` +8 Spalten (`ticket_category_id`, `number`, `claimed_by`, `rating`, `rating_comment`, `closed_by`, `closed_at`, `extra_user_ids` JSON); neue Tabelle `guild_ticket_categories` (`id` UUID, `idx_ticket_categories_guild`, FK CASCADE) — Ticket-Typen mit Label/Emoji/Desc + Kategorie-/Support-Rollen-/Ping-Rollen-Override, Welcome-Text, `button_style`, Position, Enabled.
 
 **Kern-Tabellen** (Details: [backend/DATABASE_SCHEMA.md](backend/DATABASE_SCHEMA.md), [backend/DATABASE_FUNCTIONS.md](backend/DATABASE_FUNCTIONS.md))
-- `users` — Discord-User; `discord_id PK`, plus `access_token`, `refresh_token`, `token_expires_at` (unix-seconds), `blocked`/`blocked_reason`/`blocked_at` (Owner-Sperre)
-- `guilds` — Discord-Server; `id PK`, `guild_name`, `guild_icon_url`, `enabled`, `bot_present` (1 wenn der Bot aktuell auf diesem Server ist — vom `presence`-Cog gesetzt), `blocked`/`blocked_reason`/`blocked_at` (Owner-Sperre), `premium_tier` (`free|basic|pro`), `premium_source` (`sku|manual|null`), `premium_until` (unix-seconds Ablauf) — Premium-Modul-Gating
+- `users` — Discord-User; `discord_id PK`, plus `access_token`, `refresh_token`, `token_expires_at` (unix-seconds), `blocked`/`blocked_reason`/`blocked_at`/`blocked_until` (Owner-Sperre; `blocked_until` = Temp-Ban-Ablauf, null = permanent)
+- `guilds` — Discord-Server; `id PK`, `guild_name`, `guild_icon_url`, `enabled`, `bot_present` (1 wenn der Bot aktuell auf diesem Server ist — vom `presence`-Cog gesetzt), `blocked`/`blocked_reason`/`blocked_at`/`blocked_until` (Owner-Sperre; `blocked_until` = Temp-Ban-Ablauf), `premium_tier` (`free|basic|pro`), `premium_source` (`sku|manual|null`), `premium_until` (unix-seconds Ablauf) — Premium-Modul-Gating
 - `user_guilds` — Many-to-Many (User ↔ Guild + `owner`/`admin` Bits)
 - `guild_settings` — Welcome/Leave-Config pro Guild (inkl. `*_use_embed`, JSON-Spalten `*_embed`, `welcome_ping_user`, `welcome_dm_enabled`/`_message`, `*_delete_after`)
 - `guild_autorole_settings` — `guild_id PK`, `enabled`, `role_ids` (JSON-string), `apply_to_bots`
@@ -748,7 +763,8 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - `guild_ticket_categories` — `id` UUID, `guild_id`, `label`, `emoji`, `description`, `category_id`/`support_role_id`/`ping_role_id` (Overrides, nullable = erben), `welcome_message`, `button_style ∈ {primary|secondary|success|danger}`, `position`, `enabled` — Ticket-Typen fürs Panel
 - `guild_tickets` — `id` UUID, `channel_id`, `user_id`, `status ∈ {open|closed}`, `ticket_category_id`, `number` (per-Guild-Zähler), `claimed_by`, `rating` (1–5), `rating_comment`, `closed_by`, `closed_at`, `extra_user_ids` (JSON — manuell hinzugefügte Member) — offene/geschlossene Ticket-Channels
 - `guild_giveaways` + `guild_giveaway_entries` — Giveaways (`id` UUID, `prize`, `winners_count`, `ends_at`, `ended`; Entries PK `(giveaway_id, user_id)`)
-- `audit_log` — Änderungs-Trail
+- `audit_log` — Änderungs-Trail (vom Admin-Audit-Viewer gelesen: `getAuditLogEntries`/`getAuditActions`)
+- `system_settings` — `key PK`, `value`, `updated_at` — globaler Key/Value-Store; aktuell `maintenance` (JSON `{enabled, message}`) für den Wartungsmodus
 - `schema_version` — Migrations-Tracking
 
 **Wichtige DB-Helper** in [backend/db.js](backend/db.js):
@@ -776,7 +792,8 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - **Birthday/Scheduled/Anti-Raid** (`BIRTHDAY_DEFAULTS`/`SCHEDULED_TYPES`/`ANTIRAID_DEFAULTS`+`ANTIRAID_ACTIONS` exportiert): `get*Settings`/`upsert*Settings`. Birthday: `setBirthday`/`getGuildBirthdays`/`removeBirthday`/`getTodaysBirthdays(month,day)`/`getBirthdayRoleGuilds` (Bot). Scheduled: `getScheduledMessages`/`create`/`update`/`delete` (UUID, VALIDATION→400) + `getDueScheduledMessages(now)`/`markScheduledRan(id,now)` (Bot, rechnet next/disable).
 - **Verification/Role-Menus/Tickets/Giveaways** (`VERIFICATION_DEFAULTS`/`ROLE_MENU_TYPES`/`TICKET_DEFAULTS` exportiert): `get*Settings`/`upsert*Settings` + `setVerificationPanelMessage`/`setTicketPanelMessage`. Role-Menus: `getRoleMenus`/`create`/`update`/`delete` (Options-Replace in `runInTransaction`), `getPendingRoleMenus`/`setRoleMenuMessage` (Bot). Tickets: `createTicket`/`getOpenTicketForUser`/`closeTicketByChannel`/`getGuildTickets`. Giveaways: `createGiveaway`/`setGiveawayMessage`/`addGiveawayEntry`/`getGiveawayEntries`/`getDueGiveaways`/`markGiveawayEnded`/`getGuildGiveaways`/`deleteGiveaway`.
 - `getUserManageableGuilds(userId)` — Guilds mit `owner=1 OR admin=1` (inkl. gesperrter, das `blocked`-Flag wird mitgeliefert, damit das Frontend sie markieren kann). Für `GET /api/guilds`.
-- **Owner-Admin** (V17): `isUserBlocked(discordId)`/`isGuildBlocked(guildId)` (Enforcement), `getAdminUsers({search,limit,offset})`/`getAdminGuilds(...)` (paginierte Listen, keine Tokens), `setUserBlocked(id, blocked, reason)`/`setGuildBlocked(id, blocked, reason)` (stempelt `blocked_at`, kürzt Reason auf 500). Owner-Check liegt in der Middleware (`isOwner`/`requireOwner` aus [session.js](backend/middleware/session.js)), nicht in db.js.
+- **Owner-Admin** (V17): `isUserBlocked(discordId)`/`isGuildBlocked(guildId)` (Enforcement, **temp-ban-aware** via `isEffectivelyBlocked` — abgelaufenes `blocked_until` zählt als nicht gesperrt), `getAdminUsers({search,limit,offset})`/`getAdminGuilds(...)` (paginierte Listen, keine Tokens, liefern `blocked_until`), `setUserBlocked(id, blocked, reason, until?)`/`setGuildBlocked(id, blocked, reason, until?)` (stempelt `blocked_at`, kürzt Reason auf 500, `until` via `sanitizeBlockUntil` = zukünftiger unix-seconds-Wert oder null). Owner-Check liegt in der Middleware (`isOwner`/`requireOwner` aus [session.js](backend/middleware/session.js)), nicht in db.js.
+- **Admin v2** (V22): `getAdminOverview()` (aggregierte Metriken — User/Guild-Counts, expiry-aware Premium-Verteilung, `premium_expiring` <7d, `module_adoption` via `FLAG_MODULE_TABLES`/`COUNT_MODULE_TABLES`, `audit_last_24h`), `getAuditLogEntries({action,target,limit,offset})`/`getAuditActions()` (Audit-Viewer mit Actor-/Guild-Join), `getGuildInspect(guildId)` (read-only Modul-/Premium-/Presence-Snapshot), `getSystemSetting`/`setSystemSetting` (Key/Value) + `getMaintenanceState`/`setMaintenanceState` (Wartungsmodus-JSON), `getUsersForExport`/`getGuildsForExport` (CSV). Interne Promise-Helfer `dbGet`/`dbAll`.
 - **Premium / Tiers** (V21, exportiert): `PREMIUM_TIERS` (`['free','basic','pro']`), `tierRank(t)`, `MODULE_TIERS` (Modul-Key → min Tier, Single Source), `PLAN_CATALOG` (Preis-/Modul-Katalog für die Landing). Helfer: `effectiveTier(guildRow)` (abgelaufenes `premium_until` → `free`), `moduleUnlocked(tier, key)`, `moduleUnlockMap(tier)`, `getGuildPremium(guildId)`, `setGuildPremium(guildId, {tier, source, until})` (Owner/manual), `syncSkuEntitlements(entitlements)` (Bot/SKU — Bulk-Set + Downgrade lapsed sku, lässt `manual` unberührt, in `runInTransaction`), `tierFilterSql(minTier, col?)` (SQL-Fragment „effektiver Tier ≥ minTier", expiry-aware — in alle Premium-Bulk-Bot-Queries eingehängt).
 - `userHasGuildAccess(userId, guildId)` — beliebige Membership (intern, nicht von der Middleware genutzt)
 - `userIsGuildAdmin(userId, guildId)` — Owner/Admin-Check. Wird von `requireGuildAccess` verwendet.
@@ -909,6 +926,15 @@ Empfehlung aus [README.md](README.md): SQLite → PostgreSQL für Multi-Instance
 ## 14. Letzte Aktualisierung
 
 - **Datum:** 2026-06-16
+- **Admin-Bereich v2 (Schema v22):** Der Owner-Admin-Bereich wird von „nur Sperren" zu einem vollwertigen Betriebs-Dashboard erweitert — 5 neue Funktionsbereiche.
+  - **System-Overview** (`GET /api/admin/overview`): Metrik-Karten (User/Server-Counts, Bot-Präsenz, Premium-Verteilung, Audit-Ereignisse 24h), „Premium läuft bald ab"-Liste (<7 Tage) und Modul-Adoption-Balken. Premium-Counts sind expiry-aware.
+  - **Audit-Log-Viewer** (`GET /api/admin/audit` + `/audit/actions`): die längst befüllte `audit_log`-Tabelle ist jetzt im Dashboard sichtbar — filterbar nach Action (Dropdown) + Target (Actor-/Guild-ID/Name), mit Actor-/Guild-Join. Deckt auch die Block-History ab.
+  - **Temporäre Sperren** (Schema): `users.blocked_until` + `guilds.blocked_until`. Block-Modal hat eine Dauer-Auswahl (permanent / 1h / 24h / 7d / 30d). `isUserBlocked`/`isGuildBlocked` sind temp-ban-aware (`isEffectivelyBlocked`) — abgelaufene Sperren gelten automatisch als aufgehoben, kein Sweeper.
+  - **Guild-Inspektor** (`GET /api/admin/guilds/:id/inspect`): read-only Modal mit Modul-Status (an/aus + Count), Premium (Tier/Quelle/Ablauf), Bot-Präsenz, Dashboard-Mitglieder — plus Premium-Setzen mit Ablaufdauer direkt im Modal. Support-Tool („warum sendet der Bot keine Welcome-Nachricht?").
+  - **Wartungsmodus / Kill-Switch** (`GET/PUT /api/admin/maintenance` + public `GET /api/public/maintenance`): neue Tabelle `system_settings` (Key/Value). Middleware [maintenance.js](backend/middleware/maintenance.js) (`maintenanceGate`, global vor `/api/guilds`) blockt Nicht-Owner-Writes mit **503** (Owner via JWT-Decode ausgenommen, 5s-Cache, fail-open). Globaler [MaintenanceBanner.vue](frontend/src/components/MaintenanceBanner.vue) (pollt 60s, Normal-Flow oben in beiden Shells).
+  - **CSV-Export** (`GET /api/admin/{users,guilds}/export`): UTF-8-BOM-CSV-Download.
+  - **Schema:** Migration v22 (2 idempotente ALTERs + neue Tabelle `system_settings` + Mirror). DB-Helfer-Set in [db.js](backend/db.js) (`getAdminOverview`/`getAuditLogEntries`/`getAuditActions`/`getGuildInspect`/`get|setSystemSetting`/`get|setMaintenanceState`/`getUsersForExport`/`getGuildsForExport`; `set*Blocked` + `getAdmin*` um `until`/`blocked_until` erweitert). [routes/admin.js](backend/routes/admin.js) (+6 Endpoints, `until` in Block-Bodies), [routes/public.js](backend/routes/public.js) (+maintenance), [server.js](backend/server.js) (Gate-Mount). Frontend: [Admin.vue](frontend/src/pages/Admin.vue) neu (5 Tabs + Inspektor-Modal + Temp-Ban-Dauer + Export), MaintenanceBanner in [App.vue](frontend/src/App.vue) + [MobileShell.vue](frontend/src/mobile/MobileShell.vue). i18n: ~43 neue `admin.*`-Keys + neuer `maintenance`-Namespace in **allen 5 Sprachen** (Key-Parität verifiziert: 1046 Keys/Locale, 0 missing/extra; tr/ru/pl via parallele Sub-Agents).
+  - Verifiziert: 74/74 Backend-Tests grün, DB-Smoke-Test aller neuen Helfer grün (Migration v22 sauber), Frontend-Build grün (Admin-Chunk ~11.5 kB CSS, 225 Module). **Modul-Keys im Overview/Inspektor werden als Rohtext gezeigt** (Owner-Tool — bewusst keine 20×5 Übersetzungs-Keys).
 - **3 neue Sprachen — Türkisch, Russisch, Polnisch (kein Schema-Change):** Die i18n deckt jetzt **5 Sprachen** ab (EN, DE, TR, RU, PL). Neue Locale-Dateien [tr.js](frontend/src/i18n/locales/tr.js)/[ru.js](frontend/src/i18n/locales/ru.js)/[pl.js](frontend/src/i18n/locales/pl.js) — vollständige Übersetzung aller Module + Legal-Seiten, je 1088 Keys (Key-Parität gegen en.js verifiziert: 0 missing/extra, Platzhalter-Token-Parität ok). Registriert in [index.js](frontend/src/i18n/index.js) (`messages` + `SUPPORTED_LOCALES` mit Labels Türkçe/Русский/Polski). LanguageSwitcher zieht die Liste dynamisch → Dropdown zeigt automatisch alle 5. Legal-Texte übersetzt, aber Paragraphen-Referenzen (§ TMG/MStV, DSGVO/GDPR-Artikel) + Kontaktdaten unverändert. **Hinweis:** Locales werden eager gebündelt → Haupt-Bundle ~309 kB → ~481 kB (gzip ~168 kB); bei Bedarf später lazy-loadbar. Build grün.
 - **Datum:** 2026-06-15
 - **Dedizierte Handy-Oberfläche (kein Schema-Change):** Eigene Mobile-UI **im selben Frontend-Projekt**, die NUR in der nativen App (Capacitor) bzw. mit `?mobile=1` aktiv wird — die Desktop-Website rendert unverändert, der Login (Discord-OAuth + Session-Cookie) bleibt heil, weil alles same-origin auf derselben Domain läuft (kein getrenntes/gebündeltes Frontend).

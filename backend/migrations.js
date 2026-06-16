@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 21;
+const CURRENT_SCHEMA_VERSION = 22;
 
 /**
  * Initialize schema version tracking
@@ -80,7 +80,8 @@ async function applyMigrations(fromVersion, toVersion) {
     18: migrationV18,
     19: migrationV19,
     20: migrationV20,
-    21: migrationV21
+    21: migrationV21,
+    22: migrationV22
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -1432,6 +1433,56 @@ function migrationV21() {
             }
           });
         }
+      };
+      for (const stmt of alters) db.run(stmt, done);
+    });
+  });
+}
+
+/**
+ * V22 (Admin v2): temporary bans + system settings.
+ * - users.blocked_until / guilds.blocked_until (unix-seconds; null = permanent
+ *   when blocked). The block enforcement treats an elapsed `blocked_until` as
+ *   "not blocked" so temp-bans auto-expire without a sweeper.
+ * - new table system_settings (key/value) — backs the global maintenance mode.
+ */
+function migrationV22() {
+  return new Promise((resolve, reject) => {
+    const alters = [
+      'ALTER TABLE users ADD COLUMN blocked_until INTEGER',
+      'ALTER TABLE guilds ADD COLUMN blocked_until INTEGER'
+    ];
+    db.serialize(() => {
+      let pending = alters.length;
+      let failed = false;
+      const afterAlters = () => {
+        db.run(
+          `CREATE TABLE IF NOT EXISTS system_settings (
+            key        TEXT PRIMARY KEY,
+            value      TEXT,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )`,
+          (tErr) => {
+            if (tErr) return reject(tErr);
+            db.run('INSERT OR IGNORE INTO schema_version (version) VALUES (22)', (insertErr) => {
+              if (insertErr) reject(insertErr);
+              else {
+                console.log('✓ Migration V22 applied');
+                resolve();
+              }
+            });
+          }
+        );
+      };
+      const done = (err) => {
+        if (failed) return;
+        if (err && !/duplicate column name/i.test(err.message)) {
+          failed = true;
+          reject(err);
+          return;
+        }
+        pending--;
+        if (pending === 0) afterAlters();
       };
       for (const stmt of alters) db.run(stmt, done);
     });

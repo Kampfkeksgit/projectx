@@ -4,6 +4,7 @@
   <MobileShell v-if="isMobileUI" />
 
   <div v-else class="app">
+    <MaintenanceBanner />
     <AppNavBar />
     <main class="app__main">
       <router-view v-slot="{ Component }">
@@ -23,6 +24,7 @@
 <script setup>
 import AppNavBar from './components/AppNavBar.vue'
 import AppToast from './components/AppToast.vue'
+import MaintenanceBanner from './components/MaintenanceBanner.vue'
 import AppFooter from './components/AppFooter.vue'
 import CookieBanner from './components/CookieBanner.vue'
 import MobileShell from './mobile/MobileShell.vue'

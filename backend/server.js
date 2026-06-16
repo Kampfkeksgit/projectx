@@ -29,6 +29,7 @@ import adminRoutes from './routes/admin.js'
 import premiumRoutes from './routes/premium.js'
 import botRoutes from './routes/bot.js'
 import { requirePremiumModule } from './middleware/premium.js'
+import { maintenanceGate } from './middleware/maintenance.js'
 
 dotenv.config()
 
@@ -88,6 +89,9 @@ app.use((req, res, next) => {
 
 // Routes
 app.use('/api/auth', authRoutes)
+// Global maintenance gate: blocks non-owner dashboard writes when enabled.
+// Applied to all guild routers (reads pass through); admin/auth/bot are exempt.
+app.use('/api/guilds', maintenanceGate)
 app.use('/api/guilds', guildRoutes)
 app.use('/api/guilds/:guild_id/settings', settingsRoutes)
 app.use('/api/guilds/:guild_id/settings', modulesRoutes)

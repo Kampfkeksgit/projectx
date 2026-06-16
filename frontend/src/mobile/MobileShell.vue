@@ -1,5 +1,6 @@
 <template>
   <div class="m-shell">
+    <MaintenanceBanner />
     <MobileTopBar @open-account="accountOpen = true" />
 
     <main class="m-shell__main">
@@ -22,6 +23,7 @@ import { useAuth } from '../stores/auth.js'
 import MobileTopBar from './MobileTopBar.vue'
 import MobileTabBar from './MobileTabBar.vue'
 import MobileAccountSheet from './MobileAccountSheet.vue'
+import MaintenanceBanner from '../components/MaintenanceBanner.vue'
 
 const auth = useAuth()
 const accountOpen = ref(false)
