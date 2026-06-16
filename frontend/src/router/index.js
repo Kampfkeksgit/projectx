@@ -27,6 +27,11 @@ const Verification = () => import('../pages/Verification.vue')
 const RoleMenus = () => import('../pages/RoleMenus.vue')
 const Tickets = () => import('../pages/Tickets.vue')
 const Giveaways = () => import('../pages/Giveaways.vue')
+const Counting = () => import('../pages/Counting.vue')
+const Polls = () => import('../pages/Polls.vue')
+const InviteTracking = () => import('../pages/InviteTracking.vue')
+const Applications = () => import('../pages/Applications.vue')
+const Economy = () => import('../pages/Economy.vue')
 const Premium = () => import('../pages/Premium.vue')
 const Impressum = () => import('../pages/legal/Impressum.vue')
 const Privacy = () => import('../pages/legal/Privacy.vue')
@@ -81,6 +86,11 @@ const routes = [
       { path: 'rolemenus', name: 'rolemenus', component: RoleMenus },
       { path: 'tickets', name: 'tickets', component: Tickets },
       { path: 'giveaways', name: 'giveaways', component: Giveaways },
+      { path: 'counting', name: 'counting', component: Counting },
+      { path: 'polls', name: 'polls', component: Polls },
+      { path: 'invitetracking', name: 'invitetracking', component: InviteTracking },
+      { path: 'applications', name: 'applications', component: Applications },
+      { path: 'economy', name: 'economy', component: Economy },
       { path: 'premium', name: 'premium', component: Premium }
     ]
   },

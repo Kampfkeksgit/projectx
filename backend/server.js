@@ -24,6 +24,11 @@ import verificationRoutes from './routes/verification.js'
 import roleMenusRoutes from './routes/rolemenus.js'
 import ticketsRoutes from './routes/tickets.js'
 import giveawaysRoutes from './routes/giveaways.js'
+import countingRoutes from './routes/counting.js'
+import pollsRoutes from './routes/polls.js'
+import inviteTrackingRoutes from './routes/invitetracking.js'
+import applicationsRoutes from './routes/applications.js'
+import economyRoutes from './routes/economy.js'
 import publicRoutes from './routes/public.js'
 import adminRoutes from './routes/admin.js'
 import premiumRoutes from './routes/premium.js'
@@ -115,6 +120,11 @@ app.use('/api/guilds/:guild_id/verification', verificationRoutes)
 app.use('/api/guilds/:guild_id/rolemenus', requirePremiumModule('rolemenus'), roleMenusRoutes)
 app.use('/api/guilds/:guild_id/tickets', requirePremiumModule('tickets'), ticketsRoutes)
 app.use('/api/guilds/:guild_id/giveaways', requirePremiumModule('giveaways'), giveawaysRoutes)
+app.use('/api/guilds/:guild_id/counting', countingRoutes)
+app.use('/api/guilds/:guild_id/polls', pollsRoutes)
+app.use('/api/guilds/:guild_id/invitetracking', requirePremiumModule('invitetracking'), inviteTrackingRoutes)
+app.use('/api/guilds/:guild_id/applications', requirePremiumModule('applications'), applicationsRoutes)
+app.use('/api/guilds/:guild_id/economy', requirePremiumModule('economy'), economyRoutes)
 app.use('/api/guilds/:guild_id', resourcesRoutes)
 app.use('/api/public', publicRoutes)
 app.use('/api/admin', adminRoutes)

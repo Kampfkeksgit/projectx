@@ -464,6 +464,116 @@
           <AppButton v-else tag="a" :href="inviteUrl" target="_blank" rel="noopener noreferrer" variant="ghost">{{ t('common.invite') }}</AppButton>
         </div>
       </article>
+
+      <article class="config-card">
+        <div class="config-card__head">
+          <div class="config-card__icon config-card__icon--counting">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>
+          </div>
+          <div>
+            <h3 class="config-card__title">{{ t('overview.countingTitle') }}</h3>
+            <p class="config-card__desc">{{ t('overview.countingDesc') }}</p>
+          </div>
+        </div>
+        <div class="config-card__meta">
+          <span class="status" :class="extraEnabled.counting ? 'status--on' : 'status--off'">
+            <span class="status__dot"></span>
+            {{ extraEnabled.counting ? t('common.enabled') : t('common.disabled') }}
+          </span>
+        </div>
+        <div class="config-card__cta">
+          <AppButton v-if="botPresent" tag="router-link" :to="`/dashboard/${guildId}/counting`" variant="gradient">{{ t('common.configure') }}</AppButton>
+          <AppButton v-else tag="a" :href="inviteUrl" target="_blank" rel="noopener noreferrer" variant="ghost">{{ t('common.invite') }}</AppButton>
+        </div>
+      </article>
+
+      <article class="config-card">
+        <div class="config-card__head">
+          <div class="config-card__icon config-card__icon--polls">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          </div>
+          <div>
+            <h3 class="config-card__title">{{ t('overview.pollsTitle') }}</h3>
+            <p class="config-card__desc">{{ t('overview.pollsDesc') }}</p>
+          </div>
+        </div>
+        <div class="config-card__meta">
+          <span class="status status--on">
+            <span class="status__dot"></span>
+            {{ t('overview.pollsCount', { count: extraEnabled.pollsCount }) }}
+          </span>
+        </div>
+        <div class="config-card__cta">
+          <AppButton v-if="botPresent" tag="router-link" :to="`/dashboard/${guildId}/polls`" variant="gradient">{{ t('common.configure') }}</AppButton>
+          <AppButton v-else tag="a" :href="inviteUrl" target="_blank" rel="noopener noreferrer" variant="ghost">{{ t('common.invite') }}</AppButton>
+        </div>
+      </article>
+
+      <article class="config-card" :class="{ 'config-card--locked': isLocked('invitetracking') }" :data-lock="lockLabel('invitetracking')">
+        <div class="config-card__head">
+          <div class="config-card__icon config-card__icon--invitetracking">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+          </div>
+          <div>
+            <h3 class="config-card__title">{{ t('overview.invitetrackingTitle') }}</h3>
+            <p class="config-card__desc">{{ t('overview.invitetrackingDesc') }}</p>
+          </div>
+        </div>
+        <div class="config-card__meta">
+          <span class="status" :class="extraEnabled.invitetracking ? 'status--on' : 'status--off'">
+            <span class="status__dot"></span>
+            {{ extraEnabled.invitetracking ? t('common.enabled') : t('common.disabled') }}
+          </span>
+        </div>
+        <div class="config-card__cta">
+          <AppButton v-if="botPresent" tag="router-link" :to="`/dashboard/${guildId}/invitetracking`" variant="gradient">{{ t('common.configure') }}</AppButton>
+          <AppButton v-else tag="a" :href="inviteUrl" target="_blank" rel="noopener noreferrer" variant="ghost">{{ t('common.invite') }}</AppButton>
+        </div>
+      </article>
+
+      <article class="config-card" :class="{ 'config-card--locked': isLocked('applications') }" :data-lock="lockLabel('applications')">
+        <div class="config-card__head">
+          <div class="config-card__icon config-card__icon--applications">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></svg>
+          </div>
+          <div>
+            <h3 class="config-card__title">{{ t('overview.applicationsTitle') }}</h3>
+            <p class="config-card__desc">{{ t('overview.applicationsDesc') }}</p>
+          </div>
+        </div>
+        <div class="config-card__meta">
+          <span class="status status--on">
+            <span class="status__dot"></span>
+            {{ t('overview.applicationsCount', { count: extraEnabled.applicationsCount }) }}
+          </span>
+        </div>
+        <div class="config-card__cta">
+          <AppButton v-if="botPresent" tag="router-link" :to="`/dashboard/${guildId}/applications`" variant="gradient">{{ t('common.configure') }}</AppButton>
+          <AppButton v-else tag="a" :href="inviteUrl" target="_blank" rel="noopener noreferrer" variant="ghost">{{ t('common.invite') }}</AppButton>
+        </div>
+      </article>
+
+      <article class="config-card" :class="{ 'config-card--locked': isLocked('economy') }" :data-lock="lockLabel('economy')">
+        <div class="config-card__head">
+          <div class="config-card__icon config-card__icon--economy">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M14.5 9.5a2.5 2.5 0 0 0-2.5-1.5c-1.4 0-2.5.9-2.5 2s1.1 2 2.5 2 2.5.9 2.5 2-1.1 2-2.5 2a2.5 2.5 0 0 1-2.5-1.5"/></svg>
+          </div>
+          <div>
+            <h3 class="config-card__title">{{ t('overview.economyTitle') }}</h3>
+            <p class="config-card__desc">{{ t('overview.economyDesc') }}</p>
+          </div>
+        </div>
+        <div class="config-card__meta">
+          <span class="status" :class="extraEnabled.economy ? 'status--on' : 'status--off'">
+            <span class="status__dot"></span>
+            {{ extraEnabled.economy ? t('common.enabled') : t('common.disabled') }}
+          </span>
+        </div>
+        <div class="config-card__cta">
+          <AppButton v-if="botPresent" tag="router-link" :to="`/dashboard/${guildId}/economy`" variant="gradient">{{ t('common.configure') }}</AppButton>
+          <AppButton v-else tag="a" :href="inviteUrl" target="_blank" rel="noopener noreferrer" variant="ghost">{{ t('common.invite') }}</AppButton>
+        </div>
+      </article>
     </div>
   </div>
 </template>
@@ -552,14 +662,19 @@ const extraEnabled = reactive({
   verification: false,
   rolemenusCount: 0,
   tickets: false,
-  giveawaysCount: 0
+  giveawaysCount: 0,
+  counting: false,
+  pollsCount: 0,
+  invitetracking: false,
+  applicationsCount: 0,
+  economy: false
 })
 
 async function fetchExtraStatus() {
   const id = guildId.value
   if (!id) return
   const endpoints = ['autorole', 'logs', 'moderation', 'leveling']
-  const [autorole, logs, moderation, leveling, rr, cmds, social, stats, tempvoice, starboard, suggestions, birthday, scheduled, antiraid, verification, rolemenus, tickets, giveaways] = await Promise.all([
+  const [autorole, logs, moderation, leveling, rr, cmds, social, stats, tempvoice, starboard, suggestions, birthday, scheduled, antiraid, verification, rolemenus, tickets, giveaways, counting, polls, invitetracking, applications, economy] = await Promise.all([
     api.get(`/guilds/${id}/settings/autorole`).then(r => r.data).catch(() => null),
     api.get(`/guilds/${id}/settings/logs`).then(r => r.data).catch(() => null),
     api.get(`/guilds/${id}/settings/moderation`).then(r => r.data).catch(() => null),
@@ -577,7 +692,12 @@ async function fetchExtraStatus() {
     api.get(`/guilds/${id}/verification`).then(r => r.data).catch(() => null),
     api.get(`/guilds/${id}/rolemenus`).then(r => r.data).catch(() => null),
     api.get(`/guilds/${id}/tickets`).then(r => r.data).catch(() => null),
-    api.get(`/guilds/${id}/giveaways`).then(r => r.data).catch(() => null)
+    api.get(`/guilds/${id}/giveaways`).then(r => r.data).catch(() => null),
+    api.get(`/guilds/${id}/counting`).then(r => r.data).catch(() => null),
+    api.get(`/guilds/${id}/polls`).then(r => r.data).catch(() => null),
+    api.get(`/guilds/${id}/invitetracking`).then(r => r.data).catch(() => null),
+    api.get(`/guilds/${id}/applications/forms`).then(r => r.data).catch(() => null),
+    api.get(`/guilds/${id}/economy`).then(r => r.data).catch(() => null)
   ])
   void endpoints
   extraEnabled.autorole = !!(autorole?.success && autorole.settings?.enabled)
@@ -601,6 +721,12 @@ async function fetchExtraStatus() {
   extraEnabled.tickets = !!(tickets?.success && tickets.settings?.enabled)
   const gwList = (giveaways?.success && Array.isArray(giveaways.giveaways)) ? giveaways.giveaways : []
   extraEnabled.giveawaysCount = gwList.filter(g => !g.ended).length
+  extraEnabled.counting = !!(counting?.success && counting.settings?.enabled)
+  const pollList = (polls?.success && Array.isArray(polls.polls)) ? polls.polls : []
+  extraEnabled.pollsCount = pollList.filter(p => !p.ended).length
+  extraEnabled.invitetracking = !!(invitetracking?.success && invitetracking.settings?.enabled)
+  extraEnabled.applicationsCount = (applications?.success && Array.isArray(applications.forms)) ? applications.forms.filter(f => f.enabled).length : 0
+  extraEnabled.economy = !!(economy?.success && economy.settings?.enabled)
 }
 
 onMounted(fetchExtraStatus)
@@ -772,6 +898,11 @@ watch(() => guildId.value, fetchExtraStatus)
 .config-card__icon--rolemenus { background: linear-gradient(135deg, #8b5cf6, #ec4899); }
 .config-card__icon--tickets { background: linear-gradient(135deg, #5865f2, #38bdf8); }
 .config-card__icon--giveaways { background: linear-gradient(135deg, #f59e0b, #f43f5e); }
+.config-card__icon--counting { background: linear-gradient(135deg, #06b6d4, #6366f1); }
+.config-card__icon--polls { background: linear-gradient(135deg, #8b5cf6, #06b6d4); }
+.config-card__icon--invitetracking { background: linear-gradient(135deg, #10b981, #06b6d4); }
+.config-card__icon--applications { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+.config-card__icon--economy { background: linear-gradient(135deg, #facc15, #f59e0b); }
 
 .config-card__title {
   font-size: 1.1rem;

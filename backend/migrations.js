@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 22;
+const CURRENT_SCHEMA_VERSION = 27;
 
 /**
  * Initialize schema version tracking
@@ -81,7 +81,12 @@ async function applyMigrations(fromVersion, toVersion) {
     19: migrationV19,
     20: migrationV20,
     21: migrationV21,
-    22: migrationV22
+    22: migrationV22,
+    23: migrationV23,
+    24: migrationV24,
+    25: migrationV25,
+    26: migrationV26,
+    27: migrationV27
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -1487,6 +1492,226 @@ function migrationV22() {
       for (const stmt of alters) db.run(stmt, done);
     });
   });
+}
+
+/**
+ * Helper: run a batch of CREATE/ALTER statements, swallow "already exists" /
+ * "duplicate column name", then stamp the schema_version. Used by v23–v27.
+ */
+function runSchemaBatch(version, statements) {
+  return new Promise((resolve, reject) => {
+    db.serialize(() => {
+      let pending = statements.length;
+      let failed = false;
+      const done = (err) => {
+        if (failed) return;
+        if (err && !/already exists|duplicate column name/i.test(err.message)) {
+          failed = true;
+          reject(err);
+          return;
+        }
+        pending--;
+        if (pending === 0) {
+          db.run(`INSERT OR IGNORE INTO schema_version (version) VALUES (${version})`, (insertErr) => {
+            if (insertErr) reject(insertErr);
+            else {
+              console.log(`✓ Migration V${version} applied`);
+              resolve();
+            }
+          });
+        }
+      };
+      for (const stmt of statements) db.run(stmt, done);
+    });
+  });
+}
+
+/**
+ * Migration V23: Counting game channel.
+ *   - guild_counting_settings: a channel where the community counts up; the bot
+ *     validates each next number, tracks current count + high score + last
+ *     counter, and (optionally) resets on a wrong number.
+ * Idempotent; mirrored in initializeDatabase().
+ */
+function migrationV23() {
+  return runSchemaBatch(23, [
+    `CREATE TABLE IF NOT EXISTS guild_counting_settings (
+      guild_id      TEXT PRIMARY KEY,
+      enabled       BOOLEAN DEFAULT 0,
+      channel_id    TEXT,
+      current_count INTEGER DEFAULT 0,
+      last_user_id  TEXT,
+      high_score    INTEGER DEFAULT 0,
+      reset_on_fail BOOLEAN DEFAULT 1,
+      count_emoji   TEXT DEFAULT '✅',
+      updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+    )`
+  ]);
+}
+
+/**
+ * Migration V24: Polls.
+ *   - guild_polls: a posted poll (question + JSON options, single/multi choice,
+ *     optional timed close).
+ *   - guild_poll_votes: one row per (poll, user, option) — supports multi-select.
+ * Idempotent; mirrored in initializeDatabase().
+ */
+function migrationV24() {
+  return runSchemaBatch(24, [
+    `CREATE TABLE IF NOT EXISTS guild_polls (
+      id          TEXT PRIMARY KEY,
+      guild_id    TEXT NOT NULL,
+      channel_id  TEXT,
+      message_id  TEXT,
+      question    TEXT,
+      options     TEXT DEFAULT '[]',
+      multi       BOOLEAN DEFAULT 0,
+      ends_at     INTEGER DEFAULT 0,
+      ended       BOOLEAN DEFAULT 0,
+      created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_polls_guild ON guild_polls(guild_id)`,
+    `CREATE TABLE IF NOT EXISTS guild_poll_votes (
+      poll_id      TEXT NOT NULL,
+      user_id      TEXT NOT NULL,
+      option_index INTEGER NOT NULL,
+      PRIMARY KEY (poll_id, user_id, option_index),
+      FOREIGN KEY (poll_id) REFERENCES guild_polls(id) ON DELETE CASCADE
+    )`
+  ]);
+}
+
+/**
+ * Migration V25: Invite tracking (Basic).
+ *   - guild_invite_settings: module toggle + log channel + announce template.
+ *   - guild_invites: bot-maintained cache of each invite code's use count, so a
+ *     join can be attributed to whichever code's count grew.
+ *   - guild_member_invites: who invited each member (the join record / leaderboard
+ *     source).
+ * Idempotent; mirrored in initializeDatabase().
+ */
+function migrationV25() {
+  return runSchemaBatch(25, [
+    `CREATE TABLE IF NOT EXISTS guild_invite_settings (
+      guild_id         TEXT PRIMARY KEY,
+      enabled          BOOLEAN DEFAULT 0,
+      log_channel_id   TEXT,
+      message_template TEXT DEFAULT '👋 {user} joined — invited by {inviter} (now {invites} invites)',
+      updated_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS guild_invites (
+      guild_id    TEXT NOT NULL,
+      code        TEXT NOT NULL,
+      inviter_id  TEXT,
+      uses        INTEGER DEFAULT 0,
+      PRIMARY KEY (guild_id, code),
+      FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS guild_member_invites (
+      guild_id    TEXT NOT NULL,
+      user_id     TEXT NOT NULL,
+      inviter_id  TEXT,
+      code        TEXT,
+      joined_at   INTEGER DEFAULT 0,
+      PRIMARY KEY (guild_id, user_id),
+      FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_member_invites_inviter ON guild_member_invites(guild_id, inviter_id)`
+  ]);
+}
+
+/**
+ * Migration V26: Applications / staff forms (Pro).
+ *   - guild_application_forms: a form shown on a panel (JSON questions, review
+ *     channel, role granted on accept, button label, order, toggle).
+ *   - guild_applications: one submission per applicant (JSON answers + review
+ *     status pending|accepted|denied + reviewer).
+ * Idempotent; mirrored in initializeDatabase().
+ */
+function migrationV26() {
+  return runSchemaBatch(26, [
+    `CREATE TABLE IF NOT EXISTS guild_application_forms (
+      id               TEXT PRIMARY KEY,
+      guild_id         TEXT NOT NULL,
+      name             TEXT,
+      description      TEXT,
+      questions        TEXT DEFAULT '[]',
+      review_channel_id TEXT,
+      accepted_role_id TEXT,
+      panel_channel_id TEXT,
+      panel_message_id TEXT,
+      button_label     TEXT DEFAULT 'Apply',
+      position         INTEGER DEFAULT 0,
+      enabled          BOOLEAN DEFAULT 1,
+      created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_application_forms_guild ON guild_application_forms(guild_id)`,
+    `CREATE TABLE IF NOT EXISTS guild_applications (
+      id          TEXT PRIMARY KEY,
+      form_id     TEXT NOT NULL,
+      guild_id    TEXT NOT NULL,
+      user_id     TEXT,
+      answers     TEXT DEFAULT '[]',
+      status      TEXT DEFAULT 'pending',
+      reviewer_id TEXT,
+      created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_applications_guild ON guild_applications(guild_id)`
+  ]);
+}
+
+/**
+ * Migration V27: Economy / currency (Pro).
+ *   - guild_economy_settings: currency name/symbol, daily + work payouts and
+ *     cooldowns, starting balance.
+ *   - guild_economy_users: per-member balance + daily/work cooldown timestamps.
+ *   - guild_economy_shop: purchasable items (price + optional role grant).
+ * Idempotent; mirrored in initializeDatabase().
+ */
+function migrationV27() {
+  return runSchemaBatch(27, [
+    `CREATE TABLE IF NOT EXISTS guild_economy_settings (
+      guild_id        TEXT PRIMARY KEY,
+      enabled         BOOLEAN DEFAULT 0,
+      currency_name   TEXT DEFAULT 'coins',
+      currency_symbol TEXT DEFAULT '🪙',
+      start_balance   INTEGER DEFAULT 0,
+      daily_amount    INTEGER DEFAULT 200,
+      work_min        INTEGER DEFAULT 50,
+      work_max        INTEGER DEFAULT 250,
+      work_cooldown   INTEGER DEFAULT 3600,
+      updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS guild_economy_users (
+      guild_id    TEXT NOT NULL,
+      user_id     TEXT NOT NULL,
+      balance     INTEGER DEFAULT 0,
+      last_daily  INTEGER DEFAULT 0,
+      last_work   INTEGER DEFAULT 0,
+      PRIMARY KEY (guild_id, user_id),
+      FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_economy_users_balance ON guild_economy_users(guild_id, balance DESC)`,
+    `CREATE TABLE IF NOT EXISTS guild_economy_shop (
+      id          TEXT PRIMARY KEY,
+      guild_id    TEXT NOT NULL,
+      name        TEXT,
+      description TEXT,
+      price       INTEGER DEFAULT 0,
+      role_id     TEXT,
+      position    INTEGER DEFAULT 0,
+      enabled     BOOLEAN DEFAULT 1,
+      created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_economy_shop_guild ON guild_economy_shop(guild_id)`
+  ]);
 }
 
 /**
