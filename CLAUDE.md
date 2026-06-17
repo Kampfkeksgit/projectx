@@ -51,7 +51,7 @@ Doku-Index: [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md)
 ```
 projectx/
 ├── bot/                        # Python Discord-Bot
-│   ├── main.py                 # Entry-Point, lädt 27 Cogs in setup_hook (läuft 1× beim Start — NICHT in on_ready, das bei jedem Reconnect feuert → sonst „Extension already loaded")
+│   ├── main.py                 # Entry-Point, lädt 32 Cogs in setup_hook (läuft 1× beim Start — NICHT in on_ready, das bei jedem Reconnect feuert → sonst „Extension already loaded")
 │   │                           # Danach in setup_hook: bot.tree.sync() für Slash-Commands. on_ready loggt nur noch die Verbindung.
 │   │                           # command_prefix = async _resolve_prefix (per-Guild via command_config, Cache, Mention immer aktiv)
 │   │                           # Globale Gates: @bot.check (Prefix) + bot.tree.interaction_check (Slash) sperren deaktivierte Befehle
@@ -130,13 +130,19 @@ projectx/
 │       │                       # POST /invites/join + Ankündigung. Braucht MANAGE_GUILD. (Basic)
 │       ├── applications.py     # !applypanel postet Form-Buttons; "app:<fid>" → Modal (≤5 Fragen); Submit → Review-Embed
 │       │                       # mit Accept/Deny ("appok:"/"appno:"); Accept vergibt Rolle + DM. (Pro)
-│       └── economy.py          # !balance/!daily/!work/!pay/!rich/!shop/!buy → POST /economy/* (Backend rechnet
-│                               # Balance/Cooldowns in Transaktionen); !buy vergibt optional Shop-Rolle. (Pro)
+│       ├── economy.py          # !balance/!daily/!work/!pay/!rich/!shop/!buy → POST /economy/* (Backend rechnet
+│       │                       # Balance/Cooldowns in Transaktionen); !buy vergibt optional Shop-Rolle. (Pro)
+│       ├── tictactoe.py        # Games-Kategorie (alle Basic, geteilte /games-Settings + /games/score):
+│       │                       # !ttt @gegner → 3×3 Button-Grid, on_interaction "ttt:<token>:<pos>", In-Memory-Session.
+│       ├── rps.py              # !rps [@gegner] → Schere/Stein/Papier-Buttons (vs Spieler oder Bot).
+│       ├── trivia.py           # !trivia → Frage-Bank (built-in) + 4 Buttons "trv:<token>:<idx>", erster Treffer punktet, 25s-Auto-Reveal.
+│       ├── connect4.py         # !connect4 @gegner → 7-Spalten-Buttons "c4:<token>:<col>", Emoji-Board, 4-in-Reihe.
+│       └── hangman.py          # !hangman → Wort-Bank, Raten via on_message (Einzelbuchstaben), 6 Versuche, Solver punktet.
 ├── backend/                    # Node.js / Express API
 │   ├── server.js               # App-Init, CORS+cookies, Migration-Bootstrap, Route-Mounts, Warnings
 │   ├── db.js                   # SQLite-Connection + Query-Helper (inkl. updateUserTokens,
 │   │                           # removeUserGuildsNotIn, getXxxSettings/upsertXxxSettings je Modul, MODULE_DEFAULTS)
-│   ├── migrations.js           # Schema-Versioning + Migrations (aktuell v27)
+│   ├── migrations.js           # Schema-Versioning + Migrations (aktuell v28)
 │   ├── package.json
 │   ├── middleware/
 │   │   ├── session.js          # signSession / setSessionCookie / clearSessionCookie /
@@ -173,6 +179,7 @@ projectx/
 │   │   ├── invitetracking.js   # /api/guilds/:id/invitetracking (settings GET/PUT + /leaderboard, cookie) — Invite-Tracking (Basic)
 │   │   ├── applications.js     # /api/guilds/:id/applications/forms (CRUD) + /submissions (cookie) — Bewerbungen (Pro)
 │   │   ├── economy.js          # /api/guilds/:id/economy (settings GET/PUT) + /shop (CRUD) + /leaderboard (cookie) — Wirtschaft (Pro)
+│   │   ├── games.js           # /api/guilds/:id/games (shared settings GET/PUT) + /leaderboard?game= (cookie) — Games-Kategorie (Basic)
 │   │   ├── public.js           # /api/public/stats + /api/public/plans (KEIN Auth — Landing-Page Stats + Tarif-Katalog)
 │   │   ├── premium.js          # /api/guilds/:id/premium (GET, cookie) — Tier + Modul-Unlock-Map fürs Dashboard
 │   │   ├── admin.js            # /api/admin/{users,guilds} (GET list + POST .../block[until] + POST .../premium, requireSession+requireOwner)
@@ -270,13 +277,13 @@ projectx/
 │       │   ├── TicketCategoryRow.vue # Inline-Editor-Row für Ticket-Kategorien (Label/Emoji/Desc/
 │       │   │                       # Kategorie+Support-Rolle+Ping-Rolle-Override/Button-Style/Welcome/Toggle)
 │       │   ├── PremiumLock.vue # Sperrseite für Premium-Module (in DashboardLayout statt router-view gerendert, wenn Tier < Modul)
-│       │   ├── Sidebar.vue     # Dashboard-Sidebar mit 3 Gruppen + Premium-Link + Lock-Icons auf gesperrten Modulen
+│       │   ├── Sidebar.vue     # Dashboard-Sidebar mit 4 Gruppen (Configuration/Moderation/Engagement/Games) + Premium-Link + Lock-Icons
 │       │   └── LoadingPage.vue # Animierter Orb
 │       └── pages/
 │           ├── Landing.vue          # /  (frei zugänglich, auch für authed User — Home-Button im /dashboard)
 │           ├── Servers.vue          # /dashboard  (Guild-Auswahl, requiresAuth) — mit Home- + Refresh-Button
 │           ├── DashboardLayout.vue  # Wrapper für /dashboard/:guild_id/* mit Sidebar
-│           ├── Overview.vue         # /dashboard/:guild_id (Übersicht — 26 Modul-Cards mit Live-Status)
+│           ├── Overview.vue         # /dashboard/:guild_id (Übersicht — 31 Modul-Cards mit Live-Status)
 │           ├── Welcome.vue          # /dashboard/:guild_id/welcome (Config + Live-Preview)
 │           ├── Leave.vue            # /dashboard/:guild_id/leave
 │           ├── AutoRole.vue         # /dashboard/:guild_id/autorole (Toggle + Role-Chips + Apply-to-Bots)
@@ -304,6 +311,8 @@ projectx/
 │           ├── InviteTracking.vue   # /dashboard/:guild_id/invitetracking (Settings + Top-Inviter-Leaderboard)
 │           ├── Applications.vue     # /dashboard/:guild_id/applications (Formular-CRUD inkl. Fragen + Einreichungs-Liste)
 │           ├── Economy.vue          # /dashboard/:guild_id/economy (Settings + Shop-CRUD + Balance-Leaderboard)
+│           ├── TicTacToe.vue / RockPaperScissors.vue / Trivia.vue / ConnectFour.vue / Hangman.vue
+│           │                        # Games-Kategorie: je Toggle + geteilter Spiele-Channel + Spiel-Bestenliste (alle nutzen /games)
 │           ├── Premium.vue         # /dashboard/:guild_id/premium (Tarif-Übersicht Free/Basic/Pro + aktueller Tier + Upgrade-CTA)
 │           ├── Admin.vue           # /admin (OWNER-only — Tabs Overview/Users/Guilds/Audit/System; Router-Guard requiresOwner)
 │           │                       # Overview (Metrik-Karten + Premium-läuft-ab + Modul-Adoption), Users/Guilds (Sperren mit Temp-Ban-Dauer,
@@ -604,7 +613,7 @@ Mount-Points aus [backend/server.js](backend/server.js):
 
 **Premium / Tiers** (Cookie required) — Modul-Gating Free/Basic/Pro (`MODULE_TIERS` in [db.js](backend/db.js) ist Single Source).
 - `GET /api/guilds/:id/premium` → `{ success, tier, source, until, module_tiers: { key: tier }, modules: { key: bool } }`. Liefert dem Dashboard den effektiven Tier (abgelaufenes Premium → `free`) + die Unlock-Map pro Modul-Key (= Dashboard-Route-Segment).
-- **Enforcement:** Cookie-Writes der Premium-Modul-Router laufen durch `requirePremiumModule(key)` ([middleware/premium.js](backend/middleware/premium.js)) → GET frei, PUT/POST/DELETE → **403 `{ error: 'premium_required', module, required_tier, current_tier }`** wenn der Tier nicht reicht (Leveling gated im eigenen Router, da bare-prefix-Mount). Guild-übergreifende Loop-Cog-Queries (social/stats/scheduled/birthday/rolemenus/giveaways) filtern via `tierFilterSql(minTier)` serverseitig; per-Guild Bot-GETs (leveling-xp/tempvoice/starboard/antiraid/tickets/invitetracking/applications/economy) liefern eine `disabled`-Shape über den zentralen `PREMIUM_BOT_GATES`-Guard in [bot.js](backend/routes/bot.js). **Frei:** welcome/leave/autorole/logs/moderation/reaction-roles/verification/suggestions/custom-commands/counting/polls. **Basic:** leveling/starboard/tempvoice/birthday/rolemenus/antiraid/invitetracking. **Pro:** social/stats/tickets/giveaways/scheduled/applications/economy.
+- **Enforcement:** Cookie-Writes der Premium-Modul-Router laufen durch `requirePremiumModule(key)` ([middleware/premium.js](backend/middleware/premium.js)) → GET frei, PUT/POST/DELETE → **403 `{ error: 'premium_required', module, required_tier, current_tier }`** wenn der Tier nicht reicht (Leveling gated im eigenen Router, da bare-prefix-Mount). Guild-übergreifende Loop-Cog-Queries (social/stats/scheduled/birthday/rolemenus/giveaways) filtern via `tierFilterSql(minTier)` serverseitig; per-Guild Bot-GETs (leveling-xp/tempvoice/starboard/antiraid/tickets/invitetracking/applications/economy) liefern eine `disabled`-Shape über den zentralen `PREMIUM_BOT_GATES`-Guard in [bot.js](backend/routes/bot.js). **Frei:** welcome/leave/autorole/logs/moderation/reaction-roles/verification/suggestions/custom-commands/counting/polls. **Basic:** leveling/starboard/tempvoice/birthday/rolemenus/antiraid/invitetracking + Games-Kategorie (games/tictactoe/rps/trivia/connect4/hangman — geteilte `/games`-Settings, Gate-Key `games`). **Pro:** social/stats/tickets/giveaways/scheduled/applications/economy.
 
 > **Enforcement gesperrter Entities:** Gesperrte **User** werden von `requireSession` (403 `{ blocked: true }`), `/auth/me` (403 + Cookie-Clear) und dem OAuth-Callback (403, kein Cookie) abgewiesen — der Owner ist immer ausgenommen. Gesperrte **Guilds** bleiben im Server-Picker sichtbar (`getUserManageableGuilds` liefert das `blocked`-Flag mit), werden dort aber rot umrandet + nicht klickbar gerendert ([Servers.vue](frontend/src/pages/Servers.vue)); `requireGuildAccess` liefert 403, die Bot-Endpoints unter `/api/bot/guilds/:id/*` liefern 403 (Bot wird dort inert), und alle guild-übergreifenden Loop-Cog-Queries (social/stats/tempvoice/birthday/scheduled/rolemenus/giveaways) filtern `blocked = 1` per `NOT IN (SELECT id FROM guilds WHERE blocked = 1)`.
 
@@ -717,9 +726,9 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - Engine: **SQLite3** (Datei via `DATABASE_URL`, default `./data/bot.db`)
 - Connection: [backend/db.js](backend/db.js)
 - Migrations: [backend/migrations.js](backend/migrations.js)
-  - **Aktuelle Schema-Version: `27`**
+  - **Aktuelle Schema-Version: `28`**
   - `CURRENT_SCHEMA_VERSION` Konstante steuert Upgrades.
-  - `applyMigrations(from, to)` mappt Versionsnummern → Migration-Funktionen (`migrationV1`, …, `migrationV27`). v23–v27 nutzen den `runSchemaBatch(version, statements)`-Helper.
+  - `applyMigrations(from, to)` mappt Versionsnummern → Migration-Funktionen (`migrationV1`, …, `migrationV28`). v23–v28 nutzen den `runSchemaBatch(version, statements)`-Helper.
   - Versionstabelle: `schema_version (version PK, applied_at)`.
   - `migrationV2` fügt `users.token_expires_at INTEGER` hinzu (idempotent).
   - `migrationV3` legt `guild_autorole_settings`, `guild_log_settings`, `guild_moderation_settings` an (`CREATE TABLE IF NOT EXISTS` — idempotent; werden parallel auch im `initializeDatabase()`-Pfad erzeugt, damit Fresh-DBs auch ohne Migrations-Run funktionieren).
@@ -749,6 +758,7 @@ Mount-Points aus [backend/server.js](backend/server.js):
   - `migrationV25` (Invite-Tracking, Basic): `guild_invite_settings` (`guild_id PK`, `enabled`, `log_channel_id`, `message_template`), `guild_invites` (Cache PK `(guild_id, code)`), `guild_member_invites` (PK `(guild_id, user_id)`, `idx_member_invites_inviter`). Idempotent + Mirror.
   - `migrationV26` (Applications, Pro): `guild_application_forms` (`id` UUID, `questions` JSON ≤5, `review_channel_id`, `accepted_role_id`, `panel_message_id`, `idx_application_forms_guild`) + `guild_applications` (`id` UUID, `answers` JSON, `status ∈ {pending|accepted|denied}`, `idx_applications_guild`). Idempotent + Mirror.
   - `migrationV27` (Economy, Pro): `guild_economy_settings` (`guild_id PK`, `currency_name`/`currency_symbol`, `start_balance`, `daily_amount`, `work_min`/`work_max`/`work_cooldown`), `guild_economy_users` (PK `(guild_id, user_id)`, `balance`, `last_daily`/`last_work`, `idx_economy_users_balance`), `guild_economy_shop` (`id` UUID, `price`, `role_id`, `idx_economy_shop_guild`). Idempotent + Mirror.
+  - `migrationV28` (Games-Kategorie, alle Basic): `guild_games_settings` (`guild_id PK`, gemeinsamer `games_channel_id` + pro-Spiel-Flags `tictactoe_enabled`/`rps_enabled`/`trivia_enabled`/`connect4_enabled`/`hangman_enabled`) + `guild_game_scores` (PK `(guild_id, user_id, game)`, `wins`/`plays`, `idx_game_scores_lb`). Eine geteilte Settings-Row + eine Scores-Tabelle für alle 5 Spiele. Idempotent + Mirror.
   - `migrationV18` (Ticket-Überarbeitung, idempotente ALTERs + neue Tabelle + Mirror): `guild_ticket_settings` +10 Spalten (`panel_type ∈ {dropdown|buttons}`, `panel_embed`/`welcome_embed` JSON, `ping_role_id`, `naming_template`, `claim_enabled`, `close_confirm`, `rating_enabled`, `rating_mode ∈ {channel|dm|both}`, `log_channel_id`); `guild_tickets` +8 Spalten (`ticket_category_id`, `number`, `claimed_by`, `rating`, `rating_comment`, `closed_by`, `closed_at`, `extra_user_ids` JSON); neue Tabelle `guild_ticket_categories` (`id` UUID, `idx_ticket_categories_guild`, FK CASCADE) — Ticket-Typen mit Label/Emoji/Desc + Kategorie-/Support-Rollen-/Ping-Rollen-Override, Welcome-Text, `button_style`, Position, Enabled.
 
 **Kern-Tabellen** (Details: [backend/DATABASE_SCHEMA.md](backend/DATABASE_SCHEMA.md), [backend/DATABASE_FUNCTIONS.md](backend/DATABASE_FUNCTIONS.md))
@@ -795,6 +805,7 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - `guild_invite_settings` + `guild_invites` (Use-Count-Cache) + `guild_member_invites` (Beitritts-Record/Leaderboard-Quelle) — Invite-Tracking (Basic)
 - `guild_application_forms` (`questions` JSON ≤5, `review_channel_id`, `accepted_role_id`) + `guild_applications` (`answers` JSON, `status`, `reviewer_id`) — Bewerbungen (Pro)
 - `guild_economy_settings` + `guild_economy_users` (`balance`, `last_daily`/`last_work`) + `guild_economy_shop` (`price`, optionale `role_id`) — Wirtschaft (Pro)
+- `guild_games_settings` (eine Row, geteilter `games_channel_id` + pro-Spiel-Toggle) + `guild_game_scores` (`(guild_id, user_id, game)`, `wins`/`plays`) — Games-Kategorie (Basic): Tic-Tac-Toe/RPS/Trivia/Connect-Four/Hangman
 - `schema_version` — Migrations-Tracking
 
 **Wichtige DB-Helper** in [backend/db.js](backend/db.js):
@@ -955,6 +966,13 @@ Empfehlung aus [README.md](README.md): SQLite → PostgreSQL für Multi-Instance
 
 ## 14. Letzte Aktualisierung
 
+- **Datum:** 2026-06-17
+- **Neue Games-Kategorie mit 5 Spielen (Schema v28, alle Tier Basic):** Eigene Sidebar-Gruppe „Games" (4. Gruppe) mit Tic-Tac-Toe, Schere-Stein-Papier, Trivia, Vier gewinnt und Galgenmännchen (26 → 31 Modul-Cards).
+  - **Schlanke geteilte Architektur:** EINE Settings-Row `guild_games_settings` (gemeinsamer `games_channel_id` + pro-Spiel-Toggle) + EINE `guild_game_scores`-Tabelle (`(guild_id, user_id, game)` → wins/plays). Eine Cookie-Route [games.js](backend/routes/games.js) (`GET/PUT /games` mit Partial-Merge, `GET /games/leaderboard?game=`), gated über `requirePremiumModule('games')`. Bot-Endpoints `GET /api/bot/guilds/:id/settings/games` + `POST .../games/score` + `GET .../games/leaderboard` in [bot.js](backend/routes/bot.js), `PREMIUM_BOT_GATES`-Eintrag `games`. db.js: `GAMES_DEFAULTS`/`GAME_KEYS`, `getGamesSettings`/`upsertGamesSettings` (Merge), `recordGameScore`, `getGameLeaderboard`.
+  - **Bot:** 5 Cogs ([tictactoe.py](bot/cogs/tictactoe.py)/[rps.py](bot/cogs/rps.py)/[trivia.py](bot/cogs/trivia.py)/[connect4.py](bot/cogs/connect4.py)/[hangman.py](bot/cogs/hangman.py)) in [main.py](bot/main.py) geladen (32 Cogs gesamt). Button-Spiele via `on_interaction` (custom_id `ttt:`/`rps:`/`trv:`/`c4:`), In-Memory-Sessions (Token = `uuid4().hex[:8]`, „expired" bei Restart). Hangman via `on_message` (Einzelbuchstaben). Alle lesen `/settings/games` (60s-Cache), prüfen pro-Spiel-Flag + optionalen `games_channel_id`, posten Ergebnis an `/games/score`.
+  - **Frontend:** 5 Seiten (TicTacToe/RockPaperScissors/Trivia/ConnectFour/Hangman) — je Toggle (pro-Spiel-Flag im geteilten Settings-Objekt, Partial-PUT) + geteilter Spiele-Channel + Spiel-Bestenliste. Router-Childs + neue Sidebar-Gruppe „Games" + 5 Overview-Cards (per `v-for` über `gameCards`). `MODULE_TIERS` um `games`+5 Segmente (alle basic) erweitert. i18n: `sidebar.sectionGames`+5 Links, 10 `overview.*`-Keys, 5 Namespaces (tictactoe/rps/trivia/connect4/hangman) in **allen 5 Sprachen** (Key-Parität verifiziert: 1244 Keys/Locale).
+  - **Umsetzung mit Sub-Agents:** geteiltes Scaffolding (Migration/db/Routen/Nav/i18n EN+DE) selbst gebaut, dann 5 Cog-Agents + 1 Seiten-Agent + 3 Übersetzungs-Agents (tr/ru/pl) parallel.
+  - Verifiziert: Migration v28 sauber, DB-Smoke-Test (Merge-Upsert/Scoring/Leaderboard/Validation) grün, alle 32 Cogs kompilieren, Frontend-Build grün, i18n-Parität 1244/Locale. **Hinweis:** alle Spiele teilen sich EINEN Tier (`games` = Basic) → daher EINE `/games`-Route trotz 5 Modul-Seiten.
 - **Datum:** 2026-06-16
 - **5 neue Module: Counting + Polls + Invite-Tracking + Applications + Economy (Schema v23–v27):** Großer Modul-Rollout in einem Rutsch (21 → 26 Module). Tier-Verteilung: Counting/Polls = **Free**, Invite-Tracking = **Basic**, Applications/Economy = **Pro**.
   - **Counting (Free, v23):** Zähl-Channel — der Bot validiert jede Zahl atomar (`recordCount` in Transaktion), trackt `current_count`/`high_score`/`last_user_id`, optionaler Reset bei Fehler/Doppel-Count. Cog [counting.py](bot/cogs/counting.py) (on_message), Route [counting.js](backend/routes/counting.js), Page [Counting.vue](frontend/src/pages/Counting.vue).

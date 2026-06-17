@@ -89,7 +89,10 @@ import {
   economyPay,
   getEconomyLeaderboard,
   getEconomyShop,
-  economyBuy
+  economyBuy,
+  getGamesSettings,
+  recordGameScore,
+  getGameLeaderboard
 } from '../db.js'
 import { requireBotToken } from '../middleware/session.js'
 import { setBotStats } from '../state/botStats.js'
@@ -140,7 +143,8 @@ const PREMIUM_BOT_GATES = [
   { test: /\/settings\/tickets$/, module: 'tickets', disabled: { enabled: false, categories: [] } },
   { test: /\/settings\/invitetracking$/, module: 'invitetracking', disabled: { enabled: false } },
   { test: /\/settings\/applications$/, module: 'applications', disabled: { forms: [] } },
-  { test: /\/settings\/economy$/, module: 'economy', disabled: { enabled: false } }
+  { test: /\/settings\/economy$/, module: 'economy', disabled: { enabled: false } },
+  { test: /\/settings\/games$/, module: 'games', disabled: { games_channel_id: null, tictactoe_enabled: false, rps_enabled: false, trivia_enabled: false, connect4_enabled: false, hangman_enabled: false } }
 ]
 
 /**
@@ -1457,6 +1461,43 @@ router.post('/guilds/:guild_id/economy/buy', requireBotToken, async (req, res) =
   } catch (error) {
     console.error('Bot economy buy error:', error.message)
     res.status(500).json({ error: 'Failed to buy item' })
+  }
+})
+
+// ----- Games category (v28) -----
+router.get('/guilds/:guild_id/settings/games', requireBotToken, async (req, res) => {
+  try {
+    return res.json(await getGamesSettings(req.params.guild_id))
+  } catch (error) {
+    console.error('Bot get games settings error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch games settings' })
+  }
+})
+
+router.post('/guilds/:guild_id/games/score', requireBotToken, async (req, res) => {
+  try {
+    const { user_id, game, win } = req.body || {}
+    if (!user_id || !game) return res.status(400).json({ error: 'user_id and game required' })
+    try {
+      await recordGameScore(req.params.guild_id, user_id, game, !!win)
+    } catch (err) {
+      if (err && err.code === 'VALIDATION') return res.status(400).json({ error: err.message })
+      throw err
+    }
+    return res.json({ success: true })
+  } catch (error) {
+    console.error('Bot record game score error:', error.message)
+    res.status(500).json({ error: 'Failed to record score' })
+  }
+})
+
+router.get('/guilds/:guild_id/games/leaderboard', requireBotToken, async (req, res) => {
+  try {
+    const leaderboard = await getGameLeaderboard(req.params.guild_id, req.query.game, Number(req.query.limit) || 10)
+    return res.json({ leaderboard })
+  } catch (error) {
+    console.error('Bot get game leaderboard error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch leaderboard' })
   }
 })
 

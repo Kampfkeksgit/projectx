@@ -261,6 +261,7 @@ export default {
     section: 'Konfiguracja',
     sectionModeration: 'Moderacja',
     sectionEngagement: 'Zaangażowanie',
+    sectionGames: 'Gry',
     switchServer: 'Zmień serwer',
     linkOverview: 'Przegląd',
     linkWelcome: 'Powitanie',
@@ -288,6 +289,11 @@ export default {
     linkInviteTracking: 'Śledzenie zaproszeń',
     linkApplications: 'Aplikacje',
     linkEconomy: 'Ekonomia',
+    linkTicTacToe: 'Kółko i krzyżyk',
+    linkRps: 'Kamień, papier, nożyce',
+    linkTrivia: 'Quiz',
+    linkConnect4: 'Czwórki',
+    linkHangman: 'Wisielec',
     linkPremium: 'Premium'
   },
   premium: {
@@ -392,10 +398,65 @@ export default {
     applicationsCount: '{count} aktywnych',
     economyTitle: 'Ekonomia',
     economyDesc: 'Waluta serwera z nagrodą dzienną, pracą, sklepem i rankingiem.',
+    tictactoeTitle: 'Kółko i krzyżyk',
+    tictactoeDesc: 'Wyzwij członka na pojedynek 3x3 na planszy z przycisków.',
+    rpsTitle: 'Kamień, papier, nożyce',
+    rpsDesc: 'Zagraj w kamień, papier, nożyce przeciwko członkowi lub botowi.',
+    triviaTitle: 'Quiz',
+    triviaDesc: 'Pytania quizowe z odpowiedziami na przyciskach i rankingiem zwycięstw.',
+    connect4Title: 'Czwórki',
+    connect4Desc: 'Wrzucaj krążki, aby ułożyć cztery w rzędzie przeciwko członkowi.',
+    hangmanTitle: 'Wisielec',
+    hangmanDesc: 'Odgadnij ukryte słowo litera po literze, zanim skończą Ci się próby.',
     botMissingTitle: 'ProjectX nie ma jeszcze na tym serwerze',
     botMissingBody: 'Aby skonfigurować którykolwiek z tych modułów, najpierw zaproś bota. Żadne z poniższych ustawień nie zadziała, zanim to zrobisz.',
     inviteBot: 'Zaproś ProjectX na ten serwer',
     botMissingPill: 'Bota nie ma na serwerze'
+  },
+  tictactoe: {
+    eyebrow: 'Gry', title: 'Kółko i krzyżyk',
+    sub: 'Klasyczny pojedynek 3x3 rozgrywany na planszy z przycisków Discord.',
+    enableLabel: 'Włącz kółko i krzyżyk', enableHint: 'Zezwól członkom na rozpoczynanie gier w kółko i krzyżyk.',
+    channelLabel: 'Kanał gier', channelHint: 'Ogranicz wszystkie gry do tego kanału (opcjonalnie, wspólny dla wszystkich gier).',
+    usageNote: 'Rozpocznij pojedynek za pomocą !ttt @przeciwnik. Gracze na zmianę dotykają planszy.',
+    leaderboardTitle: 'Ranking', leaderboardEmpty: 'Nie rozegrano jeszcze żadnych gier.',
+    playerCol: 'Gracz', winsCol: 'Wygrane', playsCol: 'Gry', loadError: 'Nie udało się załadować ustawień gier.'
+  },
+  rps: {
+    eyebrow: 'Gry', title: 'Kamień, papier, nożyce',
+    sub: 'Pojedynki do najlepszego z serii przeciwko innemu członkowi lub botowi.',
+    enableLabel: 'Włącz kamień, papier, nożyce', enableHint: 'Zezwól członkom na rozpoczynanie gier w kamień, papier, nożyce.',
+    channelLabel: 'Kanał gier', channelHint: 'Ogranicz wszystkie gry do tego kanału (opcjonalnie, wspólny dla wszystkich gier).',
+    usageNote: 'Zagraj za pomocą !rps @przeciwnik lub samo !rps, aby zmierzyć się z botem.',
+    leaderboardTitle: 'Ranking', leaderboardEmpty: 'Nie rozegrano jeszcze żadnych gier.',
+    playerCol: 'Gracz', winsCol: 'Wygrane', playsCol: 'Gry', loadError: 'Nie udało się załadować ustawień gier.'
+  },
+  trivia: {
+    eyebrow: 'Gry', title: 'Quiz',
+    sub: 'Pytania quizowe wielokrotnego wyboru z odpowiedziami na przyciskach.',
+    enableLabel: 'Włącz quiz', enableHint: 'Zezwól członkom na rozpoczynanie pytań quizowych.',
+    channelLabel: 'Kanał gier', channelHint: 'Ogranicz wszystkie gry do tego kanału (opcjonalnie, wspólny dla wszystkich gier).',
+    usageNote: 'Rozpocznij pytanie za pomocą !trivia. Pierwsza poprawna odpowiedź zdobywa punkt.',
+    leaderboardTitle: 'Ranking', leaderboardEmpty: 'Nie rozegrano jeszcze żadnych gier.',
+    playerCol: 'Gracz', winsCol: 'Poprawne', playsCol: 'Rozegrane', loadError: 'Nie udało się załadować ustawień gier.'
+  },
+  connect4: {
+    eyebrow: 'Gry', title: 'Czwórki',
+    sub: 'Wrzucaj krążki i ułóż cztery w rzędzie, aby wygrać.',
+    enableLabel: 'Włącz czwórki', enableHint: 'Zezwól członkom na rozpoczynanie gier w czwórki.',
+    channelLabel: 'Kanał gier', channelHint: 'Ogranicz wszystkie gry do tego kanału (opcjonalnie, wspólny dla wszystkich gier).',
+    usageNote: 'Rozpocznij pojedynek za pomocą !connect4 @przeciwnik. Dotknij kolumny, aby wrzucić krążek.',
+    leaderboardTitle: 'Ranking', leaderboardEmpty: 'Nie rozegrano jeszcze żadnych gier.',
+    playerCol: 'Gracz', winsCol: 'Wygrane', playsCol: 'Gry', loadError: 'Nie udało się załadować ustawień gier.'
+  },
+  hangman: {
+    eyebrow: 'Gry', title: 'Wisielec',
+    sub: 'Odgadnij ukryte słowo, podając po jednej literze naraz.',
+    enableLabel: 'Włącz wisielca', enableHint: 'Zezwól członkom na rozpoczynanie gier w wisielca.',
+    channelLabel: 'Kanał gier', channelHint: 'Ogranicz wszystkie gry do tego kanału (opcjonalnie, wspólny dla wszystkich gier).',
+    usageNote: 'Rozpocznij rundę za pomocą !hangman, a następnie wpisuj pojedyncze litery, aby zgadywać.',
+    leaderboardTitle: 'Ranking', leaderboardEmpty: 'Nie rozegrano jeszcze żadnych gier.',
+    playerCol: 'Gracz', winsCol: 'Wygrane', playsCol: 'Gry', loadError: 'Nie udało się załadować ustawień gier.'
   },
   counting: {
     eyebrow: 'Zaangażowanie',

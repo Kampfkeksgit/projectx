@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 27;
+const CURRENT_SCHEMA_VERSION = 28;
 
 /**
  * Initialize schema version tracking
@@ -86,7 +86,8 @@ async function applyMigrations(fromVersion, toVersion) {
     24: migrationV24,
     25: migrationV25,
     26: migrationV26,
-    27: migrationV27
+    27: migrationV27,
+    28: migrationV28
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -1711,6 +1712,40 @@ function migrationV27() {
       FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
     )`,
     `CREATE INDEX IF NOT EXISTS idx_economy_shop_guild ON guild_economy_shop(guild_id)`
+  ]);
+}
+
+/**
+ * Migration V28: Games category (Basic) — a set of mini-games sharing one
+ * settings row and one scores table.
+ *   - guild_games_settings: per-game enable flags + a shared optional games
+ *     channel restriction.
+ *   - guild_game_scores: per (guild, user, game) wins/plays for the leaderboards.
+ * Idempotent; mirrored in initializeDatabase().
+ */
+function migrationV28() {
+  return runSchemaBatch(28, [
+    `CREATE TABLE IF NOT EXISTS guild_games_settings (
+      guild_id          TEXT PRIMARY KEY,
+      games_channel_id  TEXT,
+      tictactoe_enabled BOOLEAN DEFAULT 0,
+      rps_enabled       BOOLEAN DEFAULT 0,
+      trivia_enabled    BOOLEAN DEFAULT 0,
+      connect4_enabled  BOOLEAN DEFAULT 0,
+      hangman_enabled   BOOLEAN DEFAULT 0,
+      updated_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS guild_game_scores (
+      guild_id TEXT NOT NULL,
+      user_id  TEXT NOT NULL,
+      game     TEXT NOT NULL,
+      wins     INTEGER DEFAULT 0,
+      plays    INTEGER DEFAULT 0,
+      PRIMARY KEY (guild_id, user_id, game),
+      FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_game_scores_lb ON guild_game_scores(guild_id, game, wins DESC)`
   ]);
 }
 

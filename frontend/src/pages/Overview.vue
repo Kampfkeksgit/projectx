@@ -574,6 +574,32 @@
           <AppButton v-else tag="a" :href="inviteUrl" target="_blank" rel="noopener noreferrer" variant="ghost">{{ t('common.invite') }}</AppButton>
         </div>
       </article>
+
+      <article
+        v-for="g in gameCards"
+        :key="g.key"
+        class="config-card"
+        :class="{ 'config-card--locked': isLocked(g.key) }"
+        :data-lock="lockLabel(g.key)"
+      >
+        <div class="config-card__head">
+          <div class="config-card__icon config-card__icon--games" v-html="g.icon"></div>
+          <div>
+            <h3 class="config-card__title">{{ t(`overview.${g.key}Title`) }}</h3>
+            <p class="config-card__desc">{{ t(`overview.${g.key}Desc`) }}</p>
+          </div>
+        </div>
+        <div class="config-card__meta">
+          <span class="status" :class="extraEnabled[g.key] ? 'status--on' : 'status--off'">
+            <span class="status__dot"></span>
+            {{ extraEnabled[g.key] ? t('common.enabled') : t('common.disabled') }}
+          </span>
+        </div>
+        <div class="config-card__cta">
+          <AppButton v-if="botPresent" tag="router-link" :to="`/dashboard/${guildId}/${g.key}`" variant="gradient">{{ t('common.configure') }}</AppButton>
+          <AppButton v-else tag="a" :href="inviteUrl" target="_blank" rel="noopener noreferrer" variant="ghost">{{ t('common.invite') }}</AppButton>
+        </div>
+      </article>
     </div>
   </div>
 </template>
@@ -667,14 +693,28 @@ const extraEnabled = reactive({
   pollsCount: 0,
   invitetracking: false,
   applicationsCount: 0,
-  economy: false
+  economy: false,
+  tictactoe: false,
+  rps: false,
+  trivia: false,
+  connect4: false,
+  hangman: false
 })
+
+// Games category — one shared /games settings row drives all five cards.
+const gameCards = [
+  { key: 'tictactoe', icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg>' },
+  { key: 'rps', icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-4 0"/><path d="M14 10V4a2 2 0 0 0-4 0v2"/><path d="M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>' },
+  { key: 'trivia', icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>' },
+  { key: 'connect4', icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8" cy="8" r="1.5"/><circle cx="12" cy="8" r="1.5"/><circle cx="16" cy="12" r="1.5"/><circle cx="8" cy="16" r="1.5"/></svg>' },
+  { key: 'hangman', icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21h10"/><path d="M6 21V4h9"/><path d="M15 4v3"/><circle cx="15" cy="9" r="2"/></svg>' }
+]
 
 async function fetchExtraStatus() {
   const id = guildId.value
   if (!id) return
   const endpoints = ['autorole', 'logs', 'moderation', 'leveling']
-  const [autorole, logs, moderation, leveling, rr, cmds, social, stats, tempvoice, starboard, suggestions, birthday, scheduled, antiraid, verification, rolemenus, tickets, giveaways, counting, polls, invitetracking, applications, economy] = await Promise.all([
+  const [autorole, logs, moderation, leveling, rr, cmds, social, stats, tempvoice, starboard, suggestions, birthday, scheduled, antiraid, verification, rolemenus, tickets, giveaways, counting, polls, invitetracking, applications, economy, games] = await Promise.all([
     api.get(`/guilds/${id}/settings/autorole`).then(r => r.data).catch(() => null),
     api.get(`/guilds/${id}/settings/logs`).then(r => r.data).catch(() => null),
     api.get(`/guilds/${id}/settings/moderation`).then(r => r.data).catch(() => null),
@@ -697,7 +737,8 @@ async function fetchExtraStatus() {
     api.get(`/guilds/${id}/polls`).then(r => r.data).catch(() => null),
     api.get(`/guilds/${id}/invitetracking`).then(r => r.data).catch(() => null),
     api.get(`/guilds/${id}/applications/forms`).then(r => r.data).catch(() => null),
-    api.get(`/guilds/${id}/economy`).then(r => r.data).catch(() => null)
+    api.get(`/guilds/${id}/economy`).then(r => r.data).catch(() => null),
+    api.get(`/guilds/${id}/games`).then(r => r.data).catch(() => null)
   ])
   void endpoints
   extraEnabled.autorole = !!(autorole?.success && autorole.settings?.enabled)
@@ -727,6 +768,12 @@ async function fetchExtraStatus() {
   extraEnabled.invitetracking = !!(invitetracking?.success && invitetracking.settings?.enabled)
   extraEnabled.applicationsCount = (applications?.success && Array.isArray(applications.forms)) ? applications.forms.filter(f => f.enabled).length : 0
   extraEnabled.economy = !!(economy?.success && economy.settings?.enabled)
+  const gs = (games?.success && games.settings) ? games.settings : {}
+  extraEnabled.tictactoe = !!gs.tictactoe_enabled
+  extraEnabled.rps = !!gs.rps_enabled
+  extraEnabled.trivia = !!gs.trivia_enabled
+  extraEnabled.connect4 = !!gs.connect4_enabled
+  extraEnabled.hangman = !!gs.hangman_enabled
 }
 
 onMounted(fetchExtraStatus)
@@ -903,6 +950,7 @@ watch(() => guildId.value, fetchExtraStatus)
 .config-card__icon--invitetracking { background: linear-gradient(135deg, #10b981, #06b6d4); }
 .config-card__icon--applications { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
 .config-card__icon--economy { background: linear-gradient(135deg, #facc15, #f59e0b); }
+.config-card__icon--games { background: linear-gradient(135deg, #ec4899, #8b5cf6); }
 
 .config-card__title {
   font-size: 1.1rem;

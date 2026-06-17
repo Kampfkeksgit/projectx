@@ -32,6 +32,11 @@ const Polls = () => import('../pages/Polls.vue')
 const InviteTracking = () => import('../pages/InviteTracking.vue')
 const Applications = () => import('../pages/Applications.vue')
 const Economy = () => import('../pages/Economy.vue')
+const TicTacToe = () => import('../pages/TicTacToe.vue')
+const RockPaperScissors = () => import('../pages/RockPaperScissors.vue')
+const Trivia = () => import('../pages/Trivia.vue')
+const ConnectFour = () => import('../pages/ConnectFour.vue')
+const Hangman = () => import('../pages/Hangman.vue')
 const Premium = () => import('../pages/Premium.vue')
 const Impressum = () => import('../pages/legal/Impressum.vue')
 const Privacy = () => import('../pages/legal/Privacy.vue')
@@ -91,6 +96,11 @@ const routes = [
       { path: 'invitetracking', name: 'invitetracking', component: InviteTracking },
       { path: 'applications', name: 'applications', component: Applications },
       { path: 'economy', name: 'economy', component: Economy },
+      { path: 'tictactoe', name: 'tictactoe', component: TicTacToe },
+      { path: 'rps', name: 'rps', component: RockPaperScissors },
+      { path: 'trivia', name: 'trivia', component: Trivia },
+      { path: 'connect4', name: 'connect4', component: ConnectFour },
+      { path: 'hangman', name: 'hangman', component: Hangman },
       { path: 'premium', name: 'premium', component: Premium }
     ]
   },

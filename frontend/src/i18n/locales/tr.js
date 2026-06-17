@@ -261,6 +261,7 @@ export default {
     section: 'Yapılandırma',
     sectionModeration: 'Moderasyon',
     sectionEngagement: 'Etkileşim',
+    sectionGames: 'Oyunlar',
     switchServer: 'Sunucu değiştir',
     linkOverview: 'Genel Bakış',
     linkWelcome: 'Karşılama',
@@ -288,6 +289,11 @@ export default {
     linkInviteTracking: 'Davet Takibi',
     linkApplications: 'Başvurular',
     linkEconomy: 'Ekonomi',
+    linkTicTacToe: 'Tic-Tac-Toe',
+    linkRps: 'Taş Kağıt Makas',
+    linkTrivia: 'Bilgi Yarışması',
+    linkConnect4: 'Dört Taş',
+    linkHangman: 'Adam Asmaca',
     linkPremium: 'Premium'
   },
   premium: {
@@ -392,10 +398,65 @@ export default {
     applicationsCount: '{count} aktif',
     economyTitle: 'Ekonomi',
     economyDesc: 'Günlük, çalışma, mağaza ve sıralama tablosuna sahip bir sunucu para birimi.',
+    tictactoeTitle: 'Tic-Tac-Toe',
+    tictactoeDesc: 'Bir üyeyi düğme tahtasında 3x3\'lük bir maça davet edin.',
+    rpsTitle: 'Taş Kağıt Makas',
+    rpsDesc: 'Bir üyeye veya bota karşı taş-kağıt-makas oynayın.',
+    triviaTitle: 'Bilgi Yarışması',
+    triviaDesc: 'Kazanma sıralama tablosuyla düğmeyle yanıtlanan quiz soruları.',
+    connect4Title: 'Dört Taş',
+    connect4Desc: 'Bir üyeye karşı dört taşı yan yana getirmek için disk bırakın.',
+    hangmanTitle: 'Adam Asmaca',
+    hangmanDesc: 'Hakkınız bitmeden gizli kelimeyi harf harf tahmin edin.',
     botMissingTitle: 'ProjectX henüz bu sunucuda değil',
     botMissingBody: 'Bu modüllerden herhangi birini yapılandırmak için önce botu davet edin. O zamana kadar aşağıdaki ayarların hiçbiri çalışmaz.',
     inviteBot: 'ProjectX\'i bu sunucuya davet et',
     botMissingPill: 'Bot sunucuda değil'
+  },
+  tictactoe: {
+    eyebrow: 'Oyunlar', title: 'Tic-Tac-Toe',
+    sub: 'Discord düğme tahtasında oynanan klasik bir 3x3 maçı.',
+    enableLabel: 'Tic-Tac-Toe\'yu etkinleştir', enableHint: 'Üyelerin Tic-Tac-Toe oyunları başlatmasına izin verin.',
+    channelLabel: 'Oyun kanalı', channelHint: 'Tüm oyunları bu kanalla sınırlayın (isteğe bağlı, oyunlar arasında paylaşılır).',
+    usageNote: 'Bir maçı !ttt @rakip ile başlatın. Oyuncular sırayla ızgaraya dokunur.',
+    leaderboardTitle: 'Sıralama tablosu', leaderboardEmpty: 'Henüz oyun oynanmadı.',
+    playerCol: 'Oyuncu', winsCol: 'Galibiyet', playsCol: 'Oyun', loadError: 'Oyun ayarları yüklenemedi.'
+  },
+  rps: {
+    eyebrow: 'Oyunlar', title: 'Taş Kağıt Makas',
+    sub: 'Başka bir üyeye veya bota karşı en iyi-of düelloları.',
+    enableLabel: 'Taş Kağıt Makas\'ı etkinleştir', enableHint: 'Üyelerin Taş-Kağıt-Makas oyunları başlatmasına izin verin.',
+    channelLabel: 'Oyun kanalı', channelHint: 'Tüm oyunları bu kanalla sınırlayın (isteğe bağlı, oyunlar arasında paylaşılır).',
+    usageNote: '!rps @rakip ile oynayın veya bota karşı oynamak için tek başına !rps yazın.',
+    leaderboardTitle: 'Sıralama tablosu', leaderboardEmpty: 'Henüz oyun oynanmadı.',
+    playerCol: 'Oyuncu', winsCol: 'Galibiyet', playsCol: 'Oyun', loadError: 'Oyun ayarları yüklenemedi.'
+  },
+  trivia: {
+    eyebrow: 'Oyunlar', title: 'Bilgi Yarışması',
+    sub: 'Düğme yanıtlı çoktan seçmeli quiz soruları.',
+    enableLabel: 'Bilgi yarışmasını etkinleştir', enableHint: 'Üyelerin bilgi yarışması soruları başlatmasına izin verin.',
+    channelLabel: 'Oyun kanalı', channelHint: 'Tüm oyunları bu kanalla sınırlayın (isteğe bağlı, oyunlar arasında paylaşılır).',
+    usageNote: 'Bir soruyu !trivia ile başlatın. İlk doğru yanıt bir puan kazanır.',
+    leaderboardTitle: 'Sıralama tablosu', leaderboardEmpty: 'Henüz oyun oynanmadı.',
+    playerCol: 'Oyuncu', winsCol: 'Doğru', playsCol: 'Oynanan', loadError: 'Oyun ayarları yüklenemedi.'
+  },
+  connect4: {
+    eyebrow: 'Oyunlar', title: 'Dört Taş',
+    sub: 'Disk bırakın ve kazanmak için dört taşı yan yana getirin.',
+    enableLabel: 'Dört Taş\'ı etkinleştir', enableHint: 'Üyelerin Dört Taş oyunları başlatmasına izin verin.',
+    channelLabel: 'Oyun kanalı', channelHint: 'Tüm oyunları bu kanalla sınırlayın (isteğe bağlı, oyunlar arasında paylaşılır).',
+    usageNote: 'Bir maçı !connect4 @rakip ile başlatın. Disk bırakmak için bir sütuna dokunun.',
+    leaderboardTitle: 'Sıralama tablosu', leaderboardEmpty: 'Henüz oyun oynanmadı.',
+    playerCol: 'Oyuncu', winsCol: 'Galibiyet', playsCol: 'Oyun', loadError: 'Oyun ayarları yüklenemedi.'
+  },
+  hangman: {
+    eyebrow: 'Oyunlar', title: 'Adam Asmaca',
+    sub: 'Gizli kelimeyi her seferinde bir harf tahmin edin.',
+    enableLabel: 'Adam Asmaca\'yı etkinleştir', enableHint: 'Üyelerin Adam Asmaca oyunları başlatmasına izin verin.',
+    channelLabel: 'Oyun kanalı', channelHint: 'Tüm oyunları bu kanalla sınırlayın (isteğe bağlı, oyunlar arasında paylaşılır).',
+    usageNote: 'Bir turu !hangman ile başlatın, ardından tahmin etmek için tek harfler yazın.',
+    leaderboardTitle: 'Sıralama tablosu', leaderboardEmpty: 'Henüz oyun oynanmadı.',
+    playerCol: 'Oyuncu', winsCol: 'Galibiyet', playsCol: 'Oyun', loadError: 'Oyun ayarları yüklenemedi.'
   },
   counting: {
     eyebrow: 'Etkileşim',
