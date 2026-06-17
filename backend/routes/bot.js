@@ -64,7 +64,32 @@ import {
   getGuild,
   effectiveTier,
   moduleUnlocked,
-  syncSkuEntitlements
+  syncSkuEntitlements,
+  getCountingSettings,
+  recordCount,
+  createPoll,
+  setPollMessage,
+  getPoll,
+  votePoll,
+  getDuePolls,
+  markPollEnded,
+  getInviteSettings,
+  replaceGuildInvites,
+  getGuildInvitesCache,
+  recordMemberInvite,
+  getEnabledApplicationForms,
+  getApplicationForm,
+  setApplicationPanelMessage,
+  createApplication,
+  reviewApplication,
+  getEconomySettings,
+  getEconomyBalance,
+  economyDaily,
+  economyWork,
+  economyPay,
+  getEconomyLeaderboard,
+  getEconomyShop,
+  economyBuy
 } from '../db.js'
 import { requireBotToken } from '../middleware/session.js'
 import { setBotStats } from '../state/botStats.js'
@@ -112,7 +137,10 @@ const PREMIUM_BOT_GATES = [
   { test: /\/settings\/tempvoice$/, module: 'tempvoice', disabled: { enabled: false } },
   { test: /\/settings\/starboard$/, module: 'starboard', disabled: { enabled: false } },
   { test: /\/settings\/antiraid$/, module: 'antiraid', disabled: { enabled: false } },
-  { test: /\/settings\/tickets$/, module: 'tickets', disabled: { enabled: false, categories: [] } }
+  { test: /\/settings\/tickets$/, module: 'tickets', disabled: { enabled: false, categories: [] } },
+  { test: /\/settings\/invitetracking$/, module: 'invitetracking', disabled: { enabled: false } },
+  { test: /\/settings\/applications$/, module: 'applications', disabled: { forms: [] } },
+  { test: /\/settings\/economy$/, module: 'economy', disabled: { enabled: false } }
 ]
 
 /**
@@ -1150,6 +1178,285 @@ router.put('/giveaways/:gid/ended', requireBotToken, async (req, res) => {
   } catch (error) {
     console.error('Bot mark giveaway ended error:', error.message)
     res.status(500).json({ error: 'Failed to mark giveaway ended' })
+  }
+})
+
+// ===== New modules (v23-v27): Counting / Polls / Invite-Tracking / Applications / Economy =====
+
+// ----- Counting (free) -----
+router.get('/guilds/:guild_id/settings/counting', requireBotToken, async (req, res) => {
+  try {
+    return res.json(await getCountingSettings(req.params.guild_id))
+  } catch (error) {
+    console.error('Bot get counting settings error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch counting settings' })
+  }
+})
+
+router.post('/guilds/:guild_id/counting/count', requireBotToken, async (req, res) => {
+  try {
+    const { user_id, number } = req.body || {}
+    if (!user_id) return res.status(400).json({ error: 'user_id required' })
+    const result = await recordCount(req.params.guild_id, user_id, number)
+    return res.json(result)
+  } catch (error) {
+    console.error('Bot record count error:', error.message)
+    res.status(500).json({ error: 'Failed to record count' })
+  }
+})
+
+// ----- Polls (free) -----
+router.post('/guilds/:guild_id/polls', requireBotToken, async (req, res) => {
+  try {
+    let poll
+    try {
+      poll = await createPoll(req.params.guild_id, req.body || {})
+    } catch (err) {
+      if (err && err.code === 'VALIDATION') return res.status(400).json({ error: err.message })
+      throw err
+    }
+    return res.json(poll)
+  } catch (error) {
+    console.error('Bot create poll error:', error.message)
+    res.status(500).json({ error: 'Failed to create poll' })
+  }
+})
+
+router.put('/guilds/:guild_id/polls/:pid/message', requireBotToken, async (req, res) => {
+  try {
+    await setPollMessage(req.params.guild_id, req.params.pid, (req.body || {}).message_id)
+    return res.json({ success: true })
+  } catch (error) {
+    console.error('Bot set poll message error:', error.message)
+    res.status(500).json({ error: 'Failed to set poll message' })
+  }
+})
+
+router.get('/guilds/:guild_id/polls/:pid', requireBotToken, async (req, res) => {
+  try {
+    const poll = await getPoll(req.params.guild_id, req.params.pid)
+    return res.json({ poll })
+  } catch (error) {
+    console.error('Bot get poll error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch poll' })
+  }
+})
+
+router.post('/guilds/:guild_id/polls/:pid/vote', requireBotToken, async (req, res) => {
+  try {
+    const { user_id, option_index } = req.body || {}
+    if (!user_id) return res.status(400).json({ error: 'user_id required' })
+    const result = await votePoll(req.params.guild_id, req.params.pid, user_id, option_index)
+    return res.json(result)
+  } catch (error) {
+    console.error('Bot vote poll error:', error.message)
+    res.status(500).json({ error: 'Failed to register vote' })
+  }
+})
+
+router.get('/polls/due', requireBotToken, async (req, res) => {
+  try {
+    const polls = await getDuePolls(Math.floor(Date.now() / 1000))
+    return res.json({ polls })
+  } catch (error) {
+    console.error('Bot get due polls error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch due polls' })
+  }
+})
+
+router.put('/polls/:pid/ended', requireBotToken, async (req, res) => {
+  try {
+    await markPollEnded(req.params.pid)
+    return res.json({ success: true })
+  } catch (error) {
+    console.error('Bot mark poll ended error:', error.message)
+    res.status(500).json({ error: 'Failed to mark poll ended' })
+  }
+})
+
+// ----- Invite tracking (basic) -----
+router.get('/guilds/:guild_id/settings/invitetracking', requireBotToken, async (req, res) => {
+  try {
+    return res.json(await getInviteSettings(req.params.guild_id))
+  } catch (error) {
+    console.error('Bot get invite settings error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch invite settings' })
+  }
+})
+
+router.get('/guilds/:guild_id/invites', requireBotToken, async (req, res) => {
+  try {
+    const invites = await getGuildInvitesCache(req.params.guild_id)
+    return res.json({ invites })
+  } catch (error) {
+    console.error('Bot get invites cache error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch invites' })
+  }
+})
+
+router.put('/guilds/:guild_id/invites', requireBotToken, async (req, res) => {
+  try {
+    const result = await replaceGuildInvites(req.params.guild_id, (req.body || {}).invites)
+    return res.json({ success: true, ...result })
+  } catch (error) {
+    console.error('Bot replace invites error:', error.message)
+    res.status(500).json({ error: 'Failed to sync invites' })
+  }
+})
+
+router.post('/guilds/:guild_id/invites/join', requireBotToken, async (req, res) => {
+  try {
+    const { user_id, inviter_id, code } = req.body || {}
+    if (!user_id) return res.status(400).json({ error: 'user_id required' })
+    const result = await recordMemberInvite(req.params.guild_id, { user_id, inviter_id, code })
+    return res.json({ success: true, ...result })
+  } catch (error) {
+    console.error('Bot record member invite error:', error.message)
+    res.status(500).json({ error: 'Failed to record invite' })
+  }
+})
+
+// ----- Applications (pro) -----
+router.get('/guilds/:guild_id/settings/applications', requireBotToken, async (req, res) => {
+  try {
+    const forms = await getEnabledApplicationForms(req.params.guild_id)
+    return res.json({ forms })
+  } catch (error) {
+    console.error('Bot get application forms error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch application forms' })
+  }
+})
+
+router.get('/guilds/:guild_id/applications/forms/:fid', requireBotToken, async (req, res) => {
+  try {
+    const form = await getApplicationForm(req.params.guild_id, req.params.fid)
+    return res.json({ form })
+  } catch (error) {
+    console.error('Bot get application form error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch application form' })
+  }
+})
+
+router.put('/guilds/:guild_id/applications/forms/:fid/panel', requireBotToken, async (req, res) => {
+  try {
+    const b = req.body || {}
+    await setApplicationPanelMessage(req.params.guild_id, req.params.fid, b.channel_id, b.message_id)
+    return res.json({ success: true })
+  } catch (error) {
+    console.error('Bot set application panel error:', error.message)
+    res.status(500).json({ error: 'Failed to set application panel' })
+  }
+})
+
+router.post('/guilds/:guild_id/applications', requireBotToken, async (req, res) => {
+  try {
+    let result
+    try {
+      result = await createApplication(req.params.guild_id, req.body || {})
+    } catch (err) {
+      if (err && err.code === 'VALIDATION') return res.status(400).json({ error: err.message })
+      throw err
+    }
+    return res.json({ success: true, ...result })
+  } catch (error) {
+    console.error('Bot create application error:', error.message)
+    res.status(500).json({ error: 'Failed to submit application' })
+  }
+})
+
+router.put('/guilds/:guild_id/applications/:appid/review', requireBotToken, async (req, res) => {
+  try {
+    const b = req.body || {}
+    const changes = await reviewApplication(req.params.guild_id, req.params.appid, { status: b.status, reviewer_id: b.reviewer_id })
+    return res.json({ success: changes > 0 })
+  } catch (error) {
+    console.error('Bot review application error:', error.message)
+    res.status(500).json({ error: 'Failed to review application' })
+  }
+})
+
+// ----- Economy (pro) -----
+router.get('/guilds/:guild_id/settings/economy', requireBotToken, async (req, res) => {
+  try {
+    return res.json(await getEconomySettings(req.params.guild_id))
+  } catch (error) {
+    console.error('Bot get economy settings error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch economy settings' })
+  }
+})
+
+router.post('/guilds/:guild_id/economy/balance', requireBotToken, async (req, res) => {
+  try {
+    const { user_id } = req.body || {}
+    if (!user_id) return res.status(400).json({ error: 'user_id required' })
+    return res.json(await getEconomyBalance(req.params.guild_id, user_id))
+  } catch (error) {
+    console.error('Bot economy balance error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch balance' })
+  }
+})
+
+router.post('/guilds/:guild_id/economy/daily', requireBotToken, async (req, res) => {
+  try {
+    const { user_id } = req.body || {}
+    if (!user_id) return res.status(400).json({ error: 'user_id required' })
+    return res.json(await economyDaily(req.params.guild_id, user_id, Math.floor(Date.now() / 1000)))
+  } catch (error) {
+    console.error('Bot economy daily error:', error.message)
+    res.status(500).json({ error: 'Failed to claim daily' })
+  }
+})
+
+router.post('/guilds/:guild_id/economy/work', requireBotToken, async (req, res) => {
+  try {
+    const { user_id } = req.body || {}
+    if (!user_id) return res.status(400).json({ error: 'user_id required' })
+    return res.json(await economyWork(req.params.guild_id, user_id, Math.floor(Date.now() / 1000)))
+  } catch (error) {
+    console.error('Bot economy work error:', error.message)
+    res.status(500).json({ error: 'Failed to work' })
+  }
+})
+
+router.post('/guilds/:guild_id/economy/pay', requireBotToken, async (req, res) => {
+  try {
+    const { user_id, target_id, amount } = req.body || {}
+    if (!user_id || !target_id) return res.status(400).json({ error: 'user_id and target_id required' })
+    return res.json(await economyPay(req.params.guild_id, user_id, target_id, amount))
+  } catch (error) {
+    console.error('Bot economy pay error:', error.message)
+    res.status(500).json({ error: 'Failed to pay' })
+  }
+})
+
+router.get('/guilds/:guild_id/economy/leaderboard', requireBotToken, async (req, res) => {
+  try {
+    const leaderboard = await getEconomyLeaderboard(req.params.guild_id, Number(req.query.limit) || 10)
+    return res.json({ leaderboard })
+  } catch (error) {
+    console.error('Bot economy leaderboard error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch leaderboard' })
+  }
+})
+
+router.get('/guilds/:guild_id/economy/shop', requireBotToken, async (req, res) => {
+  try {
+    const items = await getEconomyShop(req.params.guild_id, true)
+    return res.json({ items })
+  } catch (error) {
+    console.error('Bot economy shop error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch shop' })
+  }
+})
+
+router.post('/guilds/:guild_id/economy/buy', requireBotToken, async (req, res) => {
+  try {
+    const { user_id, item_id } = req.body || {}
+    if (!user_id || !item_id) return res.status(400).json({ error: 'user_id and item_id required' })
+    return res.json(await economyBuy(req.params.guild_id, user_id, item_id))
+  } catch (error) {
+    console.error('Bot economy buy error:', error.message)
+    res.status(500).json({ error: 'Failed to buy item' })
   }
 })
 

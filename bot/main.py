@@ -191,6 +191,31 @@ async def setup_hook():
         print('✅​ Premium sync cog loaded')
     except Exception as e:
         print(f'❌ Failed to load Premium sync cog: {e}')
+    try:
+        await bot.load_extension('cogs.counting')
+        print('✅​ Counting cog loaded')
+    except Exception as e:
+        print(f'❌ Failed to load Counting cog: {e}')
+    try:
+        await bot.load_extension('cogs.polls')
+        print('✅​ Polls cog loaded')
+    except Exception as e:
+        print(f'❌ Failed to load Polls cog: {e}')
+    try:
+        await bot.load_extension('cogs.invitetracking')
+        print('✅​ Invite-Tracking cog loaded')
+    except Exception as e:
+        print(f'❌ Failed to load Invite-Tracking cog: {e}')
+    try:
+        await bot.load_extension('cogs.applications')
+        print('✅​ Applications cog loaded')
+    except Exception as e:
+        print(f'❌ Failed to load Applications cog: {e}')
+    try:
+        await bot.load_extension('cogs.economy')
+        print('✅​ Economy cog loaded')
+    except Exception as e:
+        print(f'❌ Failed to load Economy cog: {e}')
 
     # Sync application (slash) commands. setup_hook runs once, so no guard needed.
     try:

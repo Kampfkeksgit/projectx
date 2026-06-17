@@ -986,6 +986,159 @@ function initializeDatabase() {
       else console.log('✓ Guild giveaway entries table initialized');
     });
 
+    // ----- New modules (v23-v27): Counting / Polls / Invite-Tracking / Applications / Economy -----
+
+    db.run(`
+      CREATE TABLE IF NOT EXISTS guild_counting_settings (
+        guild_id      TEXT PRIMARY KEY,
+        enabled       BOOLEAN DEFAULT 0,
+        channel_id    TEXT,
+        current_count INTEGER DEFAULT 0,
+        last_user_id  TEXT,
+        high_score    INTEGER DEFAULT 0,
+        reset_on_fail BOOLEAN DEFAULT 1,
+        count_emoji   TEXT DEFAULT '✅',
+        updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+      )
+    `, (err) => { if (err) console.error('Error creating guild_counting_settings table:', err); });
+
+    db.run(`
+      CREATE TABLE IF NOT EXISTS guild_polls (
+        id          TEXT PRIMARY KEY,
+        guild_id    TEXT NOT NULL,
+        channel_id  TEXT,
+        message_id  TEXT,
+        question    TEXT,
+        options     TEXT DEFAULT '[]',
+        multi       BOOLEAN DEFAULT 0,
+        ends_at     INTEGER DEFAULT 0,
+        ended       BOOLEAN DEFAULT 0,
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+      )
+    `, (err) => { if (err) console.error('Error creating guild_polls table:', err); });
+    db.run('CREATE INDEX IF NOT EXISTS idx_polls_guild ON guild_polls(guild_id)', () => {});
+    db.run(`
+      CREATE TABLE IF NOT EXISTS guild_poll_votes (
+        poll_id      TEXT NOT NULL,
+        user_id      TEXT NOT NULL,
+        option_index INTEGER NOT NULL,
+        PRIMARY KEY (poll_id, user_id, option_index),
+        FOREIGN KEY (poll_id) REFERENCES guild_polls(id) ON DELETE CASCADE
+      )
+    `, (err) => { if (err) console.error('Error creating guild_poll_votes table:', err); });
+
+    db.run(`
+      CREATE TABLE IF NOT EXISTS guild_invite_settings (
+        guild_id         TEXT PRIMARY KEY,
+        enabled          BOOLEAN DEFAULT 0,
+        log_channel_id   TEXT,
+        message_template TEXT DEFAULT '👋 {user} joined — invited by {inviter} (now {invites} invites)',
+        updated_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+      )
+    `, (err) => { if (err) console.error('Error creating guild_invite_settings table:', err); });
+    db.run(`
+      CREATE TABLE IF NOT EXISTS guild_invites (
+        guild_id    TEXT NOT NULL,
+        code        TEXT NOT NULL,
+        inviter_id  TEXT,
+        uses        INTEGER DEFAULT 0,
+        PRIMARY KEY (guild_id, code),
+        FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+      )
+    `, (err) => { if (err) console.error('Error creating guild_invites table:', err); });
+    db.run(`
+      CREATE TABLE IF NOT EXISTS guild_member_invites (
+        guild_id    TEXT NOT NULL,
+        user_id     TEXT NOT NULL,
+        inviter_id  TEXT,
+        code        TEXT,
+        joined_at   INTEGER DEFAULT 0,
+        PRIMARY KEY (guild_id, user_id),
+        FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+      )
+    `, (err) => { if (err) console.error('Error creating guild_member_invites table:', err); });
+    db.run('CREATE INDEX IF NOT EXISTS idx_member_invites_inviter ON guild_member_invites(guild_id, inviter_id)', () => {});
+
+    db.run(`
+      CREATE TABLE IF NOT EXISTS guild_application_forms (
+        id               TEXT PRIMARY KEY,
+        guild_id         TEXT NOT NULL,
+        name             TEXT,
+        description      TEXT,
+        questions        TEXT DEFAULT '[]',
+        review_channel_id TEXT,
+        accepted_role_id TEXT,
+        panel_channel_id TEXT,
+        panel_message_id TEXT,
+        button_label     TEXT DEFAULT 'Apply',
+        position         INTEGER DEFAULT 0,
+        enabled          BOOLEAN DEFAULT 1,
+        created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+      )
+    `, (err) => { if (err) console.error('Error creating guild_application_forms table:', err); });
+    db.run('CREATE INDEX IF NOT EXISTS idx_application_forms_guild ON guild_application_forms(guild_id)', () => {});
+    db.run(`
+      CREATE TABLE IF NOT EXISTS guild_applications (
+        id          TEXT PRIMARY KEY,
+        form_id     TEXT NOT NULL,
+        guild_id    TEXT NOT NULL,
+        user_id     TEXT,
+        answers     TEXT DEFAULT '[]',
+        status      TEXT DEFAULT 'pending',
+        reviewer_id TEXT,
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+      )
+    `, (err) => { if (err) console.error('Error creating guild_applications table:', err); });
+    db.run('CREATE INDEX IF NOT EXISTS idx_applications_guild ON guild_applications(guild_id)', () => {});
+
+    db.run(`
+      CREATE TABLE IF NOT EXISTS guild_economy_settings (
+        guild_id        TEXT PRIMARY KEY,
+        enabled         BOOLEAN DEFAULT 0,
+        currency_name   TEXT DEFAULT 'coins',
+        currency_symbol TEXT DEFAULT '🪙',
+        start_balance   INTEGER DEFAULT 0,
+        daily_amount    INTEGER DEFAULT 200,
+        work_min        INTEGER DEFAULT 50,
+        work_max        INTEGER DEFAULT 250,
+        work_cooldown   INTEGER DEFAULT 3600,
+        updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+      )
+    `, (err) => { if (err) console.error('Error creating guild_economy_settings table:', err); });
+    db.run(`
+      CREATE TABLE IF NOT EXISTS guild_economy_users (
+        guild_id    TEXT NOT NULL,
+        user_id     TEXT NOT NULL,
+        balance     INTEGER DEFAULT 0,
+        last_daily  INTEGER DEFAULT 0,
+        last_work   INTEGER DEFAULT 0,
+        PRIMARY KEY (guild_id, user_id),
+        FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+      )
+    `, (err) => { if (err) console.error('Error creating guild_economy_users table:', err); });
+    db.run('CREATE INDEX IF NOT EXISTS idx_economy_users_balance ON guild_economy_users(guild_id, balance DESC)', () => {});
+    db.run(`
+      CREATE TABLE IF NOT EXISTS guild_economy_shop (
+        id          TEXT PRIMARY KEY,
+        guild_id    TEXT NOT NULL,
+        name        TEXT,
+        description TEXT,
+        price       INTEGER DEFAULT 0,
+        role_id     TEXT,
+        position    INTEGER DEFAULT 0,
+        enabled     BOOLEAN DEFAULT 1,
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+      )
+    `, (err) => { if (err) console.error('Error creating guild_economy_shop table:', err); });
+    db.run('CREATE INDEX IF NOT EXISTS idx_economy_shop_guild ON guild_economy_shop(guild_id)', () => {});
+
     // Create audit_log table
     db.run(`
       CREATE TABLE IF NOT EXISTS audit_log (
@@ -1057,9 +1210,12 @@ export const MODULE_TIERS = {
   welcome: 'free', leave: 'free', autorole: 'free', logs: 'free',
   moderation: 'free', 'reaction-roles': 'free', verification: 'free',
   suggestions: 'free', 'custom-commands': 'free',
+  counting: 'free', polls: 'free',
   leveling: 'basic', starboard: 'basic', tempvoice: 'basic',
   birthday: 'basic', rolemenus: 'basic', antiraid: 'basic',
-  social: 'pro', stats: 'pro', tickets: 'pro', giveaways: 'pro', scheduled: 'pro'
+  invitetracking: 'basic',
+  social: 'pro', stats: 'pro', tickets: 'pro', giveaways: 'pro', scheduled: 'pro',
+  applications: 'pro', economy: 'pro'
 };
 
 /** Marketing/pricing catalog surfaced on the public landing page. */
@@ -1864,7 +2020,10 @@ const FLAG_MODULE_TABLES = [
   { key: 'birthday', table: 'guild_birthday_settings' },
   { key: 'antiraid', table: 'guild_antiraid_settings' },
   { key: 'verification', table: 'guild_verification_settings' },
-  { key: 'tickets', table: 'guild_ticket_settings' }
+  { key: 'tickets', table: 'guild_ticket_settings' },
+  { key: 'counting', table: 'guild_counting_settings' },
+  { key: 'invitetracking', table: 'guild_invite_settings' },
+  { key: 'economy', table: 'guild_economy_settings' }
 ];
 
 const COUNT_MODULE_TABLES = [
@@ -1873,7 +2032,9 @@ const COUNT_MODULE_TABLES = [
   { key: 'social', table: 'guild_social_subscriptions', where: 'enabled = 1' },
   { key: 'scheduled', table: 'guild_scheduled_messages', where: 'enabled = 1' },
   { key: 'rolemenus', table: 'guild_role_menus' },
-  { key: 'giveaways', table: 'guild_giveaways', where: 'ended = 0' }
+  { key: 'giveaways', table: 'guild_giveaways', where: 'ended = 0' },
+  { key: 'polls', table: 'guild_polls', where: 'ended = 0' },
+  { key: 'applications', table: 'guild_application_forms', where: 'enabled = 1' }
 ];
 
 function dbGet(sql, params = []) {
@@ -5904,6 +6065,671 @@ export function deleteGiveaway(guildId, giveawayId) {
   });
 }
 
+// ============================================================
+// New modules (v23-v27): Counting / Polls / Invite-Tracking /
+// Applications / Economy
+// ============================================================
+
+/** Promisified db.run for the helpers below (returns the statement context). */
+function runStmt(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.run(sql, params, function (err) { if (err) reject(err); else resolve(this); });
+  });
+}
+
+// ----- Counting -----
+
+export const COUNTING_DEFAULTS = {
+  enabled: false,
+  channel_id: null,
+  current_count: 0,
+  last_user_id: null,
+  high_score: 0,
+  reset_on_fail: true,
+  count_emoji: '✅'
+};
+
+function shapeCounting(row) {
+  if (!row) return { ...COUNTING_DEFAULTS };
+  return {
+    enabled: !!row.enabled,
+    channel_id: row.channel_id ?? null,
+    current_count: row.current_count || 0,
+    last_user_id: row.last_user_id ?? null,
+    high_score: row.high_score || 0,
+    reset_on_fail: !!row.reset_on_fail,
+    count_emoji: row.count_emoji || '✅'
+  };
+}
+
+export function getCountingSettings(guildId) {
+  return new Promise((resolve, reject) => {
+    db.get('SELECT * FROM guild_counting_settings WHERE guild_id = ?', [guildId], (err, row) => {
+      if (err) reject(err); else resolve(shapeCounting(row));
+    });
+  });
+}
+
+/** Dashboard upsert — only the config columns; runtime state is bot-managed. */
+export function upsertCountingSettings(guildId, settings) {
+  const enabled = settings.enabled ? 1 : 0;
+  const channel = isSnowflake(settings.channel_id) ? settings.channel_id : null;
+  const reset = settings.reset_on_fail === false ? 0 : 1;
+  const emoji = truncate(settings.count_emoji || '✅', 64);
+  return runStmt(
+    `INSERT INTO guild_counting_settings (guild_id, enabled, channel_id, reset_on_fail, count_emoji)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(guild_id) DO UPDATE SET
+       enabled = excluded.enabled,
+       channel_id = excluded.channel_id,
+       reset_on_fail = excluded.reset_on_fail,
+       count_emoji = excluded.count_emoji,
+       updated_at = CURRENT_TIMESTAMP`,
+    [guildId, enabled, channel, reset, emoji]
+  );
+}
+
+/**
+ * Bot: validate the next number in the counting channel (atomic). Returns
+ * { accepted, current, high_score, expected, reset, reason }. A wrong number or
+ * the same user counting twice in a row fails; on fail the count resets to 0
+ * when reset_on_fail is set.
+ */
+export function recordCount(guildId, userId, number) {
+  return runInTransaction(async () => {
+    const row = await dbGet('SELECT * FROM guild_counting_settings WHERE guild_id = ?', [guildId]);
+    const s = shapeCounting(row);
+    if (!s.enabled) return { accepted: false, reason: 'disabled' };
+    const expected = (s.current_count || 0) + 1;
+    const n = Math.trunc(Number(number));
+    if (userId && s.last_user_id && String(userId) === String(s.last_user_id)) {
+      // Same user twice in a row.
+      if (s.reset_on_fail) {
+        await runStmt('UPDATE guild_counting_settings SET current_count = 0, last_user_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE guild_id = ?', [guildId]);
+        return { accepted: false, reason: 'double_count', reset: true, expected, current: 0, high_score: s.high_score };
+      }
+      return { accepted: false, reason: 'double_count', reset: false, expected, current: s.current_count, high_score: s.high_score };
+    }
+    if (n !== expected) {
+      if (s.reset_on_fail) {
+        await runStmt('UPDATE guild_counting_settings SET current_count = 0, last_user_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE guild_id = ?', [guildId]);
+        return { accepted: false, reason: 'wrong_number', reset: true, expected, current: 0, high_score: s.high_score };
+      }
+      return { accepted: false, reason: 'wrong_number', reset: false, expected, current: s.current_count, high_score: s.high_score };
+    }
+    const high = Math.max(s.high_score || 0, expected);
+    await runStmt(
+      'UPDATE guild_counting_settings SET current_count = ?, last_user_id = ?, high_score = ?, updated_at = CURRENT_TIMESTAMP WHERE guild_id = ?',
+      [expected, String(userId), high, guildId]
+    );
+    return { accepted: true, current: expected, high_score: high, new_record: high === expected && expected > (s.high_score || 0) };
+  });
+}
+
+// ----- Polls -----
+
+function capTextArray(raw, cap = 25, itemCap = 100) {
+  let arr = [];
+  if (Array.isArray(raw)) arr = raw;
+  else if (typeof raw === 'string' && raw) { try { const p = JSON.parse(raw); if (Array.isArray(p)) arr = p; } catch { /* ignore */ } }
+  return arr.map((x) => truncate(x ?? '', itemCap)).filter((x) => x !== '').slice(0, cap);
+}
+
+function shapePoll(row, counts) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    guild_id: row.guild_id,
+    channel_id: row.channel_id ?? null,
+    message_id: row.message_id ?? null,
+    question: row.question ?? '',
+    options: capTextArray(row.options),
+    multi: !!row.multi,
+    ends_at: row.ends_at || 0,
+    ended: !!row.ended,
+    counts: counts || null
+  };
+}
+
+function getPollCounts(pollId, optionCount) {
+  return new Promise((resolve, reject) => {
+    db.all('SELECT option_index, COUNT(*) AS n FROM guild_poll_votes WHERE poll_id = ? GROUP BY option_index', [pollId], (err, rows) => {
+      if (err) return reject(err);
+      const counts = new Array(optionCount).fill(0);
+      for (const r of (rows || [])) { if (r.option_index >= 0 && r.option_index < optionCount) counts[r.option_index] = r.n; }
+      resolve(counts);
+    });
+  });
+}
+
+export function createPoll(guildId, data) {
+  return new Promise((resolve, reject) => {
+    const id = randomUUID();
+    const channel = isSnowflake(data.channel_id) ? data.channel_id : null;
+    const question = truncate(data.question ?? '', 300);
+    const options = capTextArray(data.options);
+    if (options.length < 2) { const e = new Error('A poll needs at least 2 options'); e.code = 'VALIDATION'; return reject(e); }
+    const multi = data.multi ? 1 : 0;
+    const ends = data.ends_at && Number(data.ends_at) > 0 ? Math.floor(Number(data.ends_at)) : 0;
+    db.run(
+      'INSERT INTO guild_polls (id, guild_id, channel_id, message_id, question, options, multi, ends_at, ended) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)',
+      [id, guildId, channel, null, question, JSON.stringify(options), multi, ends],
+      (err) => { if (err) reject(err); else resolve({ id, guild_id: guildId, channel_id: channel, question, options, multi: !!multi, ends_at: ends, ended: false }); }
+    );
+  });
+}
+
+export function setPollMessage(guildId, pollId, messageId) {
+  return runStmt('UPDATE guild_polls SET message_id = ? WHERE guild_id = ? AND id = ?', [isSnowflake(messageId) ? messageId : null, guildId, pollId]);
+}
+
+export async function getPoll(guildId, pollId) {
+  const row = await dbGet('SELECT * FROM guild_polls WHERE guild_id = ? AND id = ?', [guildId, pollId]);
+  if (!row) return null;
+  const opts = capTextArray(row.options);
+  const counts = await getPollCounts(pollId, opts.length);
+  return shapePoll(row, counts);
+}
+
+/** Toggle/replace a user's vote; returns the updated counts array. */
+export function votePoll(guildId, pollId, userId, optionIndex) {
+  return runInTransaction(async () => {
+    const row = await dbGet('SELECT * FROM guild_polls WHERE guild_id = ? AND id = ?', [guildId, pollId]);
+    if (!row || row.ended) return { ok: false, reason: 'closed' };
+    const opts = capTextArray(row.options);
+    const idx = Math.trunc(Number(optionIndex));
+    if (idx < 0 || idx >= opts.length) return { ok: false, reason: 'bad_option' };
+    const existing = await dbGet('SELECT 1 AS x FROM guild_poll_votes WHERE poll_id = ? AND user_id = ? AND option_index = ?', [pollId, userId, idx]);
+    if (existing) {
+      await runStmt('DELETE FROM guild_poll_votes WHERE poll_id = ? AND user_id = ? AND option_index = ?', [pollId, userId, idx]);
+    } else {
+      if (!row.multi) await runStmt('DELETE FROM guild_poll_votes WHERE poll_id = ? AND user_id = ?', [pollId, userId]);
+      await runStmt('INSERT OR IGNORE INTO guild_poll_votes (poll_id, user_id, option_index) VALUES (?, ?, ?)', [pollId, userId, idx]);
+    }
+    const counts = await getPollCounts(pollId, opts.length);
+    return { ok: true, counts, options: opts, question: row.question, multi: !!row.multi };
+  });
+}
+
+export function getDuePolls(now) {
+  return new Promise((resolve, reject) => {
+    db.all('SELECT * FROM guild_polls WHERE ended = 0 AND ends_at > 0 AND ends_at <= ?', [now], async (err, rows) => {
+      if (err) return reject(err);
+      try {
+        const out = [];
+        for (const row of (rows || [])) {
+          const opts = capTextArray(row.options);
+          const counts = await getPollCounts(row.id, opts.length);
+          out.push(shapePoll(row, counts));
+        }
+        resolve(out);
+      } catch (e) { reject(e); }
+    });
+  });
+}
+
+export function markPollEnded(pollId) {
+  return runStmt('UPDATE guild_polls SET ended = 1 WHERE id = ?', [pollId]);
+}
+
+export function getGuildPolls(guildId) {
+  return new Promise((resolve, reject) => {
+    db.all('SELECT * FROM guild_polls WHERE guild_id = ? ORDER BY created_at DESC LIMIT 100', [guildId], async (err, rows) => {
+      if (err) return reject(err);
+      try {
+        const out = [];
+        for (const row of (rows || [])) {
+          const opts = capTextArray(row.options);
+          const counts = await getPollCounts(row.id, opts.length);
+          const poll = shapePoll(row, counts);
+          poll.total_votes = counts.reduce((a, b) => a + b, 0);
+          out.push(poll);
+        }
+        resolve(out);
+      } catch (e) { reject(e); }
+    });
+  });
+}
+
+export function deletePoll(guildId, pollId) {
+  return new Promise((resolve, reject) => {
+    db.run('DELETE FROM guild_polls WHERE guild_id = ? AND id = ?', [guildId, pollId], function (err) { if (err) reject(err); else resolve(this.changes); });
+  });
+}
+
+// ----- Invite tracking -----
+
+export const INVITE_DEFAULTS = {
+  enabled: false,
+  log_channel_id: null,
+  message_template: '👋 {user} joined — invited by {inviter} (now {invites} invites)'
+};
+
+export function getInviteSettings(guildId) {
+  return new Promise((resolve, reject) => {
+    db.get('SELECT * FROM guild_invite_settings WHERE guild_id = ?', [guildId], (err, row) => {
+      if (err) return reject(err);
+      if (!row) return resolve({ ...INVITE_DEFAULTS });
+      resolve({
+        enabled: !!row.enabled,
+        log_channel_id: row.log_channel_id ?? null,
+        message_template: row.message_template || INVITE_DEFAULTS.message_template
+      });
+    });
+  });
+}
+
+export function upsertInviteSettings(guildId, settings) {
+  const enabled = settings.enabled ? 1 : 0;
+  const channel = isSnowflake(settings.log_channel_id) ? settings.log_channel_id : null;
+  const tpl = truncate(settings.message_template || INVITE_DEFAULTS.message_template, 1000);
+  return runStmt(
+    `INSERT INTO guild_invite_settings (guild_id, enabled, log_channel_id, message_template)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(guild_id) DO UPDATE SET
+       enabled = excluded.enabled,
+       log_channel_id = excluded.log_channel_id,
+       message_template = excluded.message_template,
+       updated_at = CURRENT_TIMESTAMP`,
+    [guildId, enabled, channel, tpl]
+  );
+}
+
+/** Bot: replace the cached invite-use counts for a guild (sync on ready/create). */
+export function replaceGuildInvites(guildId, invites) {
+  return runInTransaction(async () => {
+    await runStmt('DELETE FROM guild_invites WHERE guild_id = ?', [guildId]);
+    for (const inv of (Array.isArray(invites) ? invites : [])) {
+      if (!inv || !inv.code) continue;
+      await runStmt('INSERT OR REPLACE INTO guild_invites (guild_id, code, inviter_id, uses) VALUES (?, ?, ?, ?)',
+        [guildId, String(inv.code), inv.inviter_id ? String(inv.inviter_id) : null, Math.trunc(Number(inv.uses) || 0)]);
+    }
+    return { count: Array.isArray(invites) ? invites.length : 0 };
+  });
+}
+
+export function getGuildInvitesCache(guildId) {
+  return new Promise((resolve, reject) => {
+    db.all('SELECT code, inviter_id, uses FROM guild_invites WHERE guild_id = ?', [guildId], (err, rows) => {
+      if (err) reject(err); else resolve(rows || []);
+    });
+  });
+}
+
+/** Bot: record who invited a joining member; returns the inviter's total invites. */
+export function recordMemberInvite(guildId, { user_id, inviter_id, code } = {}) {
+  return runInTransaction(async () => {
+    if (!user_id) { const e = new Error('user_id required'); e.code = 'VALIDATION'; throw e; }
+    await runStmt(
+      `INSERT INTO guild_member_invites (guild_id, user_id, inviter_id, code, joined_at)
+       VALUES (?, ?, ?, ?, strftime('%s','now'))
+       ON CONFLICT(guild_id, user_id) DO UPDATE SET inviter_id = excluded.inviter_id, code = excluded.code, joined_at = excluded.joined_at`,
+      [guildId, String(user_id), inviter_id ? String(inviter_id) : null, code ? String(code) : null]
+    );
+    let inviter_invites = 0;
+    if (inviter_id) {
+      const r = await dbGet('SELECT COUNT(*) AS n FROM guild_member_invites WHERE guild_id = ? AND inviter_id = ?', [guildId, String(inviter_id)]);
+      inviter_invites = r?.n || 0;
+    }
+    return { inviter_invites };
+  });
+}
+
+export function getInviteLeaderboard(guildId, limit = 25) {
+  const lim = clampRange(limit, 1, 100, 25);
+  return new Promise((resolve, reject) => {
+    db.all(
+      `SELECT inviter_id, COUNT(*) AS invites FROM guild_member_invites
+       WHERE guild_id = ? AND inviter_id IS NOT NULL
+       GROUP BY inviter_id ORDER BY invites DESC LIMIT ?`,
+      [guildId, lim],
+      (err, rows) => { if (err) reject(err); else resolve((rows || []).map((r, i) => ({ inviter_id: r.inviter_id, invites: r.invites, rank: i + 1 }))); }
+    );
+  });
+}
+
+// ----- Applications -----
+
+function shapeApplicationForm(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name ?? '',
+    description: row.description ?? '',
+    questions: capTextArray(row.questions, 5, 300),
+    review_channel_id: row.review_channel_id ?? null,
+    accepted_role_id: row.accepted_role_id ?? null,
+    panel_channel_id: row.panel_channel_id ?? null,
+    panel_message_id: row.panel_message_id ?? null,
+    button_label: row.button_label || 'Apply',
+    position: row.position || 0,
+    enabled: !!row.enabled
+  };
+}
+
+export function getApplicationForms(guildId) {
+  return new Promise((resolve, reject) => {
+    db.all('SELECT * FROM guild_application_forms WHERE guild_id = ? ORDER BY position ASC, created_at ASC', [guildId], (err, rows) => {
+      if (err) reject(err); else resolve((rows || []).map(shapeApplicationForm));
+    });
+  });
+}
+
+export function getEnabledApplicationForms(guildId) {
+  return new Promise((resolve, reject) => {
+    db.all('SELECT * FROM guild_application_forms WHERE guild_id = ? AND enabled = 1 ORDER BY position ASC, created_at ASC', [guildId], (err, rows) => {
+      if (err) reject(err); else resolve((rows || []).map(shapeApplicationForm));
+    });
+  });
+}
+
+export function getApplicationForm(guildId, formId) {
+  return new Promise((resolve, reject) => {
+    db.get('SELECT * FROM guild_application_forms WHERE guild_id = ? AND id = ?', [guildId, formId], (err, row) => {
+      if (err) reject(err); else resolve(shapeApplicationForm(row));
+    });
+  });
+}
+
+function coerceFormFields(data) {
+  return {
+    name: truncate(data.name ?? '', 100),
+    description: truncate(data.description ?? '', 1000),
+    questions: JSON.stringify(capTextArray(data.questions, 5, 300)),
+    review_channel_id: isSnowflake(data.review_channel_id) ? data.review_channel_id : null,
+    accepted_role_id: isSnowflake(data.accepted_role_id) ? data.accepted_role_id : null,
+    button_label: truncate(data.button_label || 'Apply', 80),
+    position: clampRange(data.position, 0, 1000, 0),
+    enabled: data.enabled === false ? 0 : 1
+  };
+}
+
+export function createApplicationForm(guildId, data) {
+  return new Promise((resolve, reject) => {
+    const id = randomUUID();
+    const f = coerceFormFields(data);
+    db.run(
+      `INSERT INTO guild_application_forms (id, guild_id, name, description, questions, review_channel_id, accepted_role_id, button_label, position, enabled)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, guildId, f.name, f.description, f.questions, f.review_channel_id, f.accepted_role_id, f.button_label, f.position, f.enabled],
+      (err) => { if (err) reject(err); else getApplicationForm(guildId, id).then(resolve).catch(reject); }
+    );
+  });
+}
+
+export function updateApplicationForm(guildId, formId, data) {
+  return new Promise((resolve, reject) => {
+    const f = coerceFormFields(data);
+    db.run(
+      `UPDATE guild_application_forms SET name = ?, description = ?, questions = ?, review_channel_id = ?, accepted_role_id = ?, button_label = ?, position = ?, enabled = ?
+       WHERE guild_id = ? AND id = ?`,
+      [f.name, f.description, f.questions, f.review_channel_id, f.accepted_role_id, f.button_label, f.position, f.enabled, guildId, formId],
+      function (err) {
+        if (err) return reject(err);
+        if (this.changes === 0) { const e = new Error('Form not found'); e.code = 'NOT_FOUND'; return reject(e); }
+        getApplicationForm(guildId, formId).then(resolve).catch(reject);
+      }
+    );
+  });
+}
+
+export function deleteApplicationForm(guildId, formId) {
+  return new Promise((resolve, reject) => {
+    db.run('DELETE FROM guild_application_forms WHERE guild_id = ? AND id = ?', [guildId, formId], function (err) { if (err) reject(err); else resolve(this.changes); });
+  });
+}
+
+export function setApplicationPanelMessage(guildId, formId, channelId, messageId) {
+  return runStmt('UPDATE guild_application_forms SET panel_channel_id = ?, panel_message_id = ? WHERE guild_id = ? AND id = ?',
+    [isSnowflake(channelId) ? channelId : null, isSnowflake(messageId) ? messageId : null, guildId, formId]);
+}
+
+export function createApplication(guildId, { form_id, user_id, answers } = {}) {
+  return new Promise((resolve, reject) => {
+    if (!form_id || !user_id) { const e = new Error('form_id and user_id required'); e.code = 'VALIDATION'; return reject(e); }
+    const id = randomUUID();
+    let ans = [];
+    if (Array.isArray(answers)) ans = answers.slice(0, 5).map((a) => ({ q: truncate(a?.q ?? '', 300), a: truncate(a?.a ?? '', 1024) }));
+    db.run(
+      "INSERT INTO guild_applications (id, form_id, guild_id, user_id, answers, status) VALUES (?, ?, ?, ?, ?, 'pending')",
+      [id, form_id, guildId, String(user_id), JSON.stringify(ans)],
+      (err) => { if (err) reject(err); else resolve({ id }); }
+    );
+  });
+}
+
+export function reviewApplication(guildId, appId, { status, reviewer_id } = {}) {
+  const st = ['pending', 'accepted', 'denied'].includes(status) ? status : 'pending';
+  return new Promise((resolve, reject) => {
+    db.run('UPDATE guild_applications SET status = ?, reviewer_id = ? WHERE guild_id = ? AND id = ?',
+      [st, reviewer_id ? String(reviewer_id) : null, guildId, appId],
+      function (err) { if (err) reject(err); else resolve(this.changes); });
+  });
+}
+
+export function getApplications(guildId, { status, limit = 50 } = {}) {
+  const lim = clampRange(limit, 1, 200, 50);
+  const where = status ? ' AND a.status = ?' : '';
+  const params = status ? [guildId, status, lim] : [guildId, lim];
+  return new Promise((resolve, reject) => {
+    db.all(
+      `SELECT a.*, f.name AS form_name FROM guild_applications a
+       LEFT JOIN guild_application_forms f ON f.id = a.form_id
+       WHERE a.guild_id = ?${where} ORDER BY a.created_at DESC LIMIT ?`,
+      params,
+      (err, rows) => {
+        if (err) return reject(err);
+        resolve((rows || []).map((r) => ({
+          id: r.id, form_id: r.form_id, form_name: r.form_name ?? null, user_id: r.user_id,
+          answers: (() => { try { const p = JSON.parse(r.answers || '[]'); return Array.isArray(p) ? p : []; } catch { return []; } })(),
+          status: r.status, reviewer_id: r.reviewer_id ?? null, created_at: r.created_at
+        })));
+      }
+    );
+  });
+}
+
+// ----- Economy -----
+
+export const ECONOMY_DEFAULTS = {
+  enabled: false,
+  currency_name: 'coins',
+  currency_symbol: '🪙',
+  start_balance: 0,
+  daily_amount: 200,
+  work_min: 50,
+  work_max: 250,
+  work_cooldown: 3600
+};
+
+const DAILY_COOLDOWN = 86400;
+
+function shapeEconomy(row) {
+  if (!row) return { ...ECONOMY_DEFAULTS };
+  return {
+    enabled: !!row.enabled,
+    currency_name: row.currency_name || 'coins',
+    currency_symbol: row.currency_symbol || '🪙',
+    start_balance: row.start_balance || 0,
+    daily_amount: row.daily_amount || 0,
+    work_min: row.work_min || 0,
+    work_max: row.work_max || 0,
+    work_cooldown: row.work_cooldown || 0
+  };
+}
+
+export function getEconomySettings(guildId) {
+  return new Promise((resolve, reject) => {
+    db.get('SELECT * FROM guild_economy_settings WHERE guild_id = ?', [guildId], (err, row) => {
+      if (err) reject(err); else resolve(shapeEconomy(row));
+    });
+  });
+}
+
+export function upsertEconomySettings(guildId, settings) {
+  const enabled = settings.enabled ? 1 : 0;
+  const name = truncate(settings.currency_name || 'coins', 32);
+  const symbol = truncate(settings.currency_symbol || '🪙', 16);
+  const start = clampRange(settings.start_balance, 0, 1000000000, 0);
+  const daily = clampRange(settings.daily_amount, 0, 1000000000, 200);
+  let wmin = clampRange(settings.work_min, 0, 1000000000, 50);
+  let wmax = clampRange(settings.work_max, 0, 1000000000, 250);
+  if (wmax < wmin) wmax = wmin;
+  const cd = clampRange(settings.work_cooldown, 0, 604800, 3600);
+  return runStmt(
+    `INSERT INTO guild_economy_settings (guild_id, enabled, currency_name, currency_symbol, start_balance, daily_amount, work_min, work_max, work_cooldown)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(guild_id) DO UPDATE SET
+       enabled = excluded.enabled, currency_name = excluded.currency_name, currency_symbol = excluded.currency_symbol,
+       start_balance = excluded.start_balance, daily_amount = excluded.daily_amount, work_min = excluded.work_min,
+       work_max = excluded.work_max, work_cooldown = excluded.work_cooldown, updated_at = CURRENT_TIMESTAMP`,
+    [guildId, enabled, name, symbol, start, daily, wmin, wmax, cd]
+  );
+}
+
+async function ensureEconomyUserRow(guildId, userId, startBalance) {
+  await runStmt('INSERT OR IGNORE INTO guild_economy_users (guild_id, user_id, balance) VALUES (?, ?, ?)', [guildId, String(userId), Math.trunc(startBalance) || 0]);
+}
+
+export function getEconomyBalance(guildId, userId) {
+  return runInTransaction(async () => {
+    const s = shapeEconomy(await dbGet('SELECT * FROM guild_economy_settings WHERE guild_id = ?', [guildId]));
+    await ensureEconomyUserRow(guildId, userId, s.start_balance);
+    const u = await dbGet('SELECT balance FROM guild_economy_users WHERE guild_id = ? AND user_id = ?', [guildId, String(userId)]);
+    return { balance: u?.balance || 0, currency_name: s.currency_name, currency_symbol: s.currency_symbol };
+  });
+}
+
+export function economyDaily(guildId, userId, now) {
+  return runInTransaction(async () => {
+    const s = shapeEconomy(await dbGet('SELECT * FROM guild_economy_settings WHERE guild_id = ?', [guildId]));
+    if (!s.enabled) return { ok: false, reason: 'disabled' };
+    await ensureEconomyUserRow(guildId, userId, s.start_balance);
+    const u = await dbGet('SELECT * FROM guild_economy_users WHERE guild_id = ? AND user_id = ?', [guildId, String(userId)]);
+    const elapsed = now - (u.last_daily || 0);
+    if (u.last_daily && elapsed < DAILY_COOLDOWN) {
+      return { ok: false, reason: 'cooldown', remaining: DAILY_COOLDOWN - elapsed, balance: u.balance, currency_name: s.currency_name, currency_symbol: s.currency_symbol };
+    }
+    const balance = (u.balance || 0) + s.daily_amount;
+    await runStmt('UPDATE guild_economy_users SET balance = ?, last_daily = ? WHERE guild_id = ? AND user_id = ?', [balance, now, guildId, String(userId)]);
+    return { ok: true, amount: s.daily_amount, balance, currency_name: s.currency_name, currency_symbol: s.currency_symbol };
+  });
+}
+
+export function economyWork(guildId, userId, now) {
+  return runInTransaction(async () => {
+    const s = shapeEconomy(await dbGet('SELECT * FROM guild_economy_settings WHERE guild_id = ?', [guildId]));
+    if (!s.enabled) return { ok: false, reason: 'disabled' };
+    await ensureEconomyUserRow(guildId, userId, s.start_balance);
+    const u = await dbGet('SELECT * FROM guild_economy_users WHERE guild_id = ? AND user_id = ?', [guildId, String(userId)]);
+    const elapsed = now - (u.last_work || 0);
+    if (u.last_work && elapsed < s.work_cooldown) {
+      return { ok: false, reason: 'cooldown', remaining: s.work_cooldown - elapsed, balance: u.balance, currency_name: s.currency_name, currency_symbol: s.currency_symbol };
+    }
+    const span = Math.max(0, s.work_max - s.work_min);
+    const amount = s.work_min + Math.floor(Math.random() * (span + 1));
+    const balance = (u.balance || 0) + amount;
+    await runStmt('UPDATE guild_economy_users SET balance = ?, last_work = ? WHERE guild_id = ? AND user_id = ?', [balance, now, guildId, String(userId)]);
+    return { ok: true, amount, balance, currency_name: s.currency_name, currency_symbol: s.currency_symbol };
+  });
+}
+
+export function economyPay(guildId, fromId, toId, amount) {
+  return runInTransaction(async () => {
+    const s = shapeEconomy(await dbGet('SELECT * FROM guild_economy_settings WHERE guild_id = ?', [guildId]));
+    if (!s.enabled) return { ok: false, reason: 'disabled' };
+    const amt = Math.trunc(Number(amount));
+    if (!Number.isFinite(amt) || amt <= 0) return { ok: false, reason: 'bad_amount' };
+    if (String(fromId) === String(toId)) return { ok: false, reason: 'self' };
+    await ensureEconomyUserRow(guildId, fromId, s.start_balance);
+    await ensureEconomyUserRow(guildId, toId, s.start_balance);
+    const from = await dbGet('SELECT balance FROM guild_economy_users WHERE guild_id = ? AND user_id = ?', [guildId, String(fromId)]);
+    if ((from?.balance || 0) < amt) return { ok: false, reason: 'insufficient', balance: from?.balance || 0, currency_name: s.currency_name, currency_symbol: s.currency_symbol };
+    await runStmt('UPDATE guild_economy_users SET balance = balance - ? WHERE guild_id = ? AND user_id = ?', [amt, guildId, String(fromId)]);
+    await runStmt('UPDATE guild_economy_users SET balance = balance + ? WHERE guild_id = ? AND user_id = ?', [amt, guildId, String(toId)]);
+    const updated = await dbGet('SELECT balance FROM guild_economy_users WHERE guild_id = ? AND user_id = ?', [guildId, String(fromId)]);
+    return { ok: true, amount: amt, balance: updated?.balance || 0, currency_name: s.currency_name, currency_symbol: s.currency_symbol };
+  });
+}
+
+export function getEconomyLeaderboard(guildId, limit = 25) {
+  const lim = clampRange(limit, 1, 100, 25);
+  return new Promise((resolve, reject) => {
+    db.all('SELECT user_id, balance FROM guild_economy_users WHERE guild_id = ? AND balance > 0 ORDER BY balance DESC LIMIT ?', [guildId, lim], (err, rows) => {
+      if (err) reject(err); else resolve((rows || []).map((r, i) => ({ user_id: r.user_id, balance: r.balance, rank: i + 1 })));
+    });
+  });
+}
+
+function shapeShopItem(row) {
+  if (!row) return null;
+  return { id: row.id, name: row.name ?? '', description: row.description ?? '', price: row.price || 0, role_id: row.role_id ?? null, position: row.position || 0, enabled: !!row.enabled };
+}
+
+export function getEconomyShop(guildId, onlyEnabled = false) {
+  const where = onlyEnabled ? ' AND enabled = 1' : '';
+  return new Promise((resolve, reject) => {
+    db.all(`SELECT * FROM guild_economy_shop WHERE guild_id = ?${where} ORDER BY position ASC, created_at ASC`, [guildId], (err, rows) => {
+      if (err) reject(err); else resolve((rows || []).map(shapeShopItem));
+    });
+  });
+}
+
+function coerceShopItem(data) {
+  return {
+    name: truncate(data.name ?? '', 100),
+    description: truncate(data.description ?? '', 300),
+    price: clampRange(data.price, 0, 1000000000, 0),
+    role_id: isSnowflake(data.role_id) ? data.role_id : null,
+    position: clampRange(data.position, 0, 1000, 0),
+    enabled: data.enabled === false ? 0 : 1
+  };
+}
+
+export function createShopItem(guildId, data) {
+  return new Promise((resolve, reject) => {
+    const id = randomUUID();
+    const it = coerceShopItem(data);
+    db.run('INSERT INTO guild_economy_shop (id, guild_id, name, description, price, role_id, position, enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, guildId, it.name, it.description, it.price, it.role_id, it.position, it.enabled],
+      (err) => { if (err) reject(err); else resolve({ id, ...it, enabled: !!it.enabled }); });
+  });
+}
+
+export function updateShopItem(guildId, itemId, data) {
+  return new Promise((resolve, reject) => {
+    const it = coerceShopItem(data);
+    db.run('UPDATE guild_economy_shop SET name = ?, description = ?, price = ?, role_id = ?, position = ?, enabled = ? WHERE guild_id = ? AND id = ?',
+      [it.name, it.description, it.price, it.role_id, it.position, it.enabled, guildId, itemId],
+      function (err) {
+        if (err) return reject(err);
+        if (this.changes === 0) { const e = new Error('Item not found'); e.code = 'NOT_FOUND'; return reject(e); }
+        resolve({ id: itemId, ...it, enabled: !!it.enabled });
+      });
+  });
+}
+
+export function deleteShopItem(guildId, itemId) {
+  return new Promise((resolve, reject) => {
+    db.run('DELETE FROM guild_economy_shop WHERE guild_id = ? AND id = ?', [guildId, itemId], function (err) { if (err) reject(err); else resolve(this.changes); });
+  });
+}
+
+export function economyBuy(guildId, userId, itemId) {
+  return runInTransaction(async () => {
+    const s = shapeEconomy(await dbGet('SELECT * FROM guild_economy_settings WHERE guild_id = ?', [guildId]));
+    if (!s.enabled) return { ok: false, reason: 'disabled' };
+    const item = shapeShopItem(await dbGet('SELECT * FROM guild_economy_shop WHERE guild_id = ? AND id = ? AND enabled = 1', [guildId, itemId]));
+    if (!item) return { ok: false, reason: 'not_found' };
+    await ensureEconomyUserRow(guildId, userId, s.start_balance);
+    const u = await dbGet('SELECT balance FROM guild_economy_users WHERE guild_id = ? AND user_id = ?', [guildId, String(userId)]);
+    if ((u?.balance || 0) < item.price) return { ok: false, reason: 'insufficient', balance: u?.balance || 0, price: item.price, currency_name: s.currency_name, currency_symbol: s.currency_symbol };
+    const balance = (u.balance || 0) - item.price;
+    await runStmt('UPDATE guild_economy_users SET balance = ? WHERE guild_id = ? AND user_id = ?', [balance, guildId, String(userId)]);
+    return { ok: true, item, balance, role_id: item.role_id, currency_name: s.currency_name, currency_symbol: s.currency_symbol };
+  });
+}
+
 export const MODULE_DEFAULTS = {
   autorole: AUTOROLE_DEFAULTS,
   logs: LOG_DEFAULTS,
@@ -5921,7 +6747,12 @@ export const MODULE_DEFAULTS = {
   verification: VERIFICATION_DEFAULTS,
   rolemenus: { menus: [] },
   tickets: TICKET_DEFAULTS,
-  giveaways: { giveaways: [] }
+  giveaways: { giveaways: [] },
+  counting: COUNTING_DEFAULTS,
+  polls: { polls: [] },
+  invitetracking: INVITE_DEFAULTS,
+  applications: { forms: [] },
+  economy: ECONOMY_DEFAULTS
 };
 
 /**

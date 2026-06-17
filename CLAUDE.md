@@ -51,7 +51,7 @@ Doku-Index: [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md)
 ```
 projectx/
 ├── bot/                        # Python Discord-Bot
-│   ├── main.py                 # Entry-Point, lädt 22 Cogs in setup_hook (läuft 1× beim Start — NICHT in on_ready, das bei jedem Reconnect feuert → sonst „Extension already loaded")
+│   ├── main.py                 # Entry-Point, lädt 27 Cogs in setup_hook (läuft 1× beim Start — NICHT in on_ready, das bei jedem Reconnect feuert → sonst „Extension already loaded")
 │   │                           # Danach in setup_hook: bot.tree.sync() für Slash-Commands. on_ready loggt nur noch die Verbindung.
 │   │                           # command_prefix = async _resolve_prefix (per-Guild via command_config, Cache, Mention immer aktiv)
 │   │                           # Globale Gates: @bot.check (Prefix) + bot.tree.interaction_check (Slash) sperren deaktivierte Befehle
@@ -122,11 +122,21 @@ projectx/
 │                               # channel_id via PUT zurück), VERSCHIEBT bot-managed Channels in die Kategorie
 │                               # (self-heal, nur wenn nicht drin), erzwingt Reihenfolge (position) via _enforce_order,
 │                               # POSTet Snapshot. Rename/Reorder nur bei Abweichung (Rate-Limit-Schutz).
+│       ├── counting.py         # on_message im Zähl-Channel → POST /counting/count (Backend validiert atomar);
+│       │                       # ✅ bei Erfolg, ❌ + Reset bei falscher Zahl/Doppel-Count. (Free)
+│       ├── polls.py            # !poll Frage | A | B | … → Button-Umfrage; on_interaction "pv:<id>:<idx>" toggelt Vote,
+│       │                       # editiert Embed-Tally; 30s-Loop schließt fällige (timed) Umfragen. (Free)
+│       ├── invitetracking.py   # on_ready cached guild.invites(), on_member_join difft Use-Counts → Einlader,
+│       │                       # POST /invites/join + Ankündigung. Braucht MANAGE_GUILD. (Basic)
+│       ├── applications.py     # !applypanel postet Form-Buttons; "app:<fid>" → Modal (≤5 Fragen); Submit → Review-Embed
+│       │                       # mit Accept/Deny ("appok:"/"appno:"); Accept vergibt Rolle + DM. (Pro)
+│       └── economy.py          # !balance/!daily/!work/!pay/!rich/!shop/!buy → POST /economy/* (Backend rechnet
+│                               # Balance/Cooldowns in Transaktionen); !buy vergibt optional Shop-Rolle. (Pro)
 ├── backend/                    # Node.js / Express API
 │   ├── server.js               # App-Init, CORS+cookies, Migration-Bootstrap, Route-Mounts, Warnings
 │   ├── db.js                   # SQLite-Connection + Query-Helper (inkl. updateUserTokens,
 │   │                           # removeUserGuildsNotIn, getXxxSettings/upsertXxxSettings je Modul, MODULE_DEFAULTS)
-│   ├── migrations.js           # Schema-Versioning + Migrations (aktuell v7)
+│   ├── migrations.js           # Schema-Versioning + Migrations (aktuell v27)
 │   ├── package.json
 │   ├── middleware/
 │   │   ├── session.js          # signSession / setSessionCookie / clearSessionCookie /
@@ -158,6 +168,11 @@ projectx/
 │   │   ├── rolemenus.js        # /api/guilds/:id/rolemenus (GET/POST/PUT/DELETE, cookie) — Button/Select-Rollen
 │   │   ├── tickets.js          # /api/guilds/:id/tickets (settings GET/PUT + /list, cookie)
 │   │   ├── giveaways.js        # /api/guilds/:id/giveaways (GET list + DELETE, cookie)
+│   │   ├── counting.js         # /api/guilds/:id/counting (settings GET/PUT, cookie) — Counting (Free)
+│   │   ├── polls.js            # /api/guilds/:id/polls (GET list + DELETE, cookie) — Umfragen (Free)
+│   │   ├── invitetracking.js   # /api/guilds/:id/invitetracking (settings GET/PUT + /leaderboard, cookie) — Invite-Tracking (Basic)
+│   │   ├── applications.js     # /api/guilds/:id/applications/forms (CRUD) + /submissions (cookie) — Bewerbungen (Pro)
+│   │   ├── economy.js          # /api/guilds/:id/economy (settings GET/PUT) + /shop (CRUD) + /leaderboard (cookie) — Wirtschaft (Pro)
 │   │   ├── public.js           # /api/public/stats + /api/public/plans (KEIN Auth — Landing-Page Stats + Tarif-Katalog)
 │   │   ├── premium.js          # /api/guilds/:id/premium (GET, cookie) — Tier + Modul-Unlock-Map fürs Dashboard
 │   │   ├── admin.js            # /api/admin/{users,guilds} (GET list + POST .../block[until] + POST .../premium, requireSession+requireOwner)
@@ -261,7 +276,7 @@ projectx/
 │           ├── Landing.vue          # /  (frei zugänglich, auch für authed User — Home-Button im /dashboard)
 │           ├── Servers.vue          # /dashboard  (Guild-Auswahl, requiresAuth) — mit Home- + Refresh-Button
 │           ├── DashboardLayout.vue  # Wrapper für /dashboard/:guild_id/* mit Sidebar
-│           ├── Overview.vue         # /dashboard/:guild_id (Übersicht — 21 Modul-Cards mit Live-Status)
+│           ├── Overview.vue         # /dashboard/:guild_id (Übersicht — 26 Modul-Cards mit Live-Status)
 │           ├── Welcome.vue          # /dashboard/:guild_id/welcome (Config + Live-Preview)
 │           ├── Leave.vue            # /dashboard/:guild_id/leave
 │           ├── AutoRole.vue         # /dashboard/:guild_id/autorole (Toggle + Role-Chips + Apply-to-Bots)
@@ -284,6 +299,11 @@ projectx/
 │           ├── Tickets.vue          # /dashboard/:guild_id/tickets (General/Panel-Design+EmbedEditor+DiscordMessagePreview/
 │           │                        # Welcome-Embed+Preview/Bewertung/Kategorien-Liste via TicketCategoryRow — Settings-Save + per-Row-CRUD)
 │           ├── Giveaways.vue        # /dashboard/:guild_id/giveaways (Read-only Liste + Löschen; Start via !gstart)
+│           ├── Counting.vue         # /dashboard/:guild_id/counting (Toggle/Channel/Emoji/Reset + Live-Count/Highscore)
+│           ├── Polls.vue            # /dashboard/:guild_id/polls (Read-only Liste + Löschen; Start via !poll)
+│           ├── InviteTracking.vue   # /dashboard/:guild_id/invitetracking (Settings + Top-Inviter-Leaderboard)
+│           ├── Applications.vue     # /dashboard/:guild_id/applications (Formular-CRUD inkl. Fragen + Einreichungs-Liste)
+│           ├── Economy.vue          # /dashboard/:guild_id/economy (Settings + Shop-CRUD + Balance-Leaderboard)
 │           ├── Premium.vue         # /dashboard/:guild_id/premium (Tarif-Übersicht Free/Basic/Pro + aktueller Tier + Upgrade-CTA)
 │           ├── Admin.vue           # /admin (OWNER-only — Tabs Overview/Users/Guilds/Audit/System; Router-Guard requiresOwner)
 │           │                       # Overview (Metrik-Karten + Premium-läuft-ab + Modul-Adoption), Users/Guilds (Sperren mit Temp-Ban-Dauer,
@@ -584,7 +604,7 @@ Mount-Points aus [backend/server.js](backend/server.js):
 
 **Premium / Tiers** (Cookie required) — Modul-Gating Free/Basic/Pro (`MODULE_TIERS` in [db.js](backend/db.js) ist Single Source).
 - `GET /api/guilds/:id/premium` → `{ success, tier, source, until, module_tiers: { key: tier }, modules: { key: bool } }`. Liefert dem Dashboard den effektiven Tier (abgelaufenes Premium → `free`) + die Unlock-Map pro Modul-Key (= Dashboard-Route-Segment).
-- **Enforcement:** Cookie-Writes der Premium-Modul-Router laufen durch `requirePremiumModule(key)` ([middleware/premium.js](backend/middleware/premium.js)) → GET frei, PUT/POST/DELETE → **403 `{ error: 'premium_required', module, required_tier, current_tier }`** wenn der Tier nicht reicht (Leveling gated im eigenen Router, da bare-prefix-Mount). Guild-übergreifende Loop-Cog-Queries (social/stats/scheduled/birthday/rolemenus/giveaways) filtern via `tierFilterSql(minTier)` serverseitig; per-Guild Bot-GETs (leveling-xp/tempvoice/starboard/antiraid/tickets) liefern eine `disabled`-Shape über den zentralen `PREMIUM_BOT_GATES`-Guard in [bot.js](backend/routes/bot.js). **Frei:** welcome/leave/autorole/logs/moderation/reaction-roles/verification/suggestions/custom-commands. **Basic:** leveling/starboard/tempvoice/birthday/rolemenus/antiraid. **Pro:** social/stats/tickets/giveaways/scheduled.
+- **Enforcement:** Cookie-Writes der Premium-Modul-Router laufen durch `requirePremiumModule(key)` ([middleware/premium.js](backend/middleware/premium.js)) → GET frei, PUT/POST/DELETE → **403 `{ error: 'premium_required', module, required_tier, current_tier }`** wenn der Tier nicht reicht (Leveling gated im eigenen Router, da bare-prefix-Mount). Guild-übergreifende Loop-Cog-Queries (social/stats/scheduled/birthday/rolemenus/giveaways) filtern via `tierFilterSql(minTier)` serverseitig; per-Guild Bot-GETs (leveling-xp/tempvoice/starboard/antiraid/tickets/invitetracking/applications/economy) liefern eine `disabled`-Shape über den zentralen `PREMIUM_BOT_GATES`-Guard in [bot.js](backend/routes/bot.js). **Frei:** welcome/leave/autorole/logs/moderation/reaction-roles/verification/suggestions/custom-commands/counting/polls. **Basic:** leveling/starboard/tempvoice/birthday/rolemenus/antiraid/invitetracking. **Pro:** social/stats/tickets/giveaways/scheduled/applications/economy.
 
 > **Enforcement gesperrter Entities:** Gesperrte **User** werden von `requireSession` (403 `{ blocked: true }`), `/auth/me` (403 + Cookie-Clear) und dem OAuth-Callback (403, kein Cookie) abgewiesen — der Owner ist immer ausgenommen. Gesperrte **Guilds** bleiben im Server-Picker sichtbar (`getUserManageableGuilds` liefert das `blocked`-Flag mit), werden dort aber rot umrandet + nicht klickbar gerendert ([Servers.vue](frontend/src/pages/Servers.vue)); `requireGuildAccess` liefert 403, die Bot-Endpoints unter `/api/bot/guilds/:id/*` liefern 403 (Bot wird dort inert), und alle guild-übergreifenden Loop-Cog-Queries (social/stats/tempvoice/birthday/scheduled/rolemenus/giveaways) filtern `blocked = 1` per `NOT IN (SELECT id FROM guilds WHERE blocked = 1)`.
 
@@ -697,9 +717,9 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - Engine: **SQLite3** (Datei via `DATABASE_URL`, default `./data/bot.db`)
 - Connection: [backend/db.js](backend/db.js)
 - Migrations: [backend/migrations.js](backend/migrations.js)
-  - **Aktuelle Schema-Version: `22`**
+  - **Aktuelle Schema-Version: `27`**
   - `CURRENT_SCHEMA_VERSION` Konstante steuert Upgrades.
-  - `applyMigrations(from, to)` mappt Versionsnummern → Migration-Funktionen (`migrationV1`, …, `migrationV22`).
+  - `applyMigrations(from, to)` mappt Versionsnummern → Migration-Funktionen (`migrationV1`, …, `migrationV27`). v23–v27 nutzen den `runSchemaBatch(version, statements)`-Helper.
   - Versionstabelle: `schema_version (version PK, applied_at)`.
   - `migrationV2` fügt `users.token_expires_at INTEGER` hinzu (idempotent).
   - `migrationV3` legt `guild_autorole_settings`, `guild_log_settings`, `guild_moderation_settings` an (`CREATE TABLE IF NOT EXISTS` — idempotent; werden parallel auch im `initializeDatabase()`-Pfad erzeugt, damit Fresh-DBs auch ohne Migrations-Run funktionieren).
@@ -724,6 +744,11 @@ Mount-Points aus [backend/server.js](backend/server.js):
   - `migrationV20` (Rollen-Menü-Embed-Designer, idempotente ALTERs + Mirror): `guild_role_menus.use_embed` (Default 0 → Auto-Liste, legacy) und `guild_role_menus.embed` (TEXT/JSON, gleiche Embed-Shape wie Welcome/Tickets). Bei `use_embed = 1` postet der Bot das eigene Embed statt der auto-generierten Name+Rollen-Liste.
   - `migrationV21` (Premium-Tiers, idempotente ALTERs + Mirror): `guilds.premium_tier` (Default `'free'`), `guilds.premium_source` (`'sku'|'manual'|null`), `guilds.premium_until` (unix-seconds Ablauf, null = unbegrenzt). Steuert das Modul-Gating (Free/Basic/Pro). Effektiver Tier wird abgelaufen → `'free'` (siehe `effectiveTier` in [db.js](backend/db.js)).
   - `migrationV22` (Admin v2, idempotente ALTERs + neue Tabelle + Mirror): `users.blocked_until` + `guilds.blocked_until` (unix-seconds; null = permanente Sperre, sonst Temp-Ban-Ablauf — `isUserBlocked`/`isGuildBlocked` behandeln abgelaufene Sperren automatisch als „nicht gesperrt", kein Sweeper nötig); neue Tabelle `system_settings (key PK, value, updated_at)` — Key/Value-Store für den globalen Wartungsmodus.
+  - `migrationV23` (Counting, Free): Tabelle `guild_counting_settings` (`guild_id PK`, `enabled`, `channel_id`, `current_count`, `last_user_id`, `high_score`, `reset_on_fail`, `count_emoji`). Idempotent + Mirror.
+  - `migrationV24` (Polls, Free): `guild_polls` (`id` UUID, `options` JSON, `multi`, `ends_at`, `ended`, `idx_polls_guild`) + `guild_poll_votes` (PK `(poll_id, user_id, option_index)`, FK CASCADE). Idempotent + Mirror.
+  - `migrationV25` (Invite-Tracking, Basic): `guild_invite_settings` (`guild_id PK`, `enabled`, `log_channel_id`, `message_template`), `guild_invites` (Cache PK `(guild_id, code)`), `guild_member_invites` (PK `(guild_id, user_id)`, `idx_member_invites_inviter`). Idempotent + Mirror.
+  - `migrationV26` (Applications, Pro): `guild_application_forms` (`id` UUID, `questions` JSON ≤5, `review_channel_id`, `accepted_role_id`, `panel_message_id`, `idx_application_forms_guild`) + `guild_applications` (`id` UUID, `answers` JSON, `status ∈ {pending|accepted|denied}`, `idx_applications_guild`). Idempotent + Mirror.
+  - `migrationV27` (Economy, Pro): `guild_economy_settings` (`guild_id PK`, `currency_name`/`currency_symbol`, `start_balance`, `daily_amount`, `work_min`/`work_max`/`work_cooldown`), `guild_economy_users` (PK `(guild_id, user_id)`, `balance`, `last_daily`/`last_work`, `idx_economy_users_balance`), `guild_economy_shop` (`id` UUID, `price`, `role_id`, `idx_economy_shop_guild`). Idempotent + Mirror.
   - `migrationV18` (Ticket-Überarbeitung, idempotente ALTERs + neue Tabelle + Mirror): `guild_ticket_settings` +10 Spalten (`panel_type ∈ {dropdown|buttons}`, `panel_embed`/`welcome_embed` JSON, `ping_role_id`, `naming_template`, `claim_enabled`, `close_confirm`, `rating_enabled`, `rating_mode ∈ {channel|dm|both}`, `log_channel_id`); `guild_tickets` +8 Spalten (`ticket_category_id`, `number`, `claimed_by`, `rating`, `rating_comment`, `closed_by`, `closed_at`, `extra_user_ids` JSON); neue Tabelle `guild_ticket_categories` (`id` UUID, `idx_ticket_categories_guild`, FK CASCADE) — Ticket-Typen mit Label/Emoji/Desc + Kategorie-/Support-Rollen-/Ping-Rollen-Override, Welcome-Text, `button_style`, Position, Enabled.
 
 **Kern-Tabellen** (Details: [backend/DATABASE_SCHEMA.md](backend/DATABASE_SCHEMA.md), [backend/DATABASE_FUNCTIONS.md](backend/DATABASE_FUNCTIONS.md))
@@ -765,6 +790,11 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - `guild_giveaways` + `guild_giveaway_entries` — Giveaways (`id` UUID, `prize`, `winners_count`, `ends_at`, `ended`; Entries PK `(giveaway_id, user_id)`)
 - `audit_log` — Änderungs-Trail (vom Admin-Audit-Viewer gelesen: `getAuditLogEntries`/`getAuditActions`)
 - `system_settings` — `key PK`, `value`, `updated_at` — globaler Key/Value-Store; aktuell `maintenance` (JSON `{enabled, message}`) für den Wartungsmodus
+- `guild_counting_settings` — `guild_id PK`, `enabled`, `channel_id`, `current_count`, `last_user_id`, `high_score`, `reset_on_fail`, `count_emoji` — Counting (Free)
+- `guild_polls` + `guild_poll_votes` — Umfragen (`id` UUID, `options` JSON, `multi`, `ends_at`, `ended`; Votes PK `(poll_id, user_id, option_index)`) (Free)
+- `guild_invite_settings` + `guild_invites` (Use-Count-Cache) + `guild_member_invites` (Beitritts-Record/Leaderboard-Quelle) — Invite-Tracking (Basic)
+- `guild_application_forms` (`questions` JSON ≤5, `review_channel_id`, `accepted_role_id`) + `guild_applications` (`answers` JSON, `status`, `reviewer_id`) — Bewerbungen (Pro)
+- `guild_economy_settings` + `guild_economy_users` (`balance`, `last_daily`/`last_work`) + `guild_economy_shop` (`price`, optionale `role_id`) — Wirtschaft (Pro)
 - `schema_version` — Migrations-Tracking
 
 **Wichtige DB-Helper** in [backend/db.js](backend/db.js):
@@ -926,6 +956,14 @@ Empfehlung aus [README.md](README.md): SQLite → PostgreSQL für Multi-Instance
 ## 14. Letzte Aktualisierung
 
 - **Datum:** 2026-06-16
+- **5 neue Module: Counting + Polls + Invite-Tracking + Applications + Economy (Schema v23–v27):** Großer Modul-Rollout in einem Rutsch (21 → 26 Module). Tier-Verteilung: Counting/Polls = **Free**, Invite-Tracking = **Basic**, Applications/Economy = **Pro**.
+  - **Counting (Free, v23):** Zähl-Channel — der Bot validiert jede Zahl atomar (`recordCount` in Transaktion), trackt `current_count`/`high_score`/`last_user_id`, optionaler Reset bei Fehler/Doppel-Count. Cog [counting.py](bot/cogs/counting.py) (on_message), Route [counting.js](backend/routes/counting.js), Page [Counting.vue](frontend/src/pages/Counting.vue).
+  - **Polls (Free, v24):** Button-Umfragen mit Live-Tally (`!poll Frage | A | B | …`). `guild_polls` + `guild_poll_votes` (single/multi); 30s-Loop schließt timed Polls. Cog [polls.py](bot/cogs/polls.py) (on_interaction `pv:<id>:<idx>`), Route [polls.js](backend/routes/polls.js) (Read-only + Delete), Page [Polls.vue](frontend/src/pages/Polls.vue).
+  - **Invite-Tracking (Basic, v25):** `on_ready` cached `guild.invites()`, `on_member_join` difft Use-Counts → Einlader, Ankündigung + Leaderboard. Braucht **MANAGE_GUILD**. `guild_invite_settings`/`guild_invites`/`guild_member_invites`. Cog [invitetracking.py](bot/cogs/invitetracking.py), Route [invitetracking.js](backend/routes/invitetracking.js), Page [InviteTracking.vue](frontend/src/pages/InviteTracking.vue).
+  - **Applications (Pro, v26):** Bewerbungsformulare (`!applypanel` → Button → Modal ≤5 Fragen → Review-Embed mit Accept/Deny; Accept vergibt Rolle + DM). `guild_application_forms`/`guild_applications`. Cog [applications.py](bot/cogs/applications.py), Route [applications.js](backend/routes/applications.js) (Forms-CRUD + Submissions), Page [Applications.vue](frontend/src/pages/Applications.vue).
+  - **Economy (Pro, v27):** Server-Währung — `!balance/!daily/!work/!pay/!rich/!shop/!buy`, alle Mutationen transaktional im Backend. `guild_economy_settings`/`guild_economy_users`/`guild_economy_shop` (Shop vergibt optional Rolle). Cog [economy.py](bot/cogs/economy.py), Route [economy.js](backend/routes/economy.js) (Settings + Shop-CRUD + Leaderboard), Page [Economy.vue](frontend/src/pages/Economy.vue).
+  - **Integration:** `MODULE_TIERS` + `FLAG/COUNT_MODULE_TABLES` + `MODULE_DEFAULTS` in [db.js](backend/db.js) erweitert; `PREMIUM_BOT_GATES` in [bot.js](backend/routes/bot.js) um invitetracking/applications/economy ergänzt; 28 neue Bot-Endpoints in [bot.js](backend/routes/bot.js); 5 Route-Mounts + Premium-Gates in [server.js](backend/server.js); 5 Cogs in [main.py](bot/main.py); Router/Sidebar/Overview (26 Cards) im Frontend; i18n-Namespaces `counting`/`polls`/`inviteTracking`/`applications`/`economy` + `common.save` in **allen 5 Sprachen** (Key-Parität verifiziert: 1158 Keys/Locale, 0 missing/extra).
+  - Verifiziert: Migrationen v23–v27 sauber, DB-Smoke-Test aller neuen Helfer grün (counting/polls/invite/applications/economy end-to-end), Frontend-Build grün, alle 27 Cogs kompilieren. **Hinweis:** `npm test` zeigt lokal weiter 12 vorbestehende Fehler (Test-Harness wartet nicht auf die async Schema-Init / gesperrte `data/bot.db`) — unabhängig von dieser Änderung.
 - **Admin-Bereich v2 (Schema v22):** Der Owner-Admin-Bereich wird von „nur Sperren" zu einem vollwertigen Betriebs-Dashboard erweitert — 5 neue Funktionsbereiche.
   - **System-Overview** (`GET /api/admin/overview`): Metrik-Karten (User/Server-Counts, Bot-Präsenz, Premium-Verteilung, Audit-Ereignisse 24h), „Premium läuft bald ab"-Liste (<7 Tage) und Modul-Adoption-Balken. Premium-Counts sind expiry-aware.
   - **Audit-Log-Viewer** (`GET /api/admin/audit` + `/audit/actions`): die längst befüllte `audit_log`-Tabelle ist jetzt im Dashboard sichtbar — filterbar nach Action (Dropdown) + Target (Actor-/Guild-ID/Name), mit Actor-/Guild-Join. Deckt auch die Block-History ab.
