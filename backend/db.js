@@ -1139,6 +1139,33 @@ function initializeDatabase() {
     `, (err) => { if (err) console.error('Error creating guild_economy_shop table:', err); });
     db.run('CREATE INDEX IF NOT EXISTS idx_economy_shop_guild ON guild_economy_shop(guild_id)', () => {});
 
+    // ----- Games category (v28): shared settings + scores -----
+    db.run(`
+      CREATE TABLE IF NOT EXISTS guild_games_settings (
+        guild_id          TEXT PRIMARY KEY,
+        games_channel_id  TEXT,
+        tictactoe_enabled BOOLEAN DEFAULT 0,
+        rps_enabled       BOOLEAN DEFAULT 0,
+        trivia_enabled    BOOLEAN DEFAULT 0,
+        connect4_enabled  BOOLEAN DEFAULT 0,
+        hangman_enabled   BOOLEAN DEFAULT 0,
+        updated_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+      )
+    `, (err) => { if (err) console.error('Error creating guild_games_settings table:', err); });
+    db.run(`
+      CREATE TABLE IF NOT EXISTS guild_game_scores (
+        guild_id TEXT NOT NULL,
+        user_id  TEXT NOT NULL,
+        game     TEXT NOT NULL,
+        wins     INTEGER DEFAULT 0,
+        plays    INTEGER DEFAULT 0,
+        PRIMARY KEY (guild_id, user_id, game),
+        FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+      )
+    `, (err) => { if (err) console.error('Error creating guild_game_scores table:', err); });
+    db.run('CREATE INDEX IF NOT EXISTS idx_game_scores_lb ON guild_game_scores(guild_id, game, wins DESC)', () => {});
+
     // Create audit_log table
     db.run(`
       CREATE TABLE IF NOT EXISTS audit_log (
@@ -1214,6 +1241,7 @@ export const MODULE_TIERS = {
   leveling: 'basic', starboard: 'basic', tempvoice: 'basic',
   birthday: 'basic', rolemenus: 'basic', antiraid: 'basic',
   invitetracking: 'basic',
+  games: 'basic', tictactoe: 'basic', rps: 'basic', trivia: 'basic', connect4: 'basic', hangman: 'basic',
   social: 'pro', stats: 'pro', tickets: 'pro', giveaways: 'pro', scheduled: 'pro',
   applications: 'pro', economy: 'pro'
 };
@@ -6730,6 +6758,92 @@ export function economyBuy(guildId, userId, itemId) {
   });
 }
 
+// ----- Games category (v28) -----
+
+export const GAME_KEYS = ['tictactoe', 'rps', 'trivia', 'connect4', 'hangman'];
+
+export const GAMES_DEFAULTS = {
+  games_channel_id: null,
+  tictactoe_enabled: false,
+  rps_enabled: false,
+  trivia_enabled: false,
+  connect4_enabled: false,
+  hangman_enabled: false
+};
+
+function shapeGames(row) {
+  if (!row) return { ...GAMES_DEFAULTS };
+  return {
+    games_channel_id: row.games_channel_id ?? null,
+    tictactoe_enabled: !!row.tictactoe_enabled,
+    rps_enabled: !!row.rps_enabled,
+    trivia_enabled: !!row.trivia_enabled,
+    connect4_enabled: !!row.connect4_enabled,
+    hangman_enabled: !!row.hangman_enabled
+  };
+}
+
+export function getGamesSettings(guildId) {
+  return new Promise((resolve, reject) => {
+    db.get('SELECT * FROM guild_games_settings WHERE guild_id = ?', [guildId], (err, row) => {
+      if (err) reject(err); else resolve(shapeGames(row));
+    });
+  });
+}
+
+/** Partial-merge upsert: only keys present in `settings` overwrite the row. */
+export function upsertGamesSettings(guildId, settings) {
+  return runInTransaction(async () => {
+    const current = shapeGames(await dbGet('SELECT * FROM guild_games_settings WHERE guild_id = ?', [guildId]));
+    const next = { ...current };
+    if ('games_channel_id' in settings) next.games_channel_id = isSnowflake(settings.games_channel_id) ? settings.games_channel_id : null;
+    for (const key of GAME_KEYS) {
+      const flag = `${key}_enabled`;
+      if (flag in settings) next[flag] = settings[flag] ? 1 : 0;
+    }
+    await runStmt(
+      `INSERT INTO guild_games_settings (guild_id, games_channel_id, tictactoe_enabled, rps_enabled, trivia_enabled, connect4_enabled, hangman_enabled)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(guild_id) DO UPDATE SET
+         games_channel_id = excluded.games_channel_id,
+         tictactoe_enabled = excluded.tictactoe_enabled,
+         rps_enabled = excluded.rps_enabled,
+         trivia_enabled = excluded.trivia_enabled,
+         connect4_enabled = excluded.connect4_enabled,
+         hangman_enabled = excluded.hangman_enabled,
+         updated_at = CURRENT_TIMESTAMP`,
+      [guildId, next.games_channel_id,
+        next.tictactoe_enabled ? 1 : 0, next.rps_enabled ? 1 : 0, next.trivia_enabled ? 1 : 0,
+        next.connect4_enabled ? 1 : 0, next.hangman_enabled ? 1 : 0]
+    );
+    return shapeGames(await dbGet('SELECT * FROM guild_games_settings WHERE guild_id = ?', [guildId]));
+  });
+}
+
+/** Bot: record a game result (plays +1, wins +1 on a win). */
+export function recordGameScore(guildId, userId, game, win) {
+  if (!GAME_KEYS.includes(game)) { return Promise.reject(Object.assign(new Error('unknown game'), { code: 'VALIDATION' })); }
+  return runStmt(
+    `INSERT INTO guild_game_scores (guild_id, user_id, game, wins, plays)
+     VALUES (?, ?, ?, ?, 1)
+     ON CONFLICT(guild_id, user_id, game) DO UPDATE SET
+       wins = wins + ?, plays = plays + 1`,
+    [guildId, String(userId), game, win ? 1 : 0, win ? 1 : 0]
+  );
+}
+
+export function getGameLeaderboard(guildId, game, limit = 25) {
+  const lim = clampRange(limit, 1, 100, 25);
+  const g = GAME_KEYS.includes(game) ? game : GAME_KEYS[0];
+  return new Promise((resolve, reject) => {
+    db.all(
+      'SELECT user_id, wins, plays FROM guild_game_scores WHERE guild_id = ? AND game = ? AND plays > 0 ORDER BY wins DESC, plays ASC LIMIT ?',
+      [guildId, g, lim],
+      (err, rows) => { if (err) reject(err); else resolve((rows || []).map((r, i) => ({ user_id: r.user_id, wins: r.wins, plays: r.plays, rank: i + 1 }))); }
+    );
+  });
+}
+
 export const MODULE_DEFAULTS = {
   autorole: AUTOROLE_DEFAULTS,
   logs: LOG_DEFAULTS,
@@ -6752,7 +6866,8 @@ export const MODULE_DEFAULTS = {
   polls: { polls: [] },
   invitetracking: INVITE_DEFAULTS,
   applications: { forms: [] },
-  economy: ECONOMY_DEFAULTS
+  economy: ECONOMY_DEFAULTS,
+  games: GAMES_DEFAULTS
 };
 
 /**
