@@ -6,6 +6,13 @@ flop/turn/river, betting (fold/check/call/raise/all-in), proper layered side pot
 and a showdown with a 7-card hand evaluator. The chip leader when the table ends
 is recorded as a win via the shared /games/score endpoint.
 
+The host can fill empty seats with AI bots (Add/Remove bot in the lobby). Bots
+play automatically on their turn using a rough hand-strength + pot-odds heuristic;
+they are never recorded to the leaderboard (only real participants are).
+
+Hole cards and the community board are rendered as card-face PNGs via Pillow when
+available; without Pillow the cog degrades gracefully to text card symbols.
+
 Interactions use on_interaction with custom_id prefix "pk:<action>:<tid>" so they
 survive across handlers; the Raise button opens a Modal. All state is in-memory
 (one table per channel) — a bot restart drops active tables.
@@ -18,6 +25,7 @@ Logging prefix: "[poker]".
 """
 
 import asyncio
+import io
 import itertools
 import random
 import time
@@ -29,6 +37,14 @@ from discord.ext import commands
 
 import config
 from utils.backend import fetch_bot_settings, bot_post
+
+# Card images are rendered with Pillow when available; otherwise the cog falls
+# back to text card symbols so it keeps working without the dependency.
+try:
+    from PIL import Image, ImageDraw, ImageFont
+    IMAGES_AVAILABLE = True
+except Exception:  # pragma: no cover
+    IMAGES_AVAILABLE = False
 
 
 # ----- Tunables -----
@@ -124,15 +140,102 @@ def hand_name(score):
     return HAND_NAMES.get(score[0], "High Card")
 
 
+# ----- Card image rendering (Pillow) -----
+
+BOT_NAMES = ["Ada", "Björn", "Cleo", "Dex", "Echo", "Fritz", "Gína", "Hiro", "Iris", "Juno"]
+_RED = (208, 0, 0)
+_BLACK = (24, 24, 28)
+CARD_W, CARD_H, GAP, PAD = 90, 126, 14, 16
+
+
+def _load_font(size):
+    for name in ("DejaVuSans-Bold.ttf", "DejaVuSans.ttf", "arialbd.ttf", "arial.ttf", "Arial.ttf"):
+        try:
+            return ImageFont.truetype(name, size)
+        except Exception:
+            continue
+    return ImageFont.load_default()
+
+
+def _draw_suit(d, cx, cy, s, suit, color):
+    if suit == "d":
+        d.polygon([(cx, cy - s), (cx + s * 0.78, cy), (cx, cy + s), (cx - s * 0.78, cy)], fill=color)
+    elif suit == "h":
+        top = cy - s * 0.7
+        d.ellipse([cx - s, top, cx, top + s], fill=color)
+        d.ellipse([cx, top, cx + s, top + s], fill=color)
+        d.polygon([(cx - s + 1, top + s * 0.45), (cx + s - 1, top + s * 0.45), (cx, cy + s)], fill=color)
+    elif suit == "s":
+        bot = cy + s * 0.7
+        d.ellipse([cx - s, bot - s, cx, bot], fill=color)
+        d.ellipse([cx, bot - s, cx + s, bot], fill=color)
+        d.polygon([(cx - s + 1, bot - s * 0.45), (cx + s - 1, bot - s * 0.45), (cx, cy - s)], fill=color)
+        d.polygon([(cx - s * 0.42, cy + s), (cx + s * 0.42, cy + s), (cx + s * 0.14, cy + s * 0.35), (cx - s * 0.14, cy + s * 0.35)], fill=color)
+    elif suit == "c":
+        r = s * 0.62
+        d.ellipse([cx - r, cy - s, cx + r, cy - s + 2 * r], fill=color)
+        d.ellipse([cx - s, cy - r * 0.4, cx - s + 2 * r, cy - r * 0.4 + 2 * r], fill=color)
+        d.ellipse([cx + s - 2 * r, cy - r * 0.4, cx + s, cy - r * 0.4 + 2 * r], fill=color)
+        d.polygon([(cx - s * 0.42, cy + s), (cx + s * 0.42, cy + s), (cx + s * 0.14, cy + s * 0.2), (cx - s * 0.14, cy + s * 0.2)], fill=color)
+
+
+def _draw_card(d, x, y, card, fonts):
+    rank, suit = card
+    color = _RED if suit in "hd" else _BLACK
+    d.rounded_rectangle([x, y, x + CARD_W, y + CARD_H], radius=11, fill=(252, 252, 250), outline=(40, 40, 50), width=2)
+    label = rank_label(rank)
+    d.text((x + 8, y + 4), label, font=fonts["rank"], fill=color)
+    _draw_suit(d, x + 16, y + 46, 8, suit, color)
+    _draw_suit(d, x + CARD_W / 2, y + CARD_H / 2 + 12, 22, suit, color)
+    d.text((x + CARD_W - 8, y + CARD_H - 6), label, font=fonts["rank"], fill=color, anchor="rs")
+
+
+def _draw_back(d, x, y):
+    d.rounded_rectangle([x, y, x + CARD_W, y + CARD_H], radius=11, fill=(34, 53, 122), outline=(20, 30, 70), width=2)
+    d.rounded_rectangle([x + 8, y + 8, x + CARD_W - 8, y + CARD_H - 8], radius=8, outline=(120, 150, 230), width=2)
+    for i in range(-CARD_H, CARD_W, 14):
+        d.line([(x + 10 + i, y + CARD_H - 10), (x + 10 + i + CARD_H, y + 10)], fill=(70, 95, 180), width=2)
+
+
+def render_cards_png(cards, hidden_count=0):
+    """Render a row of cards (+ optional face-down backs) to a PNG BytesIO."""
+    if not IMAGES_AVAILABLE:
+        return None
+    try:
+        n = len(cards) + hidden_count
+        if n <= 0:
+            return None
+        width = PAD * 2 + n * CARD_W + (n - 1) * GAP
+        height = PAD * 2 + CARD_H
+        img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+        fonts = {"rank": _load_font(30)}
+        x = PAD
+        for c in cards:
+            _draw_card(d, x, PAD, c, fonts)
+            x += CARD_W + GAP
+        for _ in range(hidden_count):
+            _draw_back(d, x, PAD)
+            x += CARD_W + GAP
+        buf = io.BytesIO()
+        img.save(buf, "PNG")
+        buf.seek(0)
+        return buf
+    except Exception as exc:  # never let rendering break the game
+        print(f"[poker] card render failed: {exc}")
+        return None
+
+
 # ----- Player + Table -----
 
 class PokerPlayer:
-    __slots__ = ("id", "name", "stack", "hole", "folded", "all_in", "bet", "total", "acted", "in_hand")
+    __slots__ = ("id", "name", "stack", "hole", "folded", "all_in", "bet", "total", "acted", "in_hand", "is_bot")
 
-    def __init__(self, uid, name, stack):
+    def __init__(self, uid, name, stack, is_bot=False):
         self.id = uid
         self.name = name
         self.stack = stack
+        self.is_bot = is_bot
         self.hole = []
         self.folded = False
         self.all_in = False
@@ -489,12 +592,17 @@ class Poker(commands.Cog):
                 return
             score = best_hand(p.hole + table.board) if table.board else None
             extra = f"\nBest so far: **{hand_name(score)}**" if score else ""
-            await interaction.response.send_message(f"🃏 Your hand: **{cards_str(p.hole)}**{extra}", ephemeral=True)
+            content = f"🃏 Your hand: **{cards_str(p.hole)}**{extra}"
+            buf = render_cards_png(p.hole)
+            if buf is not None:
+                await interaction.response.send_message(content, file=discord.File(buf, filename="hand.png"), ephemeral=True)
+            else:
+                await interaction.response.send_message(content, ephemeral=True)
             return
 
         # all other actions mutate state under the lock
         async with table.lock:
-            if action in ("join", "leave", "start", "cancel"):
+            if action in ("join", "leave", "start", "cancel", "addbot", "rmbot"):
                 await self._handle_lobby(interaction, table, action)
             elif action in ("fold", "check", "call", "allin"):
                 await self._handle_bet(interaction, table, action)
@@ -532,6 +640,30 @@ class Poker(commands.Cog):
             if uid == table.host_id:
                 table.host_id = table.players[0].id
             await interaction.response.edit_message(embed=self._lobby_embed(table), view=self._lobby_view(table))
+        elif action == "addbot":
+            if uid != table.host_id:
+                await interaction.response.send_message("Only the host can add bots.", ephemeral=True)
+                return
+            if len(table.players) >= MAX_PLAYERS:
+                await interaction.response.send_message("The table is full.", ephemeral=True)
+                return
+            used = {p.name for p in table.players if p.is_bot}
+            pick = next((f"🤖 {n}" for n in BOT_NAMES if f"🤖 {n}" not in used), None)
+            if pick is None:
+                await interaction.response.send_message("No more bot seats available.", ephemeral=True)
+                return
+            table.players.append(PokerPlayer(f"bot:{uuid.uuid4().hex[:8]}", pick, STARTING_STACK, is_bot=True))
+            await interaction.response.edit_message(embed=self._lobby_embed(table), view=self._lobby_view(table))
+        elif action == "rmbot":
+            if uid != table.host_id:
+                await interaction.response.send_message("Only the host can remove bots.", ephemeral=True)
+                return
+            bot_player = next((p for p in reversed(table.players) if p.is_bot), None)
+            if not bot_player:
+                await interaction.response.send_message("There are no bots to remove.", ephemeral=True)
+                return
+            table.players.remove(bot_player)
+            await interaction.response.edit_message(embed=self._lobby_embed(table), view=self._lobby_view(table))
         elif action == "cancel":
             if uid != table.host_id:
                 await interaction.response.send_message("Only the host can cancel the table.", ephemeral=True)
@@ -546,7 +678,7 @@ class Poker(commands.Cog):
                 await interaction.response.send_message(f"Need at least {MIN_PLAYERS} players.", ephemeral=True)
                 return
             table.begin_hand()
-            await interaction.response.edit_message(embed=self._table_embed(table), view=self._betting_view(table))
+            await interaction.response.edit_message(embed=self._table_embed(table), view=self._betting_view(table), attachments=[])
             self._arm_timeout(table)
 
     # -- betting --
@@ -698,11 +830,80 @@ class Poker(commands.Cog):
         except discord.HTTPException:
             pass
 
-    # -- timeout --
+    # -- timeout + bot turns --
     def _arm_timeout(self, table):
         table.turn_token += 1
         token = table.turn_token
-        asyncio.create_task(self._timeout_watch(table, token))
+        # If it's a bot's turn, let the AI act after a short think; otherwise arm the
+        # idle-timeout for the human to act.
+        if table.state == "betting" and table.to_act is not None and table.players[table.to_act].is_bot:
+            asyncio.create_task(self._bot_act(table, token))
+        else:
+            asyncio.create_task(self._timeout_watch(table, token))
+
+    def _bot_strength(self, table, p):
+        """Rough 0..1 hand-strength estimate for the AI."""
+        if table.board:
+            cat = best_hand(p.hole + table.board)[0]
+            return min(1.0, 0.18 + cat * 0.11)
+        r1, r2 = sorted((p.hole[0][0], p.hole[1][0]), reverse=True)
+        suited = p.hole[0][1] == p.hole[1][1]
+        if r1 == r2:
+            return min(1.0, 0.55 + (r1 - 2) / 26)
+        s = (r1 + r2) / 40.0
+        if suited:
+            s += 0.08
+        if 0 < r1 - r2 <= 2:
+            s += 0.05
+        return min(0.95, s)
+
+    def _bot_decide(self, table, p):
+        """Return (action, raise_to|None) for the AI player p."""
+        strength = self._bot_strength(table, p)
+        jitter = random.uniform(-0.08, 0.08)
+        strength = max(0.0, min(1.0, strength + jitter))
+        to_call = table.current_bet - p.bet
+        pot = table.pot()
+        min_to = table.current_bet + table.last_raise
+        max_to = p.bet + p.stack
+
+        def raise_amount():
+            target = table.current_bet + max(BIG_BLIND, int(pot * 0.6))
+            target = max(target, min_to)
+            return min(target, max_to)
+
+        if to_call <= 0:
+            if strength > 0.62 and max_to > table.current_bet:
+                return ("raise", raise_amount())
+            if strength > 0.4 and random.random() < 0.35 and max_to > table.current_bet:
+                return ("raise", raise_amount())
+            return ("check", None)
+        # facing a bet
+        odds = to_call / (pot + to_call) if (pot + to_call) else 1
+        if strength > 0.78 and max_to > table.current_bet:
+            return ("raise", raise_amount()) if random.random() < 0.7 else ("call", None)
+        if strength >= odds + 0.06:
+            return ("call", None)
+        if random.random() < 0.05 and strength > 0.3:
+            return ("call", None)  # occasional float/bluff-catch
+        return ("fold", None)
+
+    async def _bot_act(self, table, token):
+        await asyncio.sleep(random.uniform(1.2, 2.4))
+        async with table.lock:
+            if table.turn_token != token or table.state != "betting" or table.to_act is None:
+                return
+            p = table.players[table.to_act]
+            if not p.is_bot:
+                return
+            action, raise_to = self._bot_decide(table, p)
+            ok, _ = table.apply_action(p, action, raise_to=raise_to)
+            if not ok:  # fall back to a always-legal action
+                if table.current_bet - p.bet > 0:
+                    ok, _ = table.apply_action(p, "call")
+                if not ok:
+                    table.apply_action(p, "check")
+            await self._after_action(table)
 
     async def _timeout_watch(self, table, token):
         await asyncio.sleep(TURN_TIMEOUT)
@@ -726,11 +927,21 @@ class Poker(commands.Cog):
     async def _render(self, table, final=False):
         if not table.message:
             return
+        embed = self._table_embed(table)
+        if table.state == "betting":
+            view = self._betting_view(table)
+        elif table.state == "hand_over":
+            view = None if final else self._over_view(table)
+        else:
+            view = None
+        # Attach a rendered board image (flop onwards); clear it otherwise.
+        attachments = []
+        buf = render_cards_png(table.board) if table.board else None
+        if buf is not None:
+            attachments = [discord.File(buf, filename="board.png")]
+            embed.set_image(url="attachment://board.png")
         try:
-            if table.state == "betting":
-                await table.message.edit(embed=self._table_embed(table), view=self._betting_view(table))
-            elif table.state == "hand_over":
-                await table.message.edit(embed=self._table_embed(table), view=None if final else self._over_view(table))
+            await table.message.edit(embed=embed, view=view, attachments=attachments)
         except discord.HTTPException as exc:
             print(f"[poker] render failed: {exc}")
 
@@ -739,6 +950,8 @@ class Poker(commands.Cog):
         lines = []
         for p in table.players:
             tag = " 👑" if p.id == table.host_id else ""
+            if p.is_bot:
+                tag += " 🤖"
             lines.append(f"• {p.name}{tag} — {p.stack} chips")
         embed = discord.Embed(
             title="♠ Poker table — Lobby",
@@ -789,6 +1002,8 @@ class Poker(commands.Cog):
         v = discord.ui.View(timeout=None)
         v.add_item(discord.ui.Button(style=discord.ButtonStyle.success, label="Join", emoji="➕", custom_id=f"pk:join:{table.tid}"))
         v.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, label="Leave", emoji="➖", custom_id=f"pk:leave:{table.tid}"))
+        v.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, label="Add bot", emoji="🤖", custom_id=f"pk:addbot:{table.tid}"))
+        v.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, label="Remove bot", emoji="🗑️", custom_id=f"pk:rmbot:{table.tid}"))
         v.add_item(discord.ui.Button(style=discord.ButtonStyle.primary, label="Start", emoji="▶️", custom_id=f"pk:start:{table.tid}"))
         v.add_item(discord.ui.Button(style=discord.ButtonStyle.danger, label="Cancel", emoji="✖️", custom_id=f"pk:cancel:{table.tid}"))
         return v

@@ -138,10 +138,12 @@ projectx/
 │       ├── trivia.py           # !trivia → Frage-Bank (built-in) + 4 Buttons "trv:<token>:<idx>", erster Treffer punktet, 25s-Auto-Reveal.
 │       ├── connect4.py         # !connect4 @gegner → 7-Spalten-Buttons "c4:<token>:<col>", Emoji-Board, 4-in-Reihe.
 │       ├── hangman.py          # !hangman → Wort-Bank, Raten via on_message (Einzelbuchstaben), 6 Versuche, Solver punktet.
-│       └── poker.py            # !poker → Texas-Hold'em-Tisch (1 pro Channel): Lobby (Join/Start), Blinds, Hole-Cards
-│                               # (ephemeral via "🃏 My cards"-Button), Flop/Turn/River, Setzrunden (Fold/Check/Call/Raise-Modal/
-│                               # All-in) als State-Machine, layered Side-Pots, 7-Karten-Hand-Evaluator (mit Self-Test),
-│                               # moderne Embeds; Chip-Leader bei Tisch-Ende → /games/score. custom_id "pk:<action>:<tid>".
+│       └── poker.py            # !poker → Texas-Hold'em-Tisch (1 pro Channel): Lobby (Join/Start + Add/Remove bot), Blinds,
+│                               # Hole-Cards (ephemeral via "🃏 My cards"-Button), Flop/Turn/River, Setzrunden (Fold/Check/Call/
+│                               # Raise-Modal/All-in) als State-Machine, layered Side-Pots, 7-Karten-Hand-Evaluator (mit Self-Test),
+│                               # KI-Bots füllen Sitze (Hand-Strength+Pot-Odds-Heuristik, auto-Act, nie im Leaderboard),
+│                               # Karten als PNG via Pillow (Text-Fallback ohne Pillow), moderne Embeds; Chip-Leader bei
+│                               # Tisch-Ende → /games/score. custom_id "pk:<action>:<tid>".
 ├── backend/                    # Node.js / Express API
 │   ├── server.js               # App-Init, CORS+cookies, Migration-Bootstrap, Route-Mounts, Warnings
 │   ├── db.js                   # SQLite-Connection + Query-Helper (inkl. updateUserTokens,
@@ -357,6 +359,7 @@ projectx/
 - `python-dotenv==1.0.0`
 - `aiohttp==3.9.0` — async HTTP zum Backend
 - `requests==2.31.0`
+- `Pillow==10.4.0` — Karten-Bild-Rendering im Poker-Cog (PNG-Hole-Cards + Community-Board). **Optional zur Laufzeit:** [poker.py](bot/cogs/poker.py) fällt ohne Pillow auf Text-Karten zurück (`IMAGES_AVAILABLE`-Guard), crasht also nie.
 
 ### Backend — [backend/package.json](backend/package.json)
 - Runtime: ESM (`"type": "module"`)
@@ -971,6 +974,12 @@ Empfehlung aus [README.md](README.md): SQLite → PostgreSQL für Multi-Instance
 
 ## 14. Letzte Aktualisierung
 
+- **Datum:** 2026-06-18
+- **Poker-Ausbau: KI-Bots + Karten-Bilder (kein Schema-Change):** Der Poker-Cog [poker.py](bot/cogs/poker.py) bekommt zwei reine Bot-seitige Features — keine DB-/Backend-/Frontend-Änderung (Games-Modul-Infra unverändert).
+  - **KI-Bots:** Der Host kann leere Sitze mit Bots füllen (Lobby-Buttons „Add bot" 🤖 / „Remove bot" 🗑️, custom_id `pk:addbot`/`pk:rmbot`). Bot-Spieler (`PokerPlayer.is_bot`, ID `bot:<uuid8>`, Namen aus `BOT_NAMES`) spielen automatisch am Zug: `_arm_timeout` routet bei Bot-Zug auf `_bot_act` (1.2–2.4s „Denkpause") statt auf den Idle-Timeout. Entscheidung via `_bot_decide` (Hand-Strength-Heuristik `_bot_strength` aus Hole-Cards/Board + Pot-Odds + Jitter → fold/check/call/raise, gelegentlicher Bluff). Bots landen **nie** in `participants` → werden nie ans `/games/score`-Leaderboard gemeldet; gewinnt ein Bot den Tisch, bekommt kein Mensch den `win`.
+  - **Karten-Bilder:** Hole-Cards (über „🃏 My cards") und das Community-Board werden als PNG gerendert (`render_cards_png` via Pillow — Kartenflächen mit Rang/Suit-Symbolen, Rückseiten für verdeckte Karten). `_render` hängt das Board-Bild als `attachment://board.png` ans Embed; Lobby→Start cleart Attachments (`attachments=[]`). **Pillow ist optional:** ohne die Lib (`IMAGES_AVAILABLE = False`) fällt der Cog auf Text-Karten zurück, crasht nie.
+  - **Dependency:** `Pillow==10.4.0` in [bot/requirements.txt](bot/requirements.txt) ergänzt (Tech-Stack-Block oben aktualisiert).
+  - Verifiziert: `poker.py` kompiliert, **Evaluator-Self-Test grün** (`python cogs/poker.py`), PNG-Rendering produziert valide Bilder (Board 7.9 kB / Hand+verdeckt 6.4 kB), Bot-KI-Smoke (strength/decide) grün. Lobby hat jetzt 6 Buttons (wrappen automatisch auf 2 Action-Rows).
 - **Datum:** 2026-06-17
 - **Poker (Texas Hold'em) als 6. Spiel der Games-Kategorie (Schema v29, Tier Basic):** Vollwertiges Mehrspieler-Tisch-Spiel, teilt sich die `/games`-Infrastruktur (kein neues Schema außer einem `poker_enabled`-Flag).
   - **Schema:** Migration v29 = idempotenter ALTER `guild_games_settings.poker_enabled` (+ Mirror/defensiver ALTER). `GAME_KEYS`/`GAMES_DEFAULTS`/`shapeGames`/`upsertGamesSettings` (INSERT) + `PREMIUM_BOT_GATES`-disabled-Shape + `MODULE_TIERS` (`poker: basic` + Segment) um Poker erweitert. Kein neuer Endpoint — nutzt `/games`, `/games/score`, `/games/leaderboard`.
