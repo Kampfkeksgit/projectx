@@ -294,6 +294,7 @@ export default {
     linkTrivia: 'Quiz',
     linkConnect4: 'Czwórki',
     linkHangman: 'Wisielec',
+    linkPoker: 'Poker',
     linkPremium: 'Premium'
   },
   premium: {
@@ -408,10 +409,21 @@ export default {
     connect4Desc: 'Wrzucaj krążki, aby ułożyć cztery w rzędzie przeciwko członkowi.',
     hangmanTitle: 'Wisielec',
     hangmanDesc: 'Odgadnij ukryte słowo litera po literze, zanim skończą Ci się próby.',
+    pokerTitle: 'Poker',
+    pokerDesc: 'Wieloosobowe stoły Texas Hold’em z żetonami, ciemnymi i rozdaniami końcowymi.',
     botMissingTitle: 'ProjectX nie ma jeszcze na tym serwerze',
     botMissingBody: 'Aby skonfigurować którykolwiek z tych modułów, najpierw zaproś bota. Żadne z poniższych ustawień nie zadziała, zanim to zrobisz.',
     inviteBot: 'Zaproś ProjectX na ten serwer',
     botMissingPill: 'Bota nie ma na serwerze'
+  },
+  poker: {
+    eyebrow: 'Gry', title: 'Poker',
+    sub: 'Prowadź wieloosobowe stoły Texas Hold’em bezpośrednio na kanale.',
+    enableLabel: 'Włącz Poker', enableHint: 'Pozwól członkom otwierać i dołączać do stołów Texas Hold’em.',
+    channelLabel: 'Kanał gier', channelHint: 'Ogranicz wszystkie gry do tego kanału (opcjonalnie, wspólne dla gier).',
+    usageNote: 'Otwórz stół komendą !poker. Gracze dołączają przyciskiem, a następnie na zmianę czekają, sprawdzają, podbijają lub pasują. Każdy gracz otrzymuje stos żetonów; bot rozdaje karty własne i wspólne oraz przeprowadza rozdanie końcowe.',
+    leaderboardTitle: 'Ranking', leaderboardEmpty: 'Nie rozegrano jeszcze żadnej gry.',
+    playerCol: 'Gracz', winsCol: 'Wygrane', playsCol: 'Gry', loadError: 'Nie udało się wczytać ustawień gier.'
   },
   tictactoe: {
     eyebrow: 'Gry', title: 'Kółko i krzyżyk',

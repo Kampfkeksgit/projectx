@@ -250,6 +250,11 @@ const groups = computed(() => [
         to: `/dashboard/${props.guildId}/hangman`,
         label: t('sidebar.linkHangman'),
         icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21h10"/><path d="M6 21V4h9"/><path d="M15 4v3"/><circle cx="15" cy="9" r="2"/></svg>'
+      },
+      {
+        to: `/dashboard/${props.guildId}/poker`,
+        label: t('sidebar.linkPoker'),
+        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="13" height="16" rx="2"/><path d="M8 9c-1.5 1-1.5 3 0 4 1.5-1 1.5-3 0-4z"/><path d="M19 7l2 .8a2 2 0 0 1 1.2 2.5l-3 8"/></svg>'
       }
     ]
   }

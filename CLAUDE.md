@@ -51,7 +51,7 @@ Doku-Index: [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md)
 ```
 projectx/
 ├── bot/                        # Python Discord-Bot
-│   ├── main.py                 # Entry-Point, lädt 32 Cogs in setup_hook (läuft 1× beim Start — NICHT in on_ready, das bei jedem Reconnect feuert → sonst „Extension already loaded")
+│   ├── main.py                 # Entry-Point, lädt 33 Cogs in setup_hook (läuft 1× beim Start — NICHT in on_ready, das bei jedem Reconnect feuert → sonst „Extension already loaded")
 │   │                           # Danach in setup_hook: bot.tree.sync() für Slash-Commands. on_ready loggt nur noch die Verbindung.
 │   │                           # command_prefix = async _resolve_prefix (per-Guild via command_config, Cache, Mention immer aktiv)
 │   │                           # Globale Gates: @bot.check (Prefix) + bot.tree.interaction_check (Slash) sperren deaktivierte Befehle
@@ -137,12 +137,16 @@ projectx/
 │       ├── rps.py              # !rps [@gegner] → Schere/Stein/Papier-Buttons (vs Spieler oder Bot).
 │       ├── trivia.py           # !trivia → Frage-Bank (built-in) + 4 Buttons "trv:<token>:<idx>", erster Treffer punktet, 25s-Auto-Reveal.
 │       ├── connect4.py         # !connect4 @gegner → 7-Spalten-Buttons "c4:<token>:<col>", Emoji-Board, 4-in-Reihe.
-│       └── hangman.py          # !hangman → Wort-Bank, Raten via on_message (Einzelbuchstaben), 6 Versuche, Solver punktet.
+│       ├── hangman.py          # !hangman → Wort-Bank, Raten via on_message (Einzelbuchstaben), 6 Versuche, Solver punktet.
+│       └── poker.py            # !poker → Texas-Hold'em-Tisch (1 pro Channel): Lobby (Join/Start), Blinds, Hole-Cards
+│                               # (ephemeral via "🃏 My cards"-Button), Flop/Turn/River, Setzrunden (Fold/Check/Call/Raise-Modal/
+│                               # All-in) als State-Machine, layered Side-Pots, 7-Karten-Hand-Evaluator (mit Self-Test),
+│                               # moderne Embeds; Chip-Leader bei Tisch-Ende → /games/score. custom_id "pk:<action>:<tid>".
 ├── backend/                    # Node.js / Express API
 │   ├── server.js               # App-Init, CORS+cookies, Migration-Bootstrap, Route-Mounts, Warnings
 │   ├── db.js                   # SQLite-Connection + Query-Helper (inkl. updateUserTokens,
 │   │                           # removeUserGuildsNotIn, getXxxSettings/upsertXxxSettings je Modul, MODULE_DEFAULTS)
-│   ├── migrations.js           # Schema-Versioning + Migrations (aktuell v28)
+│   ├── migrations.js           # Schema-Versioning + Migrations (aktuell v29)
 │   ├── package.json
 │   ├── middleware/
 │   │   ├── session.js          # signSession / setSessionCookie / clearSessionCookie /
@@ -283,7 +287,7 @@ projectx/
 │           ├── Landing.vue          # /  (frei zugänglich, auch für authed User — Home-Button im /dashboard)
 │           ├── Servers.vue          # /dashboard  (Guild-Auswahl, requiresAuth) — mit Home- + Refresh-Button
 │           ├── DashboardLayout.vue  # Wrapper für /dashboard/:guild_id/* mit Sidebar
-│           ├── Overview.vue         # /dashboard/:guild_id (Übersicht — 31 Modul-Cards mit Live-Status)
+│           ├── Overview.vue         # /dashboard/:guild_id (Übersicht — 32 Modul-Cards mit Live-Status)
 │           ├── Welcome.vue          # /dashboard/:guild_id/welcome (Config + Live-Preview)
 │           ├── Leave.vue            # /dashboard/:guild_id/leave
 │           ├── AutoRole.vue         # /dashboard/:guild_id/autorole (Toggle + Role-Chips + Apply-to-Bots)
@@ -311,7 +315,7 @@ projectx/
 │           ├── InviteTracking.vue   # /dashboard/:guild_id/invitetracking (Settings + Top-Inviter-Leaderboard)
 │           ├── Applications.vue     # /dashboard/:guild_id/applications (Formular-CRUD inkl. Fragen + Einreichungs-Liste)
 │           ├── Economy.vue          # /dashboard/:guild_id/economy (Settings + Shop-CRUD + Balance-Leaderboard)
-│           ├── TicTacToe.vue / RockPaperScissors.vue / Trivia.vue / ConnectFour.vue / Hangman.vue
+│           ├── TicTacToe.vue / RockPaperScissors.vue / Trivia.vue / ConnectFour.vue / Hangman.vue / Poker.vue
 │           │                        # Games-Kategorie: je Toggle + geteilter Spiele-Channel + Spiel-Bestenliste (alle nutzen /games)
 │           ├── Premium.vue         # /dashboard/:guild_id/premium (Tarif-Übersicht Free/Basic/Pro + aktueller Tier + Upgrade-CTA)
 │           ├── Admin.vue           # /admin (OWNER-only — Tabs Overview/Users/Guilds/Audit/System; Router-Guard requiresOwner)
@@ -613,7 +617,7 @@ Mount-Points aus [backend/server.js](backend/server.js):
 
 **Premium / Tiers** (Cookie required) — Modul-Gating Free/Basic/Pro (`MODULE_TIERS` in [db.js](backend/db.js) ist Single Source).
 - `GET /api/guilds/:id/premium` → `{ success, tier, source, until, module_tiers: { key: tier }, modules: { key: bool } }`. Liefert dem Dashboard den effektiven Tier (abgelaufenes Premium → `free`) + die Unlock-Map pro Modul-Key (= Dashboard-Route-Segment).
-- **Enforcement:** Cookie-Writes der Premium-Modul-Router laufen durch `requirePremiumModule(key)` ([middleware/premium.js](backend/middleware/premium.js)) → GET frei, PUT/POST/DELETE → **403 `{ error: 'premium_required', module, required_tier, current_tier }`** wenn der Tier nicht reicht (Leveling gated im eigenen Router, da bare-prefix-Mount). Guild-übergreifende Loop-Cog-Queries (social/stats/scheduled/birthday/rolemenus/giveaways) filtern via `tierFilterSql(minTier)` serverseitig; per-Guild Bot-GETs (leveling-xp/tempvoice/starboard/antiraid/tickets/invitetracking/applications/economy) liefern eine `disabled`-Shape über den zentralen `PREMIUM_BOT_GATES`-Guard in [bot.js](backend/routes/bot.js). **Frei:** welcome/leave/autorole/logs/moderation/reaction-roles/verification/suggestions/custom-commands/counting/polls. **Basic:** leveling/starboard/tempvoice/birthday/rolemenus/antiraid/invitetracking + Games-Kategorie (games/tictactoe/rps/trivia/connect4/hangman — geteilte `/games`-Settings, Gate-Key `games`). **Pro:** social/stats/tickets/giveaways/scheduled/applications/economy.
+- **Enforcement:** Cookie-Writes der Premium-Modul-Router laufen durch `requirePremiumModule(key)` ([middleware/premium.js](backend/middleware/premium.js)) → GET frei, PUT/POST/DELETE → **403 `{ error: 'premium_required', module, required_tier, current_tier }`** wenn der Tier nicht reicht (Leveling gated im eigenen Router, da bare-prefix-Mount). Guild-übergreifende Loop-Cog-Queries (social/stats/scheduled/birthday/rolemenus/giveaways) filtern via `tierFilterSql(minTier)` serverseitig; per-Guild Bot-GETs (leveling-xp/tempvoice/starboard/antiraid/tickets/invitetracking/applications/economy) liefern eine `disabled`-Shape über den zentralen `PREMIUM_BOT_GATES`-Guard in [bot.js](backend/routes/bot.js). **Frei:** welcome/leave/autorole/logs/moderation/reaction-roles/verification/suggestions/custom-commands/counting/polls. **Basic:** leveling/starboard/tempvoice/birthday/rolemenus/antiraid/invitetracking + Games-Kategorie (games/tictactoe/rps/trivia/connect4/hangman/poker — geteilte `/games`-Settings, Gate-Key `games`). **Pro:** social/stats/tickets/giveaways/scheduled/applications/economy.
 
 > **Enforcement gesperrter Entities:** Gesperrte **User** werden von `requireSession` (403 `{ blocked: true }`), `/auth/me` (403 + Cookie-Clear) und dem OAuth-Callback (403, kein Cookie) abgewiesen — der Owner ist immer ausgenommen. Gesperrte **Guilds** bleiben im Server-Picker sichtbar (`getUserManageableGuilds` liefert das `blocked`-Flag mit), werden dort aber rot umrandet + nicht klickbar gerendert ([Servers.vue](frontend/src/pages/Servers.vue)); `requireGuildAccess` liefert 403, die Bot-Endpoints unter `/api/bot/guilds/:id/*` liefern 403 (Bot wird dort inert), und alle guild-übergreifenden Loop-Cog-Queries (social/stats/tempvoice/birthday/scheduled/rolemenus/giveaways) filtern `blocked = 1` per `NOT IN (SELECT id FROM guilds WHERE blocked = 1)`.
 
@@ -726,9 +730,9 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - Engine: **SQLite3** (Datei via `DATABASE_URL`, default `./data/bot.db`)
 - Connection: [backend/db.js](backend/db.js)
 - Migrations: [backend/migrations.js](backend/migrations.js)
-  - **Aktuelle Schema-Version: `28`**
+  - **Aktuelle Schema-Version: `29`**
   - `CURRENT_SCHEMA_VERSION` Konstante steuert Upgrades.
-  - `applyMigrations(from, to)` mappt Versionsnummern → Migration-Funktionen (`migrationV1`, …, `migrationV28`). v23–v28 nutzen den `runSchemaBatch(version, statements)`-Helper.
+  - `applyMigrations(from, to)` mappt Versionsnummern → Migration-Funktionen (`migrationV1`, …, `migrationV29`). v23–v29 nutzen den `runSchemaBatch(version, statements)`-Helper.
   - Versionstabelle: `schema_version (version PK, applied_at)`.
   - `migrationV2` fügt `users.token_expires_at INTEGER` hinzu (idempotent).
   - `migrationV3` legt `guild_autorole_settings`, `guild_log_settings`, `guild_moderation_settings` an (`CREATE TABLE IF NOT EXISTS` — idempotent; werden parallel auch im `initializeDatabase()`-Pfad erzeugt, damit Fresh-DBs auch ohne Migrations-Run funktionieren).
@@ -758,7 +762,8 @@ Mount-Points aus [backend/server.js](backend/server.js):
   - `migrationV25` (Invite-Tracking, Basic): `guild_invite_settings` (`guild_id PK`, `enabled`, `log_channel_id`, `message_template`), `guild_invites` (Cache PK `(guild_id, code)`), `guild_member_invites` (PK `(guild_id, user_id)`, `idx_member_invites_inviter`). Idempotent + Mirror.
   - `migrationV26` (Applications, Pro): `guild_application_forms` (`id` UUID, `questions` JSON ≤5, `review_channel_id`, `accepted_role_id`, `panel_message_id`, `idx_application_forms_guild`) + `guild_applications` (`id` UUID, `answers` JSON, `status ∈ {pending|accepted|denied}`, `idx_applications_guild`). Idempotent + Mirror.
   - `migrationV27` (Economy, Pro): `guild_economy_settings` (`guild_id PK`, `currency_name`/`currency_symbol`, `start_balance`, `daily_amount`, `work_min`/`work_max`/`work_cooldown`), `guild_economy_users` (PK `(guild_id, user_id)`, `balance`, `last_daily`/`last_work`, `idx_economy_users_balance`), `guild_economy_shop` (`id` UUID, `price`, `role_id`, `idx_economy_shop_guild`). Idempotent + Mirror.
-  - `migrationV28` (Games-Kategorie, alle Basic): `guild_games_settings` (`guild_id PK`, gemeinsamer `games_channel_id` + pro-Spiel-Flags `tictactoe_enabled`/`rps_enabled`/`trivia_enabled`/`connect4_enabled`/`hangman_enabled`) + `guild_game_scores` (PK `(guild_id, user_id, game)`, `wins`/`plays`, `idx_game_scores_lb`). Eine geteilte Settings-Row + eine Scores-Tabelle für alle 5 Spiele. Idempotent + Mirror.
+  - `migrationV28` (Games-Kategorie, alle Basic): `guild_games_settings` (`guild_id PK`, gemeinsamer `games_channel_id` + pro-Spiel-Flags `tictactoe_enabled`/`rps_enabled`/`trivia_enabled`/`connect4_enabled`/`hangman_enabled`) + `guild_game_scores` (PK `(guild_id, user_id, game)`, `wins`/`plays`, `idx_game_scores_lb`). Eine geteilte Settings-Row + eine Scores-Tabelle für alle Spiele. Idempotent + Mirror.
+  - `migrationV29` (Poker, Games-Kategorie): idempotenter ALTER `guild_games_settings.poker_enabled` (6. Spiel der Games-Kategorie, teilt sich `/games`-Settings + `guild_game_scores`). Mirror + defensiver ALTER in `initializeDatabase()`. `GAME_KEYS` in [db.js](backend/db.js) um `poker` erweitert.
   - `migrationV18` (Ticket-Überarbeitung, idempotente ALTERs + neue Tabelle + Mirror): `guild_ticket_settings` +10 Spalten (`panel_type ∈ {dropdown|buttons}`, `panel_embed`/`welcome_embed` JSON, `ping_role_id`, `naming_template`, `claim_enabled`, `close_confirm`, `rating_enabled`, `rating_mode ∈ {channel|dm|both}`, `log_channel_id`); `guild_tickets` +8 Spalten (`ticket_category_id`, `number`, `claimed_by`, `rating`, `rating_comment`, `closed_by`, `closed_at`, `extra_user_ids` JSON); neue Tabelle `guild_ticket_categories` (`id` UUID, `idx_ticket_categories_guild`, FK CASCADE) — Ticket-Typen mit Label/Emoji/Desc + Kategorie-/Support-Rollen-/Ping-Rollen-Override, Welcome-Text, `button_style`, Position, Enabled.
 
 **Kern-Tabellen** (Details: [backend/DATABASE_SCHEMA.md](backend/DATABASE_SCHEMA.md), [backend/DATABASE_FUNCTIONS.md](backend/DATABASE_FUNCTIONS.md))
@@ -805,7 +810,7 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - `guild_invite_settings` + `guild_invites` (Use-Count-Cache) + `guild_member_invites` (Beitritts-Record/Leaderboard-Quelle) — Invite-Tracking (Basic)
 - `guild_application_forms` (`questions` JSON ≤5, `review_channel_id`, `accepted_role_id`) + `guild_applications` (`answers` JSON, `status`, `reviewer_id`) — Bewerbungen (Pro)
 - `guild_economy_settings` + `guild_economy_users` (`balance`, `last_daily`/`last_work`) + `guild_economy_shop` (`price`, optionale `role_id`) — Wirtschaft (Pro)
-- `guild_games_settings` (eine Row, geteilter `games_channel_id` + pro-Spiel-Toggle) + `guild_game_scores` (`(guild_id, user_id, game)`, `wins`/`plays`) — Games-Kategorie (Basic): Tic-Tac-Toe/RPS/Trivia/Connect-Four/Hangman
+- `guild_games_settings` (eine Row, geteilter `games_channel_id` + pro-Spiel-Toggle inkl. `poker_enabled`) + `guild_game_scores` (`(guild_id, user_id, game)`, `wins`/`plays`) — Games-Kategorie (Basic): Tic-Tac-Toe/RPS/Trivia/Connect-Four/Hangman/Poker
 - `schema_version` — Migrations-Tracking
 
 **Wichtige DB-Helper** in [backend/db.js](backend/db.js):
@@ -967,6 +972,12 @@ Empfehlung aus [README.md](README.md): SQLite → PostgreSQL für Multi-Instance
 ## 14. Letzte Aktualisierung
 
 - **Datum:** 2026-06-17
+- **Poker (Texas Hold'em) als 6. Spiel der Games-Kategorie (Schema v29, Tier Basic):** Vollwertiges Mehrspieler-Tisch-Spiel, teilt sich die `/games`-Infrastruktur (kein neues Schema außer einem `poker_enabled`-Flag).
+  - **Schema:** Migration v29 = idempotenter ALTER `guild_games_settings.poker_enabled` (+ Mirror/defensiver ALTER). `GAME_KEYS`/`GAMES_DEFAULTS`/`shapeGames`/`upsertGamesSettings` (INSERT) + `PREMIUM_BOT_GATES`-disabled-Shape + `MODULE_TIERS` (`poker: basic` + Segment) um Poker erweitert. Kein neuer Endpoint — nutzt `/games`, `/games/score`, `/games/leaderboard`.
+  - **Bot-Cog [poker.py](bot/cogs/poker.py) (33 Cogs gesamt):** 1 Tisch pro Channel. `!poker` → Lobby-Embed mit Join/Leave/Start/Cancel-Buttons (Start-Stack 1000, Blinds 10/20, max 8). Pro Hand: Dealer-Button rotiert, Blinds (inkl. Heads-up-Sonderfall), 2 Hole-Cards (ephemeral über „🃏 My cards"-Button, nicht öffentlich), Flop/Turn/River. Setzrunden als State-Machine (Fold/Check/Call/Raise via Modal/All-in) mit korrekter Min-Raise-Logik und 90s-Auto-Fold/Check-Timeout. **Layered Side-Pots** bei All-ins, **7-Karten-Hand-Evaluator** (`evaluate_5`/`best_hand`, inkl. Wheel-Straight) mit eingebautem `_self_test()`. Showdown enthüllt Hände + verteilt Pots (Split + Remainder). Moderne Embeds (Community-Cards, Pot, Spieler-Status mit D/SB/BB-Tags, ➤ am Zug). Bei Tisch-Ende → Chip-Leader = `win` an `/games/score`, alle Teilnehmer = `play`. custom_id-Schema `pk:<action>:<tid>`, In-Memory-State (Restart = Tisch verloren).
+  - **Frontend:** Seite [Poker.vue](frontend/src/pages/Poker.vue) (Toggle + geteilter Spiele-Channel + Bestenliste), Router-Child, Sidebar-Link (Games-Gruppe), Overview-Card (`gameCards`), i18n-Namespace `poker` + `sidebar.linkPoker` + `overview.poker*` in **allen 5 Sprachen** (Key-Parität 1261/Locale).
+  - **Umsetzung:** Cog selbst geschrieben (Korrektheit/Komplexität), tr/ru/pl-i18n parallel via 3 Background-Sub-Agents.
+  - Verifiziert: Migration v29 sauber, DB-Smoke (poker-Flag/Score/Leaderboard) grün, **Evaluator-Self-Test grün** (`python cogs/poker.py`), alle 33 Cogs kompilieren, Frontend-Build grün, i18n-Parität 1261/Locale.
 - **Neue Games-Kategorie mit 5 Spielen (Schema v28, alle Tier Basic):** Eigene Sidebar-Gruppe „Games" (4. Gruppe) mit Tic-Tac-Toe, Schere-Stein-Papier, Trivia, Vier gewinnt und Galgenmännchen (26 → 31 Modul-Cards).
   - **Schlanke geteilte Architektur:** EINE Settings-Row `guild_games_settings` (gemeinsamer `games_channel_id` + pro-Spiel-Toggle) + EINE `guild_game_scores`-Tabelle (`(guild_id, user_id, game)` → wins/plays). Eine Cookie-Route [games.js](backend/routes/games.js) (`GET/PUT /games` mit Partial-Merge, `GET /games/leaderboard?game=`), gated über `requirePremiumModule('games')`. Bot-Endpoints `GET /api/bot/guilds/:id/settings/games` + `POST .../games/score` + `GET .../games/leaderboard` in [bot.js](backend/routes/bot.js), `PREMIUM_BOT_GATES`-Eintrag `games`. db.js: `GAMES_DEFAULTS`/`GAME_KEYS`, `getGamesSettings`/`upsertGamesSettings` (Merge), `recordGameScore`, `getGameLeaderboard`.
   - **Bot:** 5 Cogs ([tictactoe.py](bot/cogs/tictactoe.py)/[rps.py](bot/cogs/rps.py)/[trivia.py](bot/cogs/trivia.py)/[connect4.py](bot/cogs/connect4.py)/[hangman.py](bot/cogs/hangman.py)) in [main.py](bot/main.py) geladen (32 Cogs gesamt). Button-Spiele via `on_interaction` (custom_id `ttt:`/`rps:`/`trv:`/`c4:`), In-Memory-Sessions (Token = `uuid4().hex[:8]`, „expired" bei Restart). Hangman via `on_message` (Einzelbuchstaben). Alle lesen `/settings/games` (60s-Cache), prüfen pro-Spiel-Flag + optionalen `games_channel_id`, posten Ergebnis an `/games/score`.

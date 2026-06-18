@@ -294,6 +294,7 @@ export default {
     linkTrivia: 'Bilgi Yarışması',
     linkConnect4: 'Dört Taş',
     linkHangman: 'Adam Asmaca',
+    linkPoker: 'Poker',
     linkPremium: 'Premium'
   },
   premium: {
@@ -408,10 +409,21 @@ export default {
     connect4Desc: 'Bir üyeye karşı dört taşı yan yana getirmek için disk bırakın.',
     hangmanTitle: 'Adam Asmaca',
     hangmanDesc: 'Hakkınız bitmeden gizli kelimeyi harf harf tahmin edin.',
+    pokerTitle: 'Poker',
+    pokerDesc: 'Çipler, körler ve gösterişlerle çok oyunculu Texas Hold’em masaları.',
     botMissingTitle: 'ProjectX henüz bu sunucuda değil',
     botMissingBody: 'Bu modüllerden herhangi birini yapılandırmak için önce botu davet edin. O zamana kadar aşağıdaki ayarların hiçbiri çalışmaz.',
     inviteBot: 'ProjectX\'i bu sunucuya davet et',
     botMissingPill: 'Bot sunucuda değil'
+  },
+  poker: {
+    eyebrow: 'Oyunlar', title: 'Poker',
+    sub: 'Çok oyunculu Texas Hold’em masalarını doğrudan bir kanalda yürütün.',
+    enableLabel: 'Poker\'i etkinleştir', enableHint: 'Üyelerin Texas Hold’em masaları açmasına ve katılmasına izin verin.',
+    channelLabel: 'Oyun kanalı', channelHint: 'Tüm oyunları bu kanalla sınırlayın (isteğe bağlı, oyunlar arasında paylaşılır).',
+    usageNote: '!poker ile bir masa açın. Oyuncular bir düğmeyle katılır, ardından sırayla pas geçer, görür, yükseltir veya pas (fold) yapar. Her oyuncuya bir çip yığını verilir; bot kapalı ve ortak kartları dağıtır ve gösterişi yürütür.',
+    leaderboardTitle: 'Lider tablosu', leaderboardEmpty: 'Henüz oyun oynanmadı.',
+    playerCol: 'Oyuncu', winsCol: 'Galibiyet', playsCol: 'Oyun', loadError: 'Oyun ayarları yüklenemedi.'
   },
   tictactoe: {
     eyebrow: 'Oyunlar', title: 'Tic-Tac-Toe',

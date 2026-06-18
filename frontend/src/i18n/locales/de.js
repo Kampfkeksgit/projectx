@@ -294,6 +294,7 @@ export default {
     linkTrivia: 'Quiz',
     linkConnect4: 'Vier gewinnt',
     linkHangman: 'Galgenmännchen',
+    linkPoker: 'Poker',
     linkPremium: 'Premium'
   },
   premium: {
@@ -408,10 +409,28 @@ export default {
     connect4Desc: 'Wirf Steine ein und erziele vier in einer Reihe gegen ein Mitglied.',
     hangmanTitle: 'Galgenmännchen',
     hangmanDesc: 'Errate das versteckte Wort Buchstabe für Buchstabe.',
+    pokerTitle: 'Poker',
+    pokerDesc: 'Mehrspieler-Texas-Hold’em-Tische mit Chips, Blinds und Showdown.',
     botMissingTitle: 'ProjectX ist noch nicht auf diesem Server',
     botMissingBody: 'Bevor du eines der Module konfigurieren kannst, musst du den Bot einladen. Ohne ihn greift keine der Einstellungen unten.',
     inviteBot: 'ProjectX zu diesem Server einladen',
     botMissingPill: 'Bot nicht im Server'
+  },
+  poker: {
+    eyebrow: 'Spiele',
+    title: 'Poker',
+    sub: 'Mehrspieler-Texas-Hold’em-Tische direkt im Channel.',
+    enableLabel: 'Poker aktivieren',
+    enableHint: 'Erlaubt Mitgliedern, Texas-Hold’em-Tische zu eröffnen und beizutreten.',
+    channelLabel: 'Spiele-Channel',
+    channelHint: 'Alle Spiele auf diesen Channel beschränken (optional, für alle Spiele gemeinsam).',
+    usageNote: 'Eröffne einen Tisch mit !poker. Spieler treten per Button bei und sind dann abwechselnd dran (Check/Call/Raise/Fold). Jeder bekommt einen Chip-Stack; der Bot teilt Hole- und Community-Karten aus und führt den Showdown durch.',
+    leaderboardTitle: 'Bestenliste',
+    leaderboardEmpty: 'Noch keine Spiele gespielt.',
+    playerCol: 'Spieler',
+    winsCol: 'Siege',
+    playsCol: 'Spiele',
+    loadError: 'Spiele-Einstellungen konnten nicht geladen werden.'
   },
   tictactoe: {
     eyebrow: 'Spiele',

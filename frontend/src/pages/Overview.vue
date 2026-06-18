@@ -698,7 +698,8 @@ const extraEnabled = reactive({
   rps: false,
   trivia: false,
   connect4: false,
-  hangman: false
+  hangman: false,
+  poker: false
 })
 
 // Games category — one shared /games settings row drives all five cards.
@@ -707,7 +708,8 @@ const gameCards = [
   { key: 'rps', icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-4 0"/><path d="M14 10V4a2 2 0 0 0-4 0v2"/><path d="M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>' },
   { key: 'trivia', icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>' },
   { key: 'connect4', icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8" cy="8" r="1.5"/><circle cx="12" cy="8" r="1.5"/><circle cx="16" cy="12" r="1.5"/><circle cx="8" cy="16" r="1.5"/></svg>' },
-  { key: 'hangman', icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21h10"/><path d="M6 21V4h9"/><path d="M15 4v3"/><circle cx="15" cy="9" r="2"/></svg>' }
+  { key: 'hangman', icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21h10"/><path d="M6 21V4h9"/><path d="M15 4v3"/><circle cx="15" cy="9" r="2"/></svg>' },
+  { key: 'poker', icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="13" height="16" rx="2"/><path d="M8 9c-1.5 1-1.5 3 0 4 1.5-1 1.5-3 0-4z"/><path d="M19 7l2 .8a2 2 0 0 1 1.2 2.5l-3 8"/></svg>' }
 ]
 
 async function fetchExtraStatus() {
@@ -774,6 +776,7 @@ async function fetchExtraStatus() {
   extraEnabled.trivia = !!gs.trivia_enabled
   extraEnabled.connect4 = !!gs.connect4_enabled
   extraEnabled.hangman = !!gs.hangman_enabled
+  extraEnabled.poker = !!gs.poker_enabled
 }
 
 onMounted(fetchExtraStatus)

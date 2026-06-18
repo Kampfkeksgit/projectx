@@ -216,7 +216,7 @@ async def setup_hook():
         print('✅​ Economy cog loaded')
     except Exception as e:
         print(f'❌ Failed to load Economy cog: {e}')
-    for _game in ('tictactoe', 'rps', 'trivia', 'connect4', 'hangman'):
+    for _game in ('tictactoe', 'rps', 'trivia', 'connect4', 'hangman', 'poker'):
         try:
             await bot.load_extension(f'cogs.{_game}')
             print(f'✅​ Game cog loaded: {_game}')
