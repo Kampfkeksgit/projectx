@@ -988,7 +988,7 @@ class Poker(commands.Cog):
             embed.set_footer(text=f"Winner: {winner.name}")
         try:
             if table.message:
-                await table.message.edit(embed=embed, view=None)
+                await table.message.edit(content=None, embed=embed, view=None, attachments=[])
         except discord.HTTPException:
             pass
 
@@ -1095,34 +1095,32 @@ class Poker(commands.Cog):
             view = None if final else self._over_view(table)
         else:
             view = None
-        # Preferred path: render the whole table as an image + a slim caption embed.
-        attachments = []
+        # Preferred path: send the rendered table as a PLAIN attachment (not inside
+        # an embed) so Discord shows it large/inline — the caption goes in the
+        # message content above it. Fall back to a text embed if rendering fails.
         buf = render_table_png(table)
-        if buf is not None:
-            embed = self._caption_embed(table)
-            embed.set_image(url="attachment://table.png")
-            attachments = [discord.File(buf, filename="table.png")]
-        else:
-            # Pillow unavailable / render failed → full text embed.
-            embed = self._table_embed(table)
         try:
-            await table.message.edit(embed=embed, view=view, attachments=attachments)
+            if buf is not None:
+                await table.message.edit(
+                    content=self._caption_text(table), embed=None, view=view,
+                    attachments=[discord.File(buf, filename="table.png")],
+                )
+            else:
+                await table.message.edit(content=None, embed=self._table_embed(table), view=view, attachments=[])
         except discord.HTTPException as exc:
             print(f"[poker] render failed: {exc}")
 
-    def _caption_embed(self, table):
-        """Slim embed that sits above the rendered table image."""
-        th = theme_of(table)
-        embed = discord.Embed(title=f"♠ Poker — Hand #{table.hand_no}", color=th["embed"])
+    def _caption_text(self, table):
+        """Plain-text caption shown above the rendered table image."""
+        head = f"♠ **Poker — Hand #{table.hand_no}**"
         if table.state == "betting" and table.to_act is not None:
             actor = table.players[table.to_act]
             to_call = max(0, table.current_bet - actor.bet)
-            call_txt = f" • to call **{to_call}**" if to_call else " • can **check**"
-            embed.description = f"➤ **{actor.name}** to act{call_txt}"
-            embed.set_footer(text="Use the buttons below • 🃏 shows your cards")
-        elif table.state == "hand_over" and table.last_result:
-            embed.description = table.last_result[:4000]
-        return embed
+            call_txt = f"to call **{to_call}**" if to_call else "can **check**"
+            return f"{head}\n➤ **{actor.name}** to act · {call_txt} · 🃏 shows your cards"
+        if table.state == "hand_over" and table.last_result:
+            return f"{head}\n{table.last_result[:1800]}"
+        return head
 
     def _lobby_embed(self, table):
         host = table.find(table.host_id)
