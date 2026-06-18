@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 29;
+const CURRENT_SCHEMA_VERSION = 30;
 
 /**
  * Initialize schema version tracking
@@ -88,7 +88,8 @@ async function applyMigrations(fromVersion, toVersion) {
     26: migrationV26,
     27: migrationV27,
     28: migrationV28,
-    29: migrationV29
+    29: migrationV29,
+    30: migrationV30
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -1759,6 +1760,19 @@ function migrationV28() {
 function migrationV29() {
   return runSchemaBatch(29, [
     'ALTER TABLE guild_games_settings ADD COLUMN poker_enabled BOOLEAN DEFAULT 0'
+  ]);
+}
+
+/**
+ * Migration V30: per-guild Poker table design (felt theme).
+ *   - guild_games_settings.poker_table_theme: rendering theme key for the poker
+ *     table image (classic|midnight|crimson|charcoal|royal). Default 'classic'.
+ * Idempotent ALTER ("duplicate column name" swallowed); mirrored in
+ * initializeDatabase().
+ */
+function migrationV30() {
+  return runSchemaBatch(30, [
+    "ALTER TABLE guild_games_settings ADD COLUMN poker_table_theme TEXT DEFAULT 'classic'"
   ]);
 }
 

@@ -142,8 +142,10 @@ projectx/
 │                               # Hole-Cards (ephemeral via "🃏 My cards"-Button), Flop/Turn/River, Setzrunden (Fold/Check/Call/
 │                               # Raise-Modal/All-in) als State-Machine, layered Side-Pots, 7-Karten-Hand-Evaluator (mit Self-Test),
 │                               # KI-Bots füllen Sitze (Hand-Strength+Pot-Odds-Heuristik, auto-Act, nie im Leaderboard),
-│                               # Karten als PNG via Pillow (Text-Fallback ohne Pillow), moderne Embeds; Chip-Leader bei
-│                               # Tisch-Ende → /games/score. custom_id "pk:<action>:<tid>".
+│                               # GANZER TISCH als PNG gerendert (Filz+Holzrand, Sitze rund um Ellipse, Community-Cards, Pot,
+│                               # D/SB/BB, aktiver Spieler hervorgehoben, Showdown enthüllt Hole-Cards) mit wählbarem Filz-Design
+│                               # (THEMES: classic/midnight/crimson/charcoal/royal, aus poker_table_theme); Text-Fallback ohne Pillow.
+│                               # Chip-Leader bei Tisch-Ende → /games/score. custom_id "pk:<action>:<tid>".
 ├── backend/                    # Node.js / Express API
 │   ├── server.js               # App-Init, CORS+cookies, Migration-Bootstrap, Route-Mounts, Warnings
 │   ├── db.js                   # SQLite-Connection + Query-Helper (inkl. updateUserTokens,
@@ -185,7 +187,7 @@ projectx/
 │   │   ├── invitetracking.js   # /api/guilds/:id/invitetracking (settings GET/PUT + /leaderboard, cookie) — Invite-Tracking (Basic)
 │   │   ├── applications.js     # /api/guilds/:id/applications/forms (CRUD) + /submissions (cookie) — Bewerbungen (Pro)
 │   │   ├── economy.js          # /api/guilds/:id/economy (settings GET/PUT) + /shop (CRUD) + /leaderboard (cookie) — Wirtschaft (Pro)
-│   │   ├── games.js           # /api/guilds/:id/games (shared settings GET/PUT) + /leaderboard?game= (cookie) — Games-Kategorie (Basic)
+│   │   ├── games.js           # /api/guilds/:id/games (shared settings GET/PUT, inkl. poker_table_theme) + /leaderboard?game= (cookie) — Games-Kategorie (Basic)
 │   │   ├── public.js           # /api/public/stats + /api/public/plans (KEIN Auth — Landing-Page Stats + Tarif-Katalog)
 │   │   ├── premium.js          # /api/guilds/:id/premium (GET, cookie) — Tier + Modul-Unlock-Map fürs Dashboard
 │   │   ├── admin.js            # /api/admin/{users,guilds} (GET list + POST .../block[until] + POST .../premium, requireSession+requireOwner)
@@ -733,9 +735,9 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - Engine: **SQLite3** (Datei via `DATABASE_URL`, default `./data/bot.db`)
 - Connection: [backend/db.js](backend/db.js)
 - Migrations: [backend/migrations.js](backend/migrations.js)
-  - **Aktuelle Schema-Version: `29`**
+  - **Aktuelle Schema-Version: `30`**
   - `CURRENT_SCHEMA_VERSION` Konstante steuert Upgrades.
-  - `applyMigrations(from, to)` mappt Versionsnummern → Migration-Funktionen (`migrationV1`, …, `migrationV29`). v23–v29 nutzen den `runSchemaBatch(version, statements)`-Helper.
+  - `applyMigrations(from, to)` mappt Versionsnummern → Migration-Funktionen (`migrationV1`, …, `migrationV30`). v23–v30 nutzen den `runSchemaBatch(version, statements)`-Helper.
   - Versionstabelle: `schema_version (version PK, applied_at)`.
   - `migrationV2` fügt `users.token_expires_at INTEGER` hinzu (idempotent).
   - `migrationV3` legt `guild_autorole_settings`, `guild_log_settings`, `guild_moderation_settings` an (`CREATE TABLE IF NOT EXISTS` — idempotent; werden parallel auch im `initializeDatabase()`-Pfad erzeugt, damit Fresh-DBs auch ohne Migrations-Run funktionieren).
@@ -767,6 +769,7 @@ Mount-Points aus [backend/server.js](backend/server.js):
   - `migrationV27` (Economy, Pro): `guild_economy_settings` (`guild_id PK`, `currency_name`/`currency_symbol`, `start_balance`, `daily_amount`, `work_min`/`work_max`/`work_cooldown`), `guild_economy_users` (PK `(guild_id, user_id)`, `balance`, `last_daily`/`last_work`, `idx_economy_users_balance`), `guild_economy_shop` (`id` UUID, `price`, `role_id`, `idx_economy_shop_guild`). Idempotent + Mirror.
   - `migrationV28` (Games-Kategorie, alle Basic): `guild_games_settings` (`guild_id PK`, gemeinsamer `games_channel_id` + pro-Spiel-Flags `tictactoe_enabled`/`rps_enabled`/`trivia_enabled`/`connect4_enabled`/`hangman_enabled`) + `guild_game_scores` (PK `(guild_id, user_id, game)`, `wins`/`plays`, `idx_game_scores_lb`). Eine geteilte Settings-Row + eine Scores-Tabelle für alle Spiele. Idempotent + Mirror.
   - `migrationV29` (Poker, Games-Kategorie): idempotenter ALTER `guild_games_settings.poker_enabled` (6. Spiel der Games-Kategorie, teilt sich `/games`-Settings + `guild_game_scores`). Mirror + defensiver ALTER in `initializeDatabase()`. `GAME_KEYS` in [db.js](backend/db.js) um `poker` erweitert.
+  - `migrationV30` (Poker-Tisch-Design): idempotenter ALTER `guild_games_settings.poker_table_theme TEXT DEFAULT 'classic'` (per-Guild Filz-Design fürs gerenderte Tisch-Bild). Mirror + defensiver ALTER in `initializeDatabase()`. `POKER_THEMES` (`classic|midnight|crimson|charcoal|royal`) in [db.js](backend/db.js) ist Single Source (vom Backend validiert, vom Bot zum Rendern + von der Dashboard-Auswahl gespiegelt); `GAMES_DEFAULTS`/`shapeGames`/`upsertGamesSettings` um `poker_table_theme` erweitert.
   - `migrationV18` (Ticket-Überarbeitung, idempotente ALTERs + neue Tabelle + Mirror): `guild_ticket_settings` +10 Spalten (`panel_type ∈ {dropdown|buttons}`, `panel_embed`/`welcome_embed` JSON, `ping_role_id`, `naming_template`, `claim_enabled`, `close_confirm`, `rating_enabled`, `rating_mode ∈ {channel|dm|both}`, `log_channel_id`); `guild_tickets` +8 Spalten (`ticket_category_id`, `number`, `claimed_by`, `rating`, `rating_comment`, `closed_by`, `closed_at`, `extra_user_ids` JSON); neue Tabelle `guild_ticket_categories` (`id` UUID, `idx_ticket_categories_guild`, FK CASCADE) — Ticket-Typen mit Label/Emoji/Desc + Kategorie-/Support-Rollen-/Ping-Rollen-Override, Welcome-Text, `button_style`, Position, Enabled.
 
 **Kern-Tabellen** (Details: [backend/DATABASE_SCHEMA.md](backend/DATABASE_SCHEMA.md), [backend/DATABASE_FUNCTIONS.md](backend/DATABASE_FUNCTIONS.md))
@@ -813,7 +816,7 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - `guild_invite_settings` + `guild_invites` (Use-Count-Cache) + `guild_member_invites` (Beitritts-Record/Leaderboard-Quelle) — Invite-Tracking (Basic)
 - `guild_application_forms` (`questions` JSON ≤5, `review_channel_id`, `accepted_role_id`) + `guild_applications` (`answers` JSON, `status`, `reviewer_id`) — Bewerbungen (Pro)
 - `guild_economy_settings` + `guild_economy_users` (`balance`, `last_daily`/`last_work`) + `guild_economy_shop` (`price`, optionale `role_id`) — Wirtschaft (Pro)
-- `guild_games_settings` (eine Row, geteilter `games_channel_id` + pro-Spiel-Toggle inkl. `poker_enabled`) + `guild_game_scores` (`(guild_id, user_id, game)`, `wins`/`plays`) — Games-Kategorie (Basic): Tic-Tac-Toe/RPS/Trivia/Connect-Four/Hangman/Poker
+- `guild_games_settings` (eine Row, geteilter `games_channel_id` + pro-Spiel-Toggle inkl. `poker_enabled` + `poker_table_theme` Filz-Design) + `guild_game_scores` (`(guild_id, user_id, game)`, `wins`/`plays`) — Games-Kategorie (Basic): Tic-Tac-Toe/RPS/Trivia/Connect-Four/Hangman/Poker
 - `schema_version` — Migrations-Tracking
 
 **Wichtige DB-Helper** in [backend/db.js](backend/db.js):
@@ -975,6 +978,12 @@ Empfehlung aus [README.md](README.md): SQLite → PostgreSQL für Multi-Instance
 ## 14. Letzte Aktualisierung
 
 - **Datum:** 2026-06-18
+- **Poker-Tisch-Render + wählbares Tisch-Design (Schema v30):** Der Poker-Tisch wird jetzt als **vollständiges Tisch-Bild** gerendert (statt nur Karten + Text-Embed) und das **Filz-Design ist pro Server im Dashboard wählbar**.
+  - **Voller Tisch-Render (Bot):** Neue Funktion `render_table_png(table)` in [poker.py](bot/cogs/poker.py) zeichnet via Pillow Filz-Ellipse + Holzrand, Community-Cards zentral mit Pot-/Street-Label, alle Sitze rund um die Ellipse (Seat 0 = unten) mit Name/Stack/Chip-Icon, D/SB/BB-Tags, BOT-Tag, Fold/All-in-Status; der Spieler am Zug wird mit Akzent-Glow hervorgehoben; beim Showdown werden die Hole-Cards der noch aktiven Spieler an ihrem Sitz enthüllt. `_render` hängt das Bild als `attachment://table.png` an ein schlankes Caption-Embed (Theme-Akzentfarbe); `start`/`nexthand` laufen jetzt über `defer()` + `_render` (vorher Text-Embed). **Text-Embed bleibt als Fallback** wenn Pillow fehlt/Render scheitert.
+  - **5 Themes:** `THEMES`-Dict in [poker.py](bot/cogs/poker.py) (classic/midnight/crimson/charcoal/royal — je bg-Gradient, Filz, Holzrand, Akzent, Embed-Farbe). Das aktive Design wird beim `!poker` aus `settings.poker_table_theme` in `table.theme` gesetzt und im Lobby-Footer angezeigt.
+  - **Schema:** Migration v30 = idempotenter ALTER `guild_games_settings.poker_table_theme TEXT DEFAULT 'classic'` (+ Mirror/defensiver ALTER). `POKER_THEMES` in [db.js](backend/db.js) ist Single Source (Backend-Validierung in `shapeGames`/`upsertGamesSettings`, vom Bot gerendert, von der Dashboard-Auswahl gespiegelt). Kein neuer Endpoint — `poker_table_theme` fließt durch `/games` (Cookie GET/PUT, Partial-Merge) und `/api/bot/guilds/:id/settings/games`.
+  - **Frontend:** [Poker.vue](frontend/src/pages/Poker.vue) bekommt einen Theme-Picker (5 klickbare Filz-Swatches mit Akzent-Punkt), bindet `form.poker_table_theme`, lädt/speichert es mit. i18n: `poker.themeLabel`/`themeHint` + 5 Theme-Namen + aktualisierter `usageNote` in **allen 5 Sprachen** (Key-Parität verifiziert: 1268/Locale, 0 missing/extra; tr/ru/pl via 3 parallele Sub-Agents).
+  - Verifiziert: Migration v30 sauber, Games-Theme-DB-Roundtrip grün (default classic, Partial-Merge behält Theme, Invalid→classic), `render_table_png` über alle 5 Themes × Spielerzahlen (2/3/5/8) × Zustände (Preflop/Flop/River/Showdown) grün + visuell geprüft, Evaluator-Self-Test grün, alle 33 Cogs kompilieren, Frontend-Build grün, i18n-Parität 1268/Locale.
 - **Poker-Ausbau: KI-Bots + Karten-Bilder (kein Schema-Change):** Der Poker-Cog [poker.py](bot/cogs/poker.py) bekommt zwei reine Bot-seitige Features — keine DB-/Backend-/Frontend-Änderung (Games-Modul-Infra unverändert).
   - **KI-Bots:** Der Host kann leere Sitze mit Bots füllen (Lobby-Buttons „Add bot" 🤖 / „Remove bot" 🗑️, custom_id `pk:addbot`/`pk:rmbot`). Bot-Spieler (`PokerPlayer.is_bot`, ID `bot:<uuid8>`, Namen aus `BOT_NAMES`) spielen automatisch am Zug: `_arm_timeout` routet bei Bot-Zug auf `_bot_act` (1.2–2.4s „Denkpause") statt auf den Idle-Timeout. Entscheidung via `_bot_decide` (Hand-Strength-Heuristik `_bot_strength` aus Hole-Cards/Board + Pot-Odds + Jitter → fold/check/call/raise, gelegentlicher Bluff). Bots landen **nie** in `participants` → werden nie ans `/games/score`-Leaderboard gemeldet; gewinnt ein Bot den Tisch, bekommt kein Mensch den `win`.
   - **Karten-Bilder:** Hole-Cards (über „🃏 My cards") und das Community-Board werden als PNG gerendert (`render_cards_png` via Pillow — Kartenflächen mit Rang/Suit-Symbolen, Rückseiten für verdeckte Karten). `_render` hängt das Board-Bild als `attachment://board.png` ans Embed; Lobby→Start cleart Attachments (`attachments=[]`). **Pillow ist optional:** ohne die Lib (`IMAGES_AVAILABLE = False`) fällt der Cog auf Text-Karten zurück, crasht nie.

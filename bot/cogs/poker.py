@@ -27,6 +27,7 @@ Logging prefix: "[poker]".
 import asyncio
 import io
 import itertools
+import math
 import random
 import time
 import uuid
@@ -61,6 +62,22 @@ SHOWDOWN_COLOR = 0xF1C40F
 
 SUIT_SYMBOL = {"s": "♠", "h": "♥", "d": "♦", "c": "♣"}
 RANK_LABEL = {14: "A", 13: "K", 12: "Q", 11: "J", 10: "10"}
+
+# Table render themes (felt design) — keys mirror backend POKER_THEMES and the
+# dashboard picker. Each: bg gradient, felt fill/edge, rail (wooden rim), accent
+# (highlight/dealer), embed accent color.
+THEMES = {
+    "classic":  {"label": "Classic Green", "bg": ((16, 20, 18), (26, 34, 28)), "felt": (34, 110, 66), "felt2": (24, 84, 50), "rail": (60, 40, 24), "rail2": (104, 72, 40), "accent": (245, 205, 90), "embed": 0x2ECC71},
+    "midnight": {"label": "Midnight Blue", "bg": ((12, 15, 24), (22, 28, 46), ), "felt": (32, 52, 96), "felt2": (22, 38, 74), "rail": (24, 30, 52), "rail2": (62, 78, 130), "accent": (122, 176, 255), "embed": 0x5B8DEF},
+    "crimson":  {"label": "Crimson Red", "bg": ((22, 12, 14), (38, 18, 22)), "felt": (132, 36, 44), "felt2": (102, 24, 32), "rail": (46, 18, 20), "rail2": (96, 44, 48), "accent": (255, 206, 130), "embed": 0xD9495B},
+    "charcoal": {"label": "Charcoal", "bg": ((14, 15, 18), (26, 28, 32)), "felt": (52, 58, 66), "felt2": (38, 42, 50), "rail": (22, 24, 28), "rail2": (70, 76, 86), "accent": (120, 224, 200), "embed": 0x4EC8B0},
+    "royal":    {"label": "Royal Purple", "bg": ((18, 14, 26), (32, 22, 46)), "felt": (78, 46, 122), "felt2": (58, 34, 96), "rail": (36, 24, 56), "rail2": (98, 70, 150), "accent": (244, 206, 128), "embed": 0x9B6BE3},
+}
+DEFAULT_THEME = "classic"
+
+
+def theme_of(table):
+    return THEMES.get(getattr(table, "theme", DEFAULT_THEME), THEMES[DEFAULT_THEME])
 HAND_NAMES = {
     8: "Straight Flush", 7: "Four of a Kind", 6: "Full House", 5: "Flush",
     4: "Straight", 3: "Three of a Kind", 2: "Two Pair", 1: "Pair", 0: "High Card",
@@ -226,6 +243,145 @@ def render_cards_png(cards, hidden_count=0):
         return None
 
 
+def _draw_card_g(d, x, y, w, h, card, font, face_down=False):
+    """Generic scaled card (used by the full-table renderer)."""
+    if face_down:
+        d.rounded_rectangle([x, y, x + w, y + h], radius=max(4, int(w * 0.13)), fill=(34, 53, 122), outline=(18, 26, 60), width=2)
+        d.rounded_rectangle([x + 4, y + 4, x + w - 4, y + h - 4], radius=4, outline=(110, 140, 220), width=1)
+        return
+    rank, suit = card
+    color = _RED if suit in "hd" else _BLACK
+    d.rounded_rectangle([x, y, x + w, y + h], radius=max(4, int(w * 0.13)), fill=(252, 252, 250), outline=(40, 40, 50), width=2)
+    label = rank_label(rank)
+    d.text((x + w * 0.10, y + h * 0.04), label, font=font, fill=color)
+    _draw_suit(d, x + w / 2, y + h * 0.60, w * 0.24, suit, color)
+
+
+def _fit(s, n):
+    return s if len(s) <= n else s[: n - 1] + "…"
+
+
+def render_table_png(table):
+    """Render the whole poker table (felt, seats, community cards, pot) to PNG."""
+    if not IMAGES_AVAILABLE:
+        return None
+    try:
+        th = theme_of(table)
+        W, H = 940, 660
+        img = Image.new("RGB", (W, H), th["bg"][0])
+        d = ImageDraw.Draw(img)
+        # vertical background gradient
+        c0, c1 = th["bg"]
+        for y in range(H):
+            f = y / H
+            d.line([(0, y), (W, y)], fill=tuple(int(c0[k] + (c1[k] - c0[k]) * f) for k in range(3)))
+
+        # felt table: wooden rail + felt ellipse + inner ring
+        rail = [54, 92, W - 54, H - 92]
+        felt = [86, 124, W - 86, H - 124]
+        d.ellipse(rail, fill=th["rail"], outline=th["rail2"], width=10)
+        d.ellipse(felt, fill=th["felt"], outline=th["felt2"], width=6)
+        d.ellipse([felt[0] + 34, felt[1] + 26, felt[2] - 34, felt[3] - 26], outline=th["felt2"], width=2)
+
+        cx, cy = W // 2, H // 2
+        f_rank = _load_font(26)
+        f_pot = _load_font(30)
+        f_street = _load_font(18)
+        f_name = _load_font(20)
+        f_sub = _load_font(17)
+        f_tag = _load_font(16)
+        f_hole = _load_font(16)
+
+        # -- community cards (center) --
+        cw, ch = 60, 84
+        gap = 12
+        board = table.board or []
+        slots = 5 if table.state in ("betting", "hand_over") else 0
+        if slots:
+            total = slots * cw + (slots - 1) * gap
+            bx = cx - total // 2
+            by = cy - ch // 2 + 8
+            for i in range(slots):
+                x = bx + i * (cw + gap)
+                if i < len(board):
+                    _draw_card_g(d, x, by, cw, ch, board[i], f_rank)
+                else:
+                    # empty slot placeholder
+                    d.rounded_rectangle([x, by, x + cw, by + ch], radius=8, outline=th["felt2"], width=2)
+
+        # -- pot + street label (above community) --
+        pot = table.pot()
+        pot_txt = f"POT  {pot}"
+        d.text((cx, cy - ch // 2 - 30), pot_txt, font=f_pot, fill=(252, 248, 235), anchor="mm")
+        if table.state == "betting":
+            d.text((cx, cy + ch // 2 + 26), table.street.upper(), font=f_street, fill=th["accent"], anchor="mm")
+        elif table.state == "hand_over":
+            d.text((cx, cy + ch // 2 + 26), "SHOWDOWN", font=f_street, fill=th["accent"], anchor="mm")
+
+        # -- seats around the ellipse (seat 0 = bottom) --
+        n = len(table.players)
+        arx = (felt[2] - felt[0]) / 2 + 30
+        ary = (felt[3] - felt[1]) / 2 + 26
+        bw, bh = 174, 66
+        for idx, p in enumerate(table.players):
+            ang = math.radians(90 + 360 * idx / n)
+            sx = cx + arx * math.cos(ang)
+            sy = cy + ary * math.sin(ang)
+            x = int(min(max(sx - bw / 2, 6), W - bw - 6))
+            y = int(min(max(sy - bh / 2, 6), H - bh - 6))
+
+            in_hand = p.in_hand if table.state in ("betting", "hand_over") else True
+            active = table.state == "betting" and table.to_act == idx
+            folded = p.folded and table.state in ("betting", "hand_over")
+            fill = (30, 33, 40) if not folded else (26, 27, 31)
+            border = th["accent"] if active else (74, 80, 92)
+            if active:
+                d.rounded_rectangle([x - 3, y - 3, x + bw + 3, y + bh + 3], radius=15, outline=th["accent"], width=2)
+            d.rounded_rectangle([x, y, x + bw, y + bh], radius=12, fill=fill, outline=border, width=3 if active else 2)
+
+            name_col = (236, 239, 246) if not folded else (120, 122, 130)
+            label = _fit(p.name, 14)
+            d.text((x + 12, y + 8), label, font=f_name, fill=name_col)
+            if p.is_bot:
+                d.text((x + bw - 12, y + 9), "BOT", font=f_tag, fill=(150, 156, 168), anchor="ra")
+
+            # chip stack line
+            d.ellipse([x + 12, y + 38, x + 24, y + 50], fill=th["accent"], outline=(0, 0, 0))
+            d.text((x + 30, y + 36), f"{p.stack}", font=f_sub, fill=(206, 211, 220) if not folded else (110, 112, 120))
+
+            # right side: dealer/blind tag (top) + status (bottom)
+            tags = _dealer_marks(table, idx).replace("`", "").strip()
+            if tags and not folded:
+                d.text((x + bw - 12, y + 30), tags, font=f_tag, fill=th["accent"], anchor="ra")
+            status = ""
+            scol = (180, 186, 196)
+            if folded:
+                status, scol = "FOLD", (150, 90, 90)
+            elif p.all_in:
+                status, scol = "ALL-IN", th["accent"]
+            elif table.state == "betting" and p.bet > 0:
+                status, scol = f"bet {p.bet}", (206, 211, 220)
+            if status:
+                d.text((x + bw - 12, y + 46), status, font=f_tag, fill=scol, anchor="ra")
+
+            # showdown: reveal live players' hole cards just inside the felt
+            if table.state == "hand_over" and p.in_hand and not p.folded and p.hole:
+                hw, hh, hg = 34, 48, 6
+                tot = 2 * hw + hg
+                hx = int(min(max(x + bw / 2 - tot / 2, 6), W - tot - 6))
+                hy = y + bh + 4 if sy < cy else y - hh - 4
+                for j, c in enumerate(p.hole[:2]):
+                    _draw_card_g(d, hx + j * (hw + hg), hy, hw, hh, c, f_hole)
+
+        buf = io.BytesIO()
+        img.save(buf, "PNG")
+        buf.seek(0)
+        return buf
+    except Exception as exc:
+        print(f"[poker] table render failed: {exc}")
+        return None
+
+
 # ----- Player + Table -----
 
 class PokerPlayer:
@@ -251,6 +407,7 @@ class PokerTable:
         self.channel_id = channel_id
         self.host_id = host_id
         self.tid = uuid.uuid4().hex[:8]
+        self.theme = DEFAULT_THEME  # felt design (set from guild games settings)
         self.players = []
         self.state = "lobby"        # lobby | betting | hand_over | ended
         self.message = None
@@ -545,6 +702,9 @@ class Poker(commands.Cog):
             return
 
         table = PokerTable(ctx.guild.id, ctx.channel.id, ctx.author.id)
+        theme = settings.get("poker_table_theme")
+        if theme in THEMES:
+            table.theme = theme
         table.players.append(PokerPlayer(ctx.author.id, ctx.author.display_name, STARTING_STACK))
         table.participants[ctx.author.id] = ctx.author.display_name
         self.tables[ctx.channel.id] = table
@@ -678,7 +838,8 @@ class Poker(commands.Cog):
                 await interaction.response.send_message(f"Need at least {MIN_PLAYERS} players.", ephemeral=True)
                 return
             table.begin_hand()
-            await interaction.response.edit_message(embed=self._table_embed(table), view=self._betting_view(table), attachments=[])
+            await interaction.response.defer()
+            await self._render(table)
             self._arm_timeout(table)
 
     # -- betting --
@@ -789,7 +950,8 @@ class Poker(commands.Cog):
         if not table.begin_hand():
             await interaction.response.send_message("Not enough players with chips.", ephemeral=True)
             return
-        await interaction.response.edit_message(embed=self._table_embed(table), view=self._betting_view(table))
+        await interaction.response.defer()
+        await self._render(table)
         self._arm_timeout(table)
 
     async def _handle_end(self, interaction, table):
@@ -927,23 +1089,40 @@ class Poker(commands.Cog):
     async def _render(self, table, final=False):
         if not table.message:
             return
-        embed = self._table_embed(table)
         if table.state == "betting":
             view = self._betting_view(table)
         elif table.state == "hand_over":
             view = None if final else self._over_view(table)
         else:
             view = None
-        # Attach a rendered board image (flop onwards); clear it otherwise.
+        # Preferred path: render the whole table as an image + a slim caption embed.
         attachments = []
-        buf = render_cards_png(table.board) if table.board else None
+        buf = render_table_png(table)
         if buf is not None:
-            attachments = [discord.File(buf, filename="board.png")]
-            embed.set_image(url="attachment://board.png")
+            embed = self._caption_embed(table)
+            embed.set_image(url="attachment://table.png")
+            attachments = [discord.File(buf, filename="table.png")]
+        else:
+            # Pillow unavailable / render failed → full text embed.
+            embed = self._table_embed(table)
         try:
             await table.message.edit(embed=embed, view=view, attachments=attachments)
         except discord.HTTPException as exc:
             print(f"[poker] render failed: {exc}")
+
+    def _caption_embed(self, table):
+        """Slim embed that sits above the rendered table image."""
+        th = theme_of(table)
+        embed = discord.Embed(title=f"♠ Poker — Hand #{table.hand_no}", color=th["embed"])
+        if table.state == "betting" and table.to_act is not None:
+            actor = table.players[table.to_act]
+            to_call = max(0, table.current_bet - actor.bet)
+            call_txt = f" • to call **{to_call}**" if to_call else " • can **check**"
+            embed.description = f"➤ **{actor.name}** to act{call_txt}"
+            embed.set_footer(text="Use the buttons below • 🃏 shows your cards")
+        elif table.state == "hand_over" and table.last_result:
+            embed.description = table.last_result[:4000]
+        return embed
 
     def _lobby_embed(self, table):
         host = table.find(table.host_id)
@@ -961,7 +1140,7 @@ class Poker(commands.Cog):
         embed.add_field(name="Players", value=f"{len(table.players)}/{MAX_PLAYERS}", inline=True)
         embed.add_field(name="Blinds", value=f"{SMALL_BLIND}/{BIG_BLIND}", inline=True)
         embed.add_field(name="Start stack", value=str(STARTING_STACK), inline=True)
-        embed.set_footer(text=f"Host: {host.name if host else '—'} • Press Join to take a seat")
+        embed.set_footer(text=f"Host: {host.name if host else '—'} • Design: {theme_of(table)['label']} • Press Join to take a seat")
         return embed
 
     def _table_embed(self, table):

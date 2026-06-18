@@ -21,6 +21,26 @@
         <ChannelSelector v-model="form.games_channel_id" :guild-id="guildId" :types="['text']" />
       </div>
 
+      <div class="row">
+        <label class="row__label">{{ t('poker.themeLabel') }}</label>
+        <div class="row__hint">{{ t('poker.themeHint') }}</div>
+        <div class="themes">
+          <button
+            v-for="th in themes"
+            :key="th.key"
+            type="button"
+            class="theme"
+            :class="{ 'theme--active': form.poker_table_theme === th.key }"
+            @click="form.poker_table_theme = th.key"
+          >
+            <span class="theme__felt" :style="{ background: th.felt, borderColor: th.rail }">
+              <span class="theme__dot" :style="{ background: th.accent }"></span>
+            </span>
+            <span class="theme__name">{{ t(th.label) }}</span>
+          </button>
+        </div>
+      </div>
+
       <div class="form-card__note form-card__note--info">{{ t('poker.usageNote') }}</div>
 
       <div class="form-card__actions">
@@ -64,7 +84,16 @@ const toast = useToast()
 const { t } = useI18n()
 const guildId = computed(() => route.params.guild_id)
 
-const form = reactive({ enabled: false, games_channel_id: '' })
+const form = reactive({ enabled: false, games_channel_id: '', poker_table_theme: 'classic' })
+
+// Felt swatches mirror the bot's THEMES palette (poker.py).
+const themes = [
+  { key: 'classic', label: 'poker.themeClassic', felt: '#226e42', rail: '#684828', accent: '#f5cd5a' },
+  { key: 'midnight', label: 'poker.themeMidnight', felt: '#203460', rail: '#181e34', accent: '#7ab0ff' },
+  { key: 'crimson', label: 'poker.themeCrimson', felt: '#84242c', rail: '#2e1214', accent: '#ffce82' },
+  { key: 'charcoal', label: 'poker.themeCharcoal', felt: '#343a42', rail: '#16181c', accent: '#78e0c8' },
+  { key: 'royal', label: 'poker.themeRoyal', felt: '#4e2e7a', rail: '#241838', accent: '#f4ce80' }
+]
 const leaderboard = ref([])
 const saving = ref(false)
 let initial = JSON.stringify(form)
@@ -78,6 +107,7 @@ async function load() {
       const s = data.settings || {}
       form.enabled = !!s[`${gameKey}_enabled`]
       form.games_channel_id = s.games_channel_id || ''
+      form.poker_table_theme = s.poker_table_theme || 'classic'
       initial = JSON.stringify(form)
     }
   } catch (err) {
@@ -99,7 +129,8 @@ async function save() {
   try {
     const { data } = await api.put(`/guilds/${guildId.value}/games`, {
       [`${gameKey}_enabled`]: !!form.enabled,
-      games_channel_id: form.games_channel_id || null
+      games_channel_id: form.games_channel_id || null,
+      poker_table_theme: form.poker_table_theme || 'classic'
     })
     if (data?.success) initial = JSON.stringify(form)
     toast.success(t('common.allSaved'))
@@ -124,6 +155,14 @@ async function save() {
 .form-card__note { font-size: 0.82rem; border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); line-height: 1.5; }
 .form-card__note--info { color: var(--color-text-muted); background: var(--color-bg-elevated); border: 1px solid var(--color-border); }
 .form-card__actions { display: flex; justify-content: flex-end; }
+.themes { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.theme { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); padding: var(--space-2); background: transparent; border: 2px solid var(--color-border); border-radius: var(--radius-lg); cursor: pointer; transition: border-color 0.15s, transform 0.1s; width: 92px; }
+.theme:hover { transform: translateY(-2px); }
+.theme--active { border-color: var(--color-primary); }
+.theme__felt { position: relative; width: 72px; height: 48px; border-radius: var(--radius-md); border: 4px solid; display: block; box-shadow: var(--shadow-inset); }
+.theme__dot { position: absolute; top: 6px; right: 6px; width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(0,0,0,0.35); }
+.theme__name { font-size: 0.72rem; color: var(--color-text-muted); text-align: center; line-height: 1.2; }
+.theme--active .theme__name { color: var(--color-text); font-weight: 600; }
 .lb-card__title { font-size: 1.1rem; }
 .lb-empty { color: var(--color-text-muted); font-size: 0.9rem; }
 .lb-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }

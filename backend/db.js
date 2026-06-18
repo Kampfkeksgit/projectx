@@ -1150,12 +1150,16 @@ function initializeDatabase() {
         connect4_enabled  BOOLEAN DEFAULT 0,
         hangman_enabled   BOOLEAN DEFAULT 0,
         poker_enabled     BOOLEAN DEFAULT 0,
+        poker_table_theme TEXT DEFAULT 'classic',
         updated_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
       )
     `, (err) => { if (err) console.error('Error creating guild_games_settings table:', err); });
     db.run('ALTER TABLE guild_games_settings ADD COLUMN poker_enabled BOOLEAN DEFAULT 0', (err) => {
       if (err && !/duplicate column name/i.test(err.message)) console.error('Warning: guild_games_settings.poker_enabled:', err.message);
+    });
+    db.run("ALTER TABLE guild_games_settings ADD COLUMN poker_table_theme TEXT DEFAULT 'classic'", (err) => {
+      if (err && !/duplicate column name/i.test(err.message)) console.error('Warning: guild_games_settings.poker_table_theme:', err.message);
     });
     db.run(`
       CREATE TABLE IF NOT EXISTS guild_game_scores (
@@ -6766,6 +6770,9 @@ export function economyBuy(guildId, userId, itemId) {
 
 export const GAME_KEYS = ['tictactoe', 'rps', 'trivia', 'connect4', 'hangman', 'poker'];
 
+/** Valid Poker table render themes (felt design). Source of truth shared with the bot + dashboard picker. */
+export const POKER_THEMES = ['classic', 'midnight', 'crimson', 'charcoal', 'royal'];
+
 export const GAMES_DEFAULTS = {
   games_channel_id: null,
   tictactoe_enabled: false,
@@ -6773,7 +6780,8 @@ export const GAMES_DEFAULTS = {
   trivia_enabled: false,
   connect4_enabled: false,
   hangman_enabled: false,
-  poker_enabled: false
+  poker_enabled: false,
+  poker_table_theme: 'classic'
 };
 
 function shapeGames(row) {
@@ -6785,7 +6793,8 @@ function shapeGames(row) {
     trivia_enabled: !!row.trivia_enabled,
     connect4_enabled: !!row.connect4_enabled,
     hangman_enabled: !!row.hangman_enabled,
-    poker_enabled: !!row.poker_enabled
+    poker_enabled: !!row.poker_enabled,
+    poker_table_theme: POKER_THEMES.includes(row.poker_table_theme) ? row.poker_table_theme : 'classic'
   };
 }
 
@@ -6807,9 +6816,12 @@ export function upsertGamesSettings(guildId, settings) {
       const flag = `${key}_enabled`;
       if (flag in settings) next[flag] = settings[flag] ? 1 : 0;
     }
+    if ('poker_table_theme' in settings) {
+      next.poker_table_theme = POKER_THEMES.includes(settings.poker_table_theme) ? settings.poker_table_theme : 'classic';
+    }
     await runStmt(
-      `INSERT INTO guild_games_settings (guild_id, games_channel_id, tictactoe_enabled, rps_enabled, trivia_enabled, connect4_enabled, hangman_enabled, poker_enabled)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO guild_games_settings (guild_id, games_channel_id, tictactoe_enabled, rps_enabled, trivia_enabled, connect4_enabled, hangman_enabled, poker_enabled, poker_table_theme)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(guild_id) DO UPDATE SET
          games_channel_id = excluded.games_channel_id,
          tictactoe_enabled = excluded.tictactoe_enabled,
@@ -6818,10 +6830,12 @@ export function upsertGamesSettings(guildId, settings) {
          connect4_enabled = excluded.connect4_enabled,
          hangman_enabled = excluded.hangman_enabled,
          poker_enabled = excluded.poker_enabled,
+         poker_table_theme = excluded.poker_table_theme,
          updated_at = CURRENT_TIMESTAMP`,
       [guildId, next.games_channel_id,
         next.tictactoe_enabled ? 1 : 0, next.rps_enabled ? 1 : 0, next.trivia_enabled ? 1 : 0,
-        next.connect4_enabled ? 1 : 0, next.hangman_enabled ? 1 : 0, next.poker_enabled ? 1 : 0]
+        next.connect4_enabled ? 1 : 0, next.hangman_enabled ? 1 : 0, next.poker_enabled ? 1 : 0,
+        next.poker_table_theme]
     );
     return shapeGames(await dbGet('SELECT * FROM guild_games_settings WHERE guild_id = ?', [guildId]));
   });
