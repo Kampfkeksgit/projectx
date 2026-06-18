@@ -144,7 +144,7 @@ const PREMIUM_BOT_GATES = [
   { test: /\/settings\/invitetracking$/, module: 'invitetracking', disabled: { enabled: false } },
   { test: /\/settings\/applications$/, module: 'applications', disabled: { forms: [] } },
   { test: /\/settings\/economy$/, module: 'economy', disabled: { enabled: false } },
-  { test: /\/settings\/games$/, module: 'games', disabled: { games_channel_id: null, tictactoe_enabled: false, rps_enabled: false, trivia_enabled: false, connect4_enabled: false, hangman_enabled: false } }
+  { test: /\/settings\/games$/, module: 'games', disabled: { games_channel_id: null, tictactoe_enabled: false, rps_enabled: false, trivia_enabled: false, connect4_enabled: false, hangman_enabled: false, poker_enabled: false } }
 ]
 
 /**

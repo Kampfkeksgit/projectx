@@ -1149,10 +1149,14 @@ function initializeDatabase() {
         trivia_enabled    BOOLEAN DEFAULT 0,
         connect4_enabled  BOOLEAN DEFAULT 0,
         hangman_enabled   BOOLEAN DEFAULT 0,
+        poker_enabled     BOOLEAN DEFAULT 0,
         updated_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
       )
     `, (err) => { if (err) console.error('Error creating guild_games_settings table:', err); });
+    db.run('ALTER TABLE guild_games_settings ADD COLUMN poker_enabled BOOLEAN DEFAULT 0', (err) => {
+      if (err && !/duplicate column name/i.test(err.message)) console.error('Warning: guild_games_settings.poker_enabled:', err.message);
+    });
     db.run(`
       CREATE TABLE IF NOT EXISTS guild_game_scores (
         guild_id TEXT NOT NULL,
@@ -1241,7 +1245,7 @@ export const MODULE_TIERS = {
   leveling: 'basic', starboard: 'basic', tempvoice: 'basic',
   birthday: 'basic', rolemenus: 'basic', antiraid: 'basic',
   invitetracking: 'basic',
-  games: 'basic', tictactoe: 'basic', rps: 'basic', trivia: 'basic', connect4: 'basic', hangman: 'basic',
+  games: 'basic', tictactoe: 'basic', rps: 'basic', trivia: 'basic', connect4: 'basic', hangman: 'basic', poker: 'basic',
   social: 'pro', stats: 'pro', tickets: 'pro', giveaways: 'pro', scheduled: 'pro',
   applications: 'pro', economy: 'pro'
 };
@@ -6760,7 +6764,7 @@ export function economyBuy(guildId, userId, itemId) {
 
 // ----- Games category (v28) -----
 
-export const GAME_KEYS = ['tictactoe', 'rps', 'trivia', 'connect4', 'hangman'];
+export const GAME_KEYS = ['tictactoe', 'rps', 'trivia', 'connect4', 'hangman', 'poker'];
 
 export const GAMES_DEFAULTS = {
   games_channel_id: null,
@@ -6768,7 +6772,8 @@ export const GAMES_DEFAULTS = {
   rps_enabled: false,
   trivia_enabled: false,
   connect4_enabled: false,
-  hangman_enabled: false
+  hangman_enabled: false,
+  poker_enabled: false
 };
 
 function shapeGames(row) {
@@ -6779,7 +6784,8 @@ function shapeGames(row) {
     rps_enabled: !!row.rps_enabled,
     trivia_enabled: !!row.trivia_enabled,
     connect4_enabled: !!row.connect4_enabled,
-    hangman_enabled: !!row.hangman_enabled
+    hangman_enabled: !!row.hangman_enabled,
+    poker_enabled: !!row.poker_enabled
   };
 }
 
@@ -6802,8 +6808,8 @@ export function upsertGamesSettings(guildId, settings) {
       if (flag in settings) next[flag] = settings[flag] ? 1 : 0;
     }
     await runStmt(
-      `INSERT INTO guild_games_settings (guild_id, games_channel_id, tictactoe_enabled, rps_enabled, trivia_enabled, connect4_enabled, hangman_enabled)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO guild_games_settings (guild_id, games_channel_id, tictactoe_enabled, rps_enabled, trivia_enabled, connect4_enabled, hangman_enabled, poker_enabled)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(guild_id) DO UPDATE SET
          games_channel_id = excluded.games_channel_id,
          tictactoe_enabled = excluded.tictactoe_enabled,
@@ -6811,10 +6817,11 @@ export function upsertGamesSettings(guildId, settings) {
          trivia_enabled = excluded.trivia_enabled,
          connect4_enabled = excluded.connect4_enabled,
          hangman_enabled = excluded.hangman_enabled,
+         poker_enabled = excluded.poker_enabled,
          updated_at = CURRENT_TIMESTAMP`,
       [guildId, next.games_channel_id,
         next.tictactoe_enabled ? 1 : 0, next.rps_enabled ? 1 : 0, next.trivia_enabled ? 1 : 0,
-        next.connect4_enabled ? 1 : 0, next.hangman_enabled ? 1 : 0]
+        next.connect4_enabled ? 1 : 0, next.hangman_enabled ? 1 : 0, next.poker_enabled ? 1 : 0]
     );
     return shapeGames(await dbGet('SELECT * FROM guild_games_settings WHERE guild_id = ?', [guildId]));
   });

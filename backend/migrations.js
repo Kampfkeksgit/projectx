@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 28;
+const CURRENT_SCHEMA_VERSION = 29;
 
 /**
  * Initialize schema version tracking
@@ -87,7 +87,8 @@ async function applyMigrations(fromVersion, toVersion) {
     25: migrationV25,
     26: migrationV26,
     27: migrationV27,
-    28: migrationV28
+    28: migrationV28,
+    29: migrationV29
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -1746,6 +1747,18 @@ function migrationV28() {
       FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
     )`,
     `CREATE INDEX IF NOT EXISTS idx_game_scores_lb ON guild_game_scores(guild_id, game, wins DESC)`
+  ]);
+}
+
+/**
+ * Migration V29: add the Poker (Texas Hold'em) game to the Games category.
+ *   - guild_games_settings.poker_enabled: per-guild toggle for the poker table.
+ * Idempotent ALTER ("duplicate column name" swallowed); mirrored in
+ * initializeDatabase().
+ */
+function migrationV29() {
+  return runSchemaBatch(29, [
+    'ALTER TABLE guild_games_settings ADD COLUMN poker_enabled BOOLEAN DEFAULT 0'
   ]);
 }
 

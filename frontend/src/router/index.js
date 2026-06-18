@@ -37,6 +37,7 @@ const RockPaperScissors = () => import('../pages/RockPaperScissors.vue')
 const Trivia = () => import('../pages/Trivia.vue')
 const ConnectFour = () => import('../pages/ConnectFour.vue')
 const Hangman = () => import('../pages/Hangman.vue')
+const Poker = () => import('../pages/Poker.vue')
 const Premium = () => import('../pages/Premium.vue')
 const Impressum = () => import('../pages/legal/Impressum.vue')
 const Privacy = () => import('../pages/legal/Privacy.vue')
@@ -101,6 +102,7 @@ const routes = [
       { path: 'trivia', name: 'trivia', component: Trivia },
       { path: 'connect4', name: 'connect4', component: ConnectFour },
       { path: 'hangman', name: 'hangman', component: Hangman },
+      { path: 'poker', name: 'poker', component: Poker },
       { path: 'premium', name: 'premium', component: Premium }
     ]
   },

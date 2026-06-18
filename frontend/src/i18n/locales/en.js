@@ -294,6 +294,7 @@ export default {
     linkTrivia: 'Trivia',
     linkConnect4: 'Connect Four',
     linkHangman: 'Hangman',
+    linkPoker: 'Poker',
     linkPremium: 'Premium'
   },
   premium: {
@@ -408,10 +409,28 @@ export default {
     connect4Desc: 'Drop discs to get four in a row against a member.',
     hangmanTitle: 'Hangman',
     hangmanDesc: 'Guess the hidden word letter by letter before you run out.',
+    pokerTitle: 'Poker',
+    pokerDesc: 'Multiplayer Texas Hold’em tables with chips, blinds and showdowns.',
     botMissingTitle: 'ProjectX isn’t in this server yet',
     botMissingBody: 'To configure any of these modules, invite the bot first. None of the settings below will run until then.',
     inviteBot: 'Invite ProjectX to this server',
     botMissingPill: 'Bot not in server'
+  },
+  poker: {
+    eyebrow: 'Games',
+    title: 'Poker',
+    sub: 'Run multiplayer Texas Hold’em tables right in a channel.',
+    enableLabel: 'Enable Poker',
+    enableHint: 'Allow members to open and join Texas Hold’em tables.',
+    channelLabel: 'Games channel',
+    channelHint: 'Restrict all games to this channel (optional, shared across games).',
+    usageNote: 'Open a table with !poker. Players join with a button, then take turns to check, call, raise or fold. Each player gets a chip stack; the bot deals hole + community cards and runs the showdown.',
+    leaderboardTitle: 'Leaderboard',
+    leaderboardEmpty: 'No games played yet.',
+    playerCol: 'Player',
+    winsCol: 'Wins',
+    playsCol: 'Games',
+    loadError: 'Could not load games settings.'
   },
   tictactoe: {
     eyebrow: 'Games',
