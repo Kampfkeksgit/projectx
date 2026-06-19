@@ -416,6 +416,10 @@ export default {
     inviteBot: 'Invite ProjectX to this server',
     botMissingPill: 'Bot not in server'
   },
+  games: {
+    languageLabel: 'Game language',
+    languageHint: 'Language the bot uses for all game messages (shared across every game).'
+  },
   poker: {
     eyebrow: 'Games',
     title: 'Poker',

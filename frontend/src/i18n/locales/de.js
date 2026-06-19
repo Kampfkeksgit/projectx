@@ -416,6 +416,10 @@ export default {
     inviteBot: 'ProjectX zu diesem Server einladen',
     botMissingPill: 'Bot nicht im Server'
   },
+  games: {
+    languageLabel: 'Spielsprache',
+    languageHint: 'Sprache, in der der Bot alle Spiel-Nachrichten ausgibt (gilt für alle Spiele).'
+  },
   poker: {
     eyebrow: 'Spiele',
     title: 'Poker',

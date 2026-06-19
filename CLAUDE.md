@@ -63,8 +63,10 @@ projectx/
 │   │   ├── __init__.py
 │   │   ├── backend.py          # fetch_bot_settings(backend_url, api_key, guild_id, module)
 │   │   │                       # Shared async-Helper für alle Cogs (5s timeout, X-Bot-Token)
-│   │   └── command_config.py   # get_config/get_prefix/is_disabled — pro-Guild Command-Config (Prefix + disabled Keys)
-│   │                           # via GET /api/bot/guilds/:id/commands, 60s In-Memory-Cache
+│   │   ├── command_config.py   # get_config/get_prefix/is_disabled — pro-Guild Command-Config (Prefix + disabled Keys)
+│   │   │                       # via GET /api/bot/guilds/:id/commands, 60s In-Memory-Cache
+│   │   └── game_i18n.py        # make_translator(strings)/lang_of(settings)/normalize_lang — Übersetzungs-Helper
+│   │                           # für die Games-Cogs (per-Guild games_language, Fallback EN→key, .format-safe)
 │   └── cogs/
 │       ├── welcome_leave.py    # Event-Handler + /welcome_test Command
 │       ├── autorole.py         # on_member_join → Rollen aus role_ids zuweisen (skipt Bots wenn !apply_to_bots)
@@ -735,9 +737,9 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - Engine: **SQLite3** (Datei via `DATABASE_URL`, default `./data/bot.db`)
 - Connection: [backend/db.js](backend/db.js)
 - Migrations: [backend/migrations.js](backend/migrations.js)
-  - **Aktuelle Schema-Version: `30`**
+  - **Aktuelle Schema-Version: `31`**
   - `CURRENT_SCHEMA_VERSION` Konstante steuert Upgrades.
-  - `applyMigrations(from, to)` mappt Versionsnummern → Migration-Funktionen (`migrationV1`, …, `migrationV30`). v23–v30 nutzen den `runSchemaBatch(version, statements)`-Helper.
+  - `applyMigrations(from, to)` mappt Versionsnummern → Migration-Funktionen (`migrationV1`, …, `migrationV31`). v23–v31 nutzen den `runSchemaBatch(version, statements)`-Helper.
   - Versionstabelle: `schema_version (version PK, applied_at)`.
   - `migrationV2` fügt `users.token_expires_at INTEGER` hinzu (idempotent).
   - `migrationV3` legt `guild_autorole_settings`, `guild_log_settings`, `guild_moderation_settings` an (`CREATE TABLE IF NOT EXISTS` — idempotent; werden parallel auch im `initializeDatabase()`-Pfad erzeugt, damit Fresh-DBs auch ohne Migrations-Run funktionieren).
@@ -770,6 +772,7 @@ Mount-Points aus [backend/server.js](backend/server.js):
   - `migrationV28` (Games-Kategorie, alle Basic): `guild_games_settings` (`guild_id PK`, gemeinsamer `games_channel_id` + pro-Spiel-Flags `tictactoe_enabled`/`rps_enabled`/`trivia_enabled`/`connect4_enabled`/`hangman_enabled`) + `guild_game_scores` (PK `(guild_id, user_id, game)`, `wins`/`plays`, `idx_game_scores_lb`). Eine geteilte Settings-Row + eine Scores-Tabelle für alle Spiele. Idempotent + Mirror.
   - `migrationV29` (Poker, Games-Kategorie): idempotenter ALTER `guild_games_settings.poker_enabled` (6. Spiel der Games-Kategorie, teilt sich `/games`-Settings + `guild_game_scores`). Mirror + defensiver ALTER in `initializeDatabase()`. `GAME_KEYS` in [db.js](backend/db.js) um `poker` erweitert.
   - `migrationV30` (Poker-Tisch-Design): idempotenter ALTER `guild_games_settings.poker_table_theme TEXT DEFAULT 'classic'` (per-Guild Filz-Design fürs gerenderte Tisch-Bild). Mirror + defensiver ALTER in `initializeDatabase()`. `POKER_THEMES` (`classic|midnight|crimson|charcoal|royal`) in [db.js](backend/db.js) ist Single Source (vom Backend validiert, vom Bot zum Rendern + von der Dashboard-Auswahl gespiegelt); `GAMES_DEFAULTS`/`shapeGames`/`upsertGamesSettings` um `poker_table_theme` erweitert.
+  - `migrationV31` (Games-Sprache): idempotenter ALTER `guild_games_settings.games_language TEXT DEFAULT 'en'` (per-Guild Sprache für **alle** In-Game-Texte der Games-Kategorie). Mirror + defensiver ALTER in `initializeDatabase()`. `GAME_LANGUAGES` (`en|de|tr|ru|pl`) in [db.js](backend/db.js) ist Single Source (Backend-Validierung in `shapeGames`/`upsertGamesSettings`, vom Bot via [utils/game_i18n.py](bot/utils/game_i18n.py) zum Übersetzen + von der Dashboard-Auswahl gespiegelt); `GAMES_DEFAULTS`/`shapeGames`/`upsertGamesSettings` um `games_language` erweitert.
   - `migrationV18` (Ticket-Überarbeitung, idempotente ALTERs + neue Tabelle + Mirror): `guild_ticket_settings` +10 Spalten (`panel_type ∈ {dropdown|buttons}`, `panel_embed`/`welcome_embed` JSON, `ping_role_id`, `naming_template`, `claim_enabled`, `close_confirm`, `rating_enabled`, `rating_mode ∈ {channel|dm|both}`, `log_channel_id`); `guild_tickets` +8 Spalten (`ticket_category_id`, `number`, `claimed_by`, `rating`, `rating_comment`, `closed_by`, `closed_at`, `extra_user_ids` JSON); neue Tabelle `guild_ticket_categories` (`id` UUID, `idx_ticket_categories_guild`, FK CASCADE) — Ticket-Typen mit Label/Emoji/Desc + Kategorie-/Support-Rollen-/Ping-Rollen-Override, Welcome-Text, `button_style`, Position, Enabled.
 
 **Kern-Tabellen** (Details: [backend/DATABASE_SCHEMA.md](backend/DATABASE_SCHEMA.md), [backend/DATABASE_FUNCTIONS.md](backend/DATABASE_FUNCTIONS.md))
@@ -816,7 +819,7 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - `guild_invite_settings` + `guild_invites` (Use-Count-Cache) + `guild_member_invites` (Beitritts-Record/Leaderboard-Quelle) — Invite-Tracking (Basic)
 - `guild_application_forms` (`questions` JSON ≤5, `review_channel_id`, `accepted_role_id`) + `guild_applications` (`answers` JSON, `status`, `reviewer_id`) — Bewerbungen (Pro)
 - `guild_economy_settings` + `guild_economy_users` (`balance`, `last_daily`/`last_work`) + `guild_economy_shop` (`price`, optionale `role_id`) — Wirtschaft (Pro)
-- `guild_games_settings` (eine Row, geteilter `games_channel_id` + pro-Spiel-Toggle inkl. `poker_enabled` + `poker_table_theme` Filz-Design) + `guild_game_scores` (`(guild_id, user_id, game)`, `wins`/`plays`) — Games-Kategorie (Basic): Tic-Tac-Toe/RPS/Trivia/Connect-Four/Hangman/Poker
+- `guild_games_settings` (eine Row, geteilter `games_channel_id` + pro-Spiel-Toggle inkl. `poker_enabled` + `poker_table_theme` Filz-Design + `games_language` In-Game-Sprache) + `guild_game_scores` (`(guild_id, user_id, game)`, `wins`/`plays`) — Games-Kategorie (Basic): Tic-Tac-Toe/RPS/Trivia/Connect-Four/Hangman/Poker
 - `schema_version` — Migrations-Tracking
 
 **Wichtige DB-Helper** in [backend/db.js](backend/db.js):
@@ -977,6 +980,12 @@ Empfehlung aus [README.md](README.md): SQLite → PostgreSQL für Multi-Instance
 
 ## 14. Letzte Aktualisierung
 
+- **Datum:** 2026-06-19
+- **Games-In-Game-Sprache (Schema v31):** Die **gesamte Games-Kategorie** rendert ihre In-Game-Texte jetzt in einer **pro Server wählbaren Sprache** (EN/DE/TR/RU/PL) — eine geteilte Einstellung für alle 6 Spiele (Tic-Tac-Toe/RPS/Trivia/Connect-Four/Hangman/Poker), unabhängig von der Dashboard-UI-Sprache.
+  - **Schema:** Migration v31 = idempotenter ALTER `guild_games_settings.games_language TEXT DEFAULT 'en'` (+ Mirror/defensiver ALTER). `GAME_LANGUAGES` (`en|de|tr|ru|pl`) in [db.js](backend/db.js) ist Single Source (Validierung in `shapeGames`/`upsertGamesSettings`; `GAMES_DEFAULTS` erweitert). **Kein neuer Endpoint** — `games_language` fließt durch `/games` (Cookie GET/PUT, Partial-Merge) und `/api/bot/guilds/:id/settings/games`.
+  - **Bot:** Neuer Helper [utils/game_i18n.py](bot/utils/game_i18n.py) (`make_translator(strings)` → `t(lang, key, **kwargs)`, `lang_of(settings)`, `normalize_lang` — Fallback EN→raw-key, `.format`-safe, crasht nie bei unvollständiger Tabelle). Alle 6 Games-Cogs ([tictactoe.py](bot/cogs/tictactoe.py)/[rps.py](bot/cogs/rps.py)/[trivia.py](bot/cogs/trivia.py)/[connect4.py](bot/cogs/connect4.py)/[hangman.py](bot/cogs/hangman.py)/[poker.py](bot/cogs/poker.py)) bekommen eine flache `_STRINGS`-Tabelle pro Sprache + `t = make_translator(_STRINGS)`; die Sprache wird beim Spielstart via `lang_of(settings)` aufgelöst und **in der In-Memory-Session gespeichert** (`session.lang`/`table.lang`), damit spätere Button-/Message-Interaktionen dieselbe Sprache nutzen. Trivia-Fragebank ist pro Sprache vorhanden.
+  - **Frontend:** Neue Komponente [GameLanguagePicker.vue](frontend/src/components/GameLanguagePicker.vue) (Dropdown mit nativen Sprachnamen, `v-model`), in **allen 6** Games-Seiten eingebunden (`form.games_language`, lädt/speichert mit, Partial-PUT). i18n: `games.languageLabel`/`languageHint` in **allen 5 Sprachen** (Key-Parität verifiziert: 1270/Locale, 0 missing/extra).
+  - Verifiziert: Migration v31 + DB-Konstanten grün, alle 6 Cogs kompilieren, **Poker-Evaluator-Self-Test grün**, Frontend-Build grün, i18n-Parität 1270/Locale.
 - **Datum:** 2026-06-18
 - **Poker-Tisch-Render + wählbares Tisch-Design (Schema v30):** Der Poker-Tisch wird jetzt als **vollständiges Tisch-Bild** gerendert (statt nur Karten + Text-Embed) und das **Filz-Design ist pro Server im Dashboard wählbar**.
   - **Voller Tisch-Render (Bot):** Neue Funktion `render_table_png(table)` in [poker.py](bot/cogs/poker.py) zeichnet via Pillow Filz-Ellipse + Holzrand, Community-Cards zentral mit Pot-/Street-Label, alle Sitze rund um die Ellipse (Seat 0 = unten) mit Name/Stack/Chip-Icon, D/SB/BB-Tags, BOT-Tag, Fold/All-in-Status; der Spieler am Zug wird mit Akzent-Glow hervorgehoben; beim Showdown werden die Hole-Cards der noch aktiven Spieler an ihrem Sitz enthüllt. `_render` schickt das Bild als **normalen Anhang** (`table.png`, NICHT im Embed — Discord zeigt es so groß/inline, kein Klick zum Erkennen nötig); die Caption (`_caption_text`: Spieler am Zug / to-call bzw. Showdown-Ergebnis) steht als Message-`content` darüber. `start`/`nexthand` laufen über `defer()` + `_render`. **Text-Embed bleibt als Fallback** wenn Pillow fehlt/Render scheitert.

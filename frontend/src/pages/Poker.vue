@@ -41,6 +41,8 @@
         </div>
       </div>
 
+      <GameLanguagePicker v-model="form.games_language" />
+
       <div class="form-card__note form-card__note--info">{{ t('poker.usageNote') }}</div>
 
       <div class="form-card__actions">
@@ -74,6 +76,7 @@ import { useRoute } from 'vue-router'
 import AppButton from '../components/AppButton.vue'
 import AppToggle from '../components/AppToggle.vue'
 import ChannelSelector from '../components/ChannelSelector.vue'
+import GameLanguagePicker from '../components/GameLanguagePicker.vue'
 import api from '../services/api.js'
 import { useToast } from '../composables/useToast.js'
 import { useI18n } from '../i18n/index.js'
@@ -84,7 +87,7 @@ const toast = useToast()
 const { t } = useI18n()
 const guildId = computed(() => route.params.guild_id)
 
-const form = reactive({ enabled: false, games_channel_id: '', poker_table_theme: 'classic' })
+const form = reactive({ enabled: false, games_channel_id: '', poker_table_theme: 'classic', games_language: 'en' })
 
 // Felt swatches mirror the bot's THEMES palette (poker.py).
 const themes = [
@@ -108,6 +111,7 @@ async function load() {
       form.enabled = !!s[`${gameKey}_enabled`]
       form.games_channel_id = s.games_channel_id || ''
       form.poker_table_theme = s.poker_table_theme || 'classic'
+      form.games_language = s.games_language || 'en'
       initial = JSON.stringify(form)
     }
   } catch (err) {
@@ -130,7 +134,8 @@ async function save() {
     const { data } = await api.put(`/guilds/${guildId.value}/games`, {
       [`${gameKey}_enabled`]: !!form.enabled,
       games_channel_id: form.games_channel_id || null,
-      poker_table_theme: form.poker_table_theme || 'classic'
+      poker_table_theme: form.poker_table_theme || 'classic',
+      games_language: form.games_language || 'en'
     })
     if (data?.success) initial = JSON.stringify(form)
     toast.success(t('common.allSaved'))

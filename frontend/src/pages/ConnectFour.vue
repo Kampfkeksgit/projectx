@@ -21,6 +21,8 @@
         <ChannelSelector v-model="form.games_channel_id" :guild-id="guildId" :types="['text']" />
       </div>
 
+      <GameLanguagePicker v-model="form.games_language" />
+
       <div class="form-card__note form-card__note--info">{{ t('connect4.usageNote') }}</div>
 
       <div class="form-card__actions">
@@ -54,6 +56,7 @@ import { useRoute } from 'vue-router'
 import AppButton from '../components/AppButton.vue'
 import AppToggle from '../components/AppToggle.vue'
 import ChannelSelector from '../components/ChannelSelector.vue'
+import GameLanguagePicker from '../components/GameLanguagePicker.vue'
 import api from '../services/api.js'
 import { useToast } from '../composables/useToast.js'
 import { useI18n } from '../i18n/index.js'
@@ -65,7 +68,7 @@ const toast = useToast()
 const { t } = useI18n()
 const guildId = computed(() => route.params.guild_id)
 
-const form = reactive({ enabled: false, games_channel_id: '' })
+const form = reactive({ enabled: false, games_channel_id: '', games_language: 'en' })
 const leaderboard = ref([])
 const saving = ref(false)
 let initial = JSON.stringify(form)
@@ -79,6 +82,7 @@ async function load() {
       const s = data.settings || {}
       form.enabled = !!s[`${gameKey}_enabled`]
       form.games_channel_id = s.games_channel_id || ''
+      form.games_language = s.games_language || 'en'
       initial = JSON.stringify(form)
     }
   } catch (err) {
@@ -100,7 +104,8 @@ async function save() {
   try {
     const { data } = await api.put(`/guilds/${guildId.value}/games`, {
       [`${gameKey}_enabled`]: !!form.enabled,
-      games_channel_id: form.games_channel_id || null
+      games_channel_id: form.games_channel_id || null,
+      games_language: form.games_language || 'en'
     })
     if (data?.success) initial = JSON.stringify(form)
     toast.success(t('common.allSaved'))

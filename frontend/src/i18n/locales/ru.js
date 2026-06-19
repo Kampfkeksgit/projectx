@@ -416,6 +416,10 @@ export default {
     inviteBot: 'Пригласить ProjectX на этот сервер',
     botMissingPill: 'Бота нет на сервере'
   },
+  games: {
+    languageLabel: 'Язык игр',
+    languageHint: 'Язык, на котором бот выводит все игровые сообщения (общий для всех игр).'
+  },
   poker: {
     eyebrow: 'Игры', title: 'Poker',
     sub: 'Запускайте многопользовательские столы Texas Hold’em прямо в канале.',

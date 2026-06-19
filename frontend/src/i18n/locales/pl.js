@@ -416,6 +416,10 @@ export default {
     inviteBot: 'Zaproś ProjectX na ten serwer',
     botMissingPill: 'Bota nie ma na serwerze'
   },
+  games: {
+    languageLabel: 'Język gier',
+    languageHint: 'Język, w którym bot wyświetla wszystkie komunikaty gier (wspólny dla wszystkich gier).'
+  },
   poker: {
     eyebrow: 'Gry', title: 'Poker',
     sub: 'Prowadź wieloosobowe stoły Texas Hold’em bezpośrednio na kanale.',

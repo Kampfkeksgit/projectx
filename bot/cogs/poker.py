@@ -38,6 +38,7 @@ from discord.ext import commands
 
 import config
 from utils.backend import fetch_bot_settings, bot_post
+from utils.game_i18n import make_translator, lang_of
 
 # Card images are rendered with Pillow when available; otherwise the cog falls
 # back to text card symbols so it keeps working without the dependency.
@@ -149,12 +150,533 @@ def evaluate_5(cards):
     return (0, *ranks[:5])
 
 
+_STRINGS = {
+    "en": {
+        "not_enabled": "Poker is not enabled on this server.",
+        "wrong_channel": "Poker can only be played in <#{channel}>.",
+        "already_open": "A poker table is already open in this channel.",
+        "cant_post": "I can't post in this channel.",
+        "table_closed": "This poker table has closed.",
+        "table_closed_short": "This table has closed.",
+        "not_your_turn": "It's not your turn.",
+        "not_your_turn_anymore": "It's not your turn anymore.",
+        "no_cards": "You have no cards in this hand.",
+        "cards_best_so_far": "\nBest so far: **{hand}**",
+        "cards_your_hand": "\U0001F0CF Your hand: **{cards}**{extra}",
+        "already_started": "The game has already started.",
+        "already_seated": "You're already at the table.",
+        "table_full": "The table is full.",
+        "not_seated": "You're not at the table.",
+        "table_closed_msg": "Table closed.",
+        "host_only_addbot": "Only the host can add bots.",
+        "no_bot_seats": "No more bot seats available.",
+        "host_only_rmbot": "Only the host can remove bots.",
+        "no_bots": "There are no bots to remove.",
+        "host_only_cancel": "Only the host can cancel the table.",
+        "table_cancelled": "Table cancelled by the host.",
+        "host_only_start": "Only the host can start the game.",
+        "need_players": "Need at least {count} players.",
+        "no_betting": "No betting is in progress.",
+        "no_hand": "No hand to continue.",
+        "players_only_deal": "Only players at the table can deal.",
+        "not_enough_chips": "Not enough players with chips.",
+        "host_only_end": "Only the host can end the table.",
+        "err_cant_check": "You can't check — there's a bet to call.",
+        "err_no_chips": "You have no chips left.",
+        "err_whole_number": "Enter a whole number.",
+        "err_raise_exceed": "A raise must exceed the current bet of {bet}.",
+        "err_bet_at_most": "You can bet at most {max}.",
+        "err_min_raise": "Minimum raise is to {min} (or all-in for {max}).",
+        "err_unknown_action": "Unknown action.",
+        "action_check": "check",
+        "action_fold": "fold",
+        "timeout_auto": "⏰ {name} took too long — auto **{action}**.",
+        "render_pot": "POT  {pot}",
+        "render_showdown": "SHOWDOWN",
+        "render_bot_tag": "BOT",
+        "render_fold": "FOLD",
+        "render_allin": "ALL-IN",
+        "render_bet": "bet {amount}",
+        "caption_head": "♠ **Poker — Hand #{n}**",
+        "caption_to_call": "to call **{amount}**",
+        "caption_can_check": "can **check**",
+        "caption_to_act": "{head}\n➤ **{actor}** to act · {call} · \U0001F0CF shows your cards",
+        "result_fold_win": "\U0001F3C6 **{winner}** wins **{amount}** chips (everyone else folded).",
+        "showdown_line": "**{name}** — {cards}  ·  *{hand}*",
+        "showdown_payout": "**{name}** (+{amount})",
+        "showdown_result": "\U0001F0CF **Showdown**\n{lines}\n\n\U0001F4B0 Pot **{pot}** → {win}",
+        "last_standing": "\n\n\U0001F451 **{name}** is the last player standing — table over!",
+        "closed_title": "♠ Poker — Table closed",
+        "closed_rank_line": "**{n}.** {name} — {stack} chips",
+        "closed_no_players": "No players.",
+        "closed_winner": "Winner: {name}",
+        "lobby_title": "♠ Poker table — Lobby",
+        "lobby_player_line": "• {name}{tag} — {stack} chips",
+        "lobby_no_players": "No players yet.",
+        "field_players": "Players",
+        "field_blinds": "Blinds",
+        "field_start_stack": "Start stack",
+        "lobby_footer": "Host: {host} • Design: {design} • Press Join to take a seat",
+        "table_embed_title": "♠ Poker — Hand #{n}",
+        "field_community": "Community  ·  {street}",
+        "board_label": "Board",
+        "status_folded": " — \U0001F6AB folded",
+        "status_allin": " — \U0001F170️ all-in",
+        "status_bet": " — bet {amount}",
+        "table_row": "{cursor}**{name}** {marks}\n`{stack}` chips{status}",
+        "field_pot": "Pot",
+        "field_to_call": "To call",
+        "table_footer": "{actor} to act • use the buttons • \U0001F0CF shows your cards",
+        "field_result": "Result",
+        "btn_join": "Join",
+        "btn_leave": "Leave",
+        "btn_add_bot": "Add bot",
+        "btn_remove_bot": "Remove bot",
+        "btn_start": "Start",
+        "btn_cancel": "Cancel",
+        "btn_fold": "Fold",
+        "btn_call": "Call {amount}",
+        "btn_check": "Check",
+        "btn_raise": "Raise",
+        "btn_allin": "All-in",
+        "btn_my_cards": "My cards",
+        "btn_next_hand": "Next hand",
+        "btn_end_table": "End table",
+        "modal_title": "Raise",
+        "modal_label": "Raise to (total bet this round)",
+        "hand_8": "Straight Flush",
+        "hand_7": "Four of a Kind",
+        "hand_6": "Full House",
+        "hand_5": "Flush",
+        "hand_4": "Straight",
+        "hand_3": "Three of a Kind",
+        "hand_2": "Two Pair",
+        "hand_1": "Pair",
+        "hand_0": "High Card",
+    },
+    "de": {
+        "not_enabled": "Poker ist auf diesem Server nicht aktiviert.",
+        "wrong_channel": "Poker kann nur in <#{channel}> gespielt werden.",
+        "already_open": "In diesem Kanal ist bereits ein Poker-Tisch offen.",
+        "cant_post": "Ich kann in diesem Kanal nicht schreiben.",
+        "table_closed": "Dieser Poker-Tisch wurde geschlossen.",
+        "table_closed_short": "Dieser Tisch wurde geschlossen.",
+        "not_your_turn": "Du bist nicht am Zug.",
+        "not_your_turn_anymore": "Du bist nicht mehr am Zug.",
+        "no_cards": "Du hast in dieser Hand keine Karten.",
+        "cards_best_so_far": "\nBisher beste: **{hand}**",
+        "cards_your_hand": "\U0001F0CF Deine Hand: **{cards}**{extra}",
+        "already_started": "Das Spiel hat bereits begonnen.",
+        "already_seated": "Du sitzt schon am Tisch.",
+        "table_full": "Der Tisch ist voll.",
+        "not_seated": "Du sitzt nicht am Tisch.",
+        "table_closed_msg": "Tisch geschlossen.",
+        "host_only_addbot": "Nur der Host kann Bots hinzufügen.",
+        "no_bot_seats": "Keine weiteren Bot-Plätze verfügbar.",
+        "host_only_rmbot": "Nur der Host kann Bots entfernen.",
+        "no_bots": "Es gibt keine Bots zum Entfernen.",
+        "host_only_cancel": "Nur der Host kann den Tisch abbrechen.",
+        "table_cancelled": "Tisch vom Host abgebrochen.",
+        "host_only_start": "Nur der Host kann das Spiel starten.",
+        "need_players": "Mindestens {count} Spieler nötig.",
+        "no_betting": "Es läuft gerade keine Setzrunde.",
+        "no_hand": "Keine Hand zum Fortsetzen.",
+        "players_only_deal": "Nur Spieler am Tisch können geben.",
+        "not_enough_chips": "Nicht genug Spieler mit Chips.",
+        "host_only_end": "Nur der Host kann den Tisch beenden.",
+        "err_cant_check": "Du kannst nicht schieben — es gibt einen Einsatz zu callen.",
+        "err_no_chips": "Du hast keine Chips mehr.",
+        "err_whole_number": "Gib eine ganze Zahl ein.",
+        "err_raise_exceed": "Eine Erhöhung muss den aktuellen Einsatz von {bet} übersteigen.",
+        "err_bet_at_most": "Du kannst höchstens {max} setzen.",
+        "err_min_raise": "Mindesterhöhung ist auf {min} (oder All-in für {max}).",
+        "err_unknown_action": "Unbekannte Aktion.",
+        "action_check": "Check",
+        "action_fold": "Fold",
+        "timeout_auto": "⏰ {name} hat zu lange gebraucht — automatisch **{action}**.",
+        "render_pot": "POT  {pot}",
+        "render_showdown": "SHOWDOWN",
+        "render_bot_tag": "BOT",
+        "render_fold": "FOLD",
+        "render_allin": "ALL-IN",
+        "render_bet": "Einsatz {amount}",
+        "caption_head": "♠ **Poker — Hand #{n}**",
+        "caption_to_call": "muss **{amount}** callen",
+        "caption_can_check": "kann **checken**",
+        "caption_to_act": "{head}\n➤ **{actor}** ist am Zug · {call} · \U0001F0CF zeigt deine Karten",
+        "result_fold_win": "\U0001F3C6 **{winner}** gewinnt **{amount}** Chips (alle anderen haben gefoldet).",
+        "showdown_line": "**{name}** — {cards}  ·  *{hand}*",
+        "showdown_payout": "**{name}** (+{amount})",
+        "showdown_result": "\U0001F0CF **Showdown**\n{lines}\n\n\U0001F4B0 Pot **{pot}** → {win}",
+        "last_standing": "\n\n\U0001F451 **{name}** ist der letzte verbliebene Spieler — Tisch beendet!",
+        "closed_title": "♠ Poker — Tisch geschlossen",
+        "closed_rank_line": "**{n}.** {name} — {stack} Chips",
+        "closed_no_players": "Keine Spieler.",
+        "closed_winner": "Gewinner: {name}",
+        "lobby_title": "♠ Poker-Tisch — Lobby",
+        "lobby_player_line": "• {name}{tag} — {stack} Chips",
+        "lobby_no_players": "Noch keine Spieler.",
+        "field_players": "Spieler",
+        "field_blinds": "Blinds",
+        "field_start_stack": "Start-Stack",
+        "lobby_footer": "Host: {host} • Design: {design} • Drücke Join, um Platz zu nehmen",
+        "table_embed_title": "♠ Poker — Hand #{n}",
+        "field_community": "Community  ·  {street}",
+        "board_label": "Board",
+        "status_folded": " — \U0001F6AB gefoldet",
+        "status_allin": " — \U0001F170️ All-in",
+        "status_bet": " — Einsatz {amount}",
+        "table_row": "{cursor}**{name}** {marks}\n`{stack}` Chips{status}",
+        "field_pot": "Pot",
+        "field_to_call": "Zu callen",
+        "table_footer": "{actor} ist am Zug • nutze die Buttons • \U0001F0CF zeigt deine Karten",
+        "field_result": "Ergebnis",
+        "btn_join": "Join",
+        "btn_leave": "Verlassen",
+        "btn_add_bot": "Bot hinzufügen",
+        "btn_remove_bot": "Bot entfernen",
+        "btn_start": "Start",
+        "btn_cancel": "Abbrechen",
+        "btn_fold": "Fold",
+        "btn_call": "Call {amount}",
+        "btn_check": "Check",
+        "btn_raise": "Raise",
+        "btn_allin": "All-in",
+        "btn_my_cards": "Meine Karten",
+        "btn_next_hand": "Nächste Hand",
+        "btn_end_table": "Tisch beenden",
+        "modal_title": "Erhöhen",
+        "modal_label": "Erhöhen auf (Gesamteinsatz diese Runde)",
+        "hand_8": "Straight Flush",
+        "hand_7": "Vierling",
+        "hand_6": "Full House",
+        "hand_5": "Flush",
+        "hand_4": "Straße",
+        "hand_3": "Drilling",
+        "hand_2": "Zwei Paare",
+        "hand_1": "Paar",
+        "hand_0": "Höchste Karte",
+    },
+    "tr": {
+        "not_enabled": "Poker bu sunucuda etkin değil.",
+        "wrong_channel": "Poker yalnızca <#{channel}> kanalında oynanabilir.",
+        "already_open": "Bu kanalda zaten açık bir poker masası var.",
+        "cant_post": "Bu kanala mesaj gönderemiyorum.",
+        "table_closed": "Bu poker masası kapandı.",
+        "table_closed_short": "Bu masa kapandı.",
+        "not_your_turn": "Sıra sende değil.",
+        "not_your_turn_anymore": "Artık sıra sende değil.",
+        "no_cards": "Bu elde kartın yok.",
+        "cards_best_so_far": "\nŞu ana kadarki en iyi: **{hand}**",
+        "cards_your_hand": "\U0001F0CF Elin: **{cards}**{extra}",
+        "already_started": "Oyun zaten başladı.",
+        "already_seated": "Zaten masadasın.",
+        "table_full": "Masa dolu.",
+        "not_seated": "Masada değilsin.",
+        "table_closed_msg": "Masa kapandı.",
+        "host_only_addbot": "Sadece kurucu bot ekleyebilir.",
+        "no_bot_seats": "Başka bot koltuğu kalmadı.",
+        "host_only_rmbot": "Sadece kurucu bot çıkarabilir.",
+        "no_bots": "Çıkarılacak bot yok.",
+        "host_only_cancel": "Sadece kurucu masayı iptal edebilir.",
+        "table_cancelled": "Masa kurucu tarafından iptal edildi.",
+        "host_only_start": "Sadece kurucu oyunu başlatabilir.",
+        "need_players": "En az {count} oyuncu gerekli.",
+        "no_betting": "Şu anda bahis turu yok.",
+        "no_hand": "Devam edecek el yok.",
+        "players_only_deal": "Yalnızca masadaki oyuncular dağıtabilir.",
+        "not_enough_chips": "Çipi olan yeterli oyuncu yok.",
+        "host_only_end": "Sadece kurucu masayı bitirebilir.",
+        "err_cant_check": "Pas geçemezsin — görülmesi gereken bir bahis var.",
+        "err_no_chips": "Hiç çipin kalmadı.",
+        "err_whole_number": "Bir tam sayı gir.",
+        "err_raise_exceed": "Yükseltme, mevcut {bet} bahsini aşmalı.",
+        "err_bet_at_most": "En fazla {max} koyabilirsin.",
+        "err_min_raise": "Minimum yükseltme {min} (veya {max} için all-in).",
+        "err_unknown_action": "Bilinmeyen işlem.",
+        "action_check": "pas",
+        "action_fold": "fold",
+        "timeout_auto": "⏰ {name} çok uzun sürdü — otomatik **{action}**.",
+        "render_pot": "POT  {pot}",
+        "render_showdown": "SHOWDOWN",
+        "render_bot_tag": "BOT",
+        "render_fold": "FOLD",
+        "render_allin": "ALL-IN",
+        "render_bet": "bahis {amount}",
+        "caption_head": "♠ **Poker — El #{n}**",
+        "caption_to_call": "**{amount}** görmesi gerek",
+        "caption_can_check": "**pas** geçebilir",
+        "caption_to_act": "{head}\n➤ **{actor}** oynayacak · {call} · \U0001F0CF kartlarını gösterir",
+        "result_fold_win": "\U0001F3C6 **{winner}** **{amount}** çip kazanır (diğer herkes fold etti).",
+        "showdown_line": "**{name}** — {cards}  ·  *{hand}*",
+        "showdown_payout": "**{name}** (+{amount})",
+        "showdown_result": "\U0001F0CF **Showdown**\n{lines}\n\n\U0001F4B0 Pot **{pot}** → {win}",
+        "last_standing": "\n\n\U0001F451 **{name}** masada kalan son oyuncu — masa bitti!",
+        "closed_title": "♠ Poker — Masa kapandı",
+        "closed_rank_line": "**{n}.** {name} — {stack} çip",
+        "closed_no_players": "Oyuncu yok.",
+        "closed_winner": "Kazanan: {name}",
+        "lobby_title": "♠ Poker masası — Lobi",
+        "lobby_player_line": "• {name}{tag} — {stack} çip",
+        "lobby_no_players": "Henüz oyuncu yok.",
+        "field_players": "Oyuncular",
+        "field_blinds": "Blindler",
+        "field_start_stack": "Başlangıç yığını",
+        "lobby_footer": "Kurucu: {host} • Tasarım: {design} • Oturmak için Join'e bas",
+        "table_embed_title": "♠ Poker — El #{n}",
+        "field_community": "Ortak kartlar  ·  {street}",
+        "board_label": "Board",
+        "status_folded": " — \U0001F6AB fold",
+        "status_allin": " — \U0001F170️ all-in",
+        "status_bet": " — bahis {amount}",
+        "table_row": "{cursor}**{name}** {marks}\n`{stack}` çip{status}",
+        "field_pot": "Pot",
+        "field_to_call": "Görmek için",
+        "table_footer": "{actor} oynayacak • butonları kullan • \U0001F0CF kartlarını gösterir",
+        "field_result": "Sonuç",
+        "btn_join": "Katıl",
+        "btn_leave": "Ayrıl",
+        "btn_add_bot": "Bot ekle",
+        "btn_remove_bot": "Bot çıkar",
+        "btn_start": "Başlat",
+        "btn_cancel": "İptal",
+        "btn_fold": "Fold",
+        "btn_call": "Call {amount}",
+        "btn_check": "Pas",
+        "btn_raise": "Yükselt",
+        "btn_allin": "All-in",
+        "btn_my_cards": "Kartlarım",
+        "btn_next_hand": "Sonraki el",
+        "btn_end_table": "Masayı bitir",
+        "modal_title": "Yükselt",
+        "modal_label": "Şuna yükselt (bu turdaki toplam bahis)",
+        "hand_8": "Straight Flush",
+        "hand_7": "Dörtlü (Kare)",
+        "hand_6": "Full House",
+        "hand_5": "Flush",
+        "hand_4": "Kent (Sıra)",
+        "hand_3": "Üçlü",
+        "hand_2": "İki Çift",
+        "hand_1": "Çift",
+        "hand_0": "Yüksek Kart",
+    },
+    "ru": {
+        "not_enabled": "Покер не включён на этом сервере.",
+        "wrong_channel": "В покер можно играть только в <#{channel}>.",
+        "already_open": "В этом канале уже открыт покерный стол.",
+        "cant_post": "Я не могу писать в этом канале.",
+        "table_closed": "Этот покерный стол закрыт.",
+        "table_closed_short": "Этот стол закрыт.",
+        "not_your_turn": "Сейчас не твой ход.",
+        "not_your_turn_anymore": "Это уже не твой ход.",
+        "no_cards": "У тебя нет карт в этой раздаче.",
+        "cards_best_so_far": "\nЛучшее пока: **{hand}**",
+        "cards_your_hand": "\U0001F0CF Твоя рука: **{cards}**{extra}",
+        "already_started": "Игра уже началась.",
+        "already_seated": "Ты уже за столом.",
+        "table_full": "Стол заполнен.",
+        "not_seated": "Ты не за столом.",
+        "table_closed_msg": "Стол закрыт.",
+        "host_only_addbot": "Только хост может добавлять ботов.",
+        "no_bot_seats": "Свободных мест для ботов больше нет.",
+        "host_only_rmbot": "Только хост может удалять ботов.",
+        "no_bots": "Ботов для удаления нет.",
+        "host_only_cancel": "Только хост может отменить стол.",
+        "table_cancelled": "Стол отменён хостом.",
+        "host_only_start": "Только хост может начать игру.",
+        "need_players": "Нужно минимум {count} игрока(ов).",
+        "no_betting": "Сейчас нет торгов.",
+        "no_hand": "Нет раздачи для продолжения.",
+        "players_only_deal": "Раздавать могут только игроки за столом.",
+        "not_enough_chips": "Недостаточно игроков с фишками.",
+        "host_only_end": "Только хост может завершить стол.",
+        "err_cant_check": "Нельзя чек — есть ставка, которую нужно уравнять.",
+        "err_no_chips": "У тебя не осталось фишек.",
+        "err_whole_number": "Введи целое число.",
+        "err_raise_exceed": "Рейз должен превышать текущую ставку {bet}.",
+        "err_bet_at_most": "Ты можешь поставить не больше {max}.",
+        "err_min_raise": "Минимальный рейз — до {min} (или олл-ин на {max}).",
+        "err_unknown_action": "Неизвестное действие.",
+        "action_check": "чек",
+        "action_fold": "фолд",
+        "timeout_auto": "⏰ {name} слишком долго думал — автоматический **{action}**.",
+        "render_pot": "БАНК  {pot}",
+        "render_showdown": "ВСКРЫТИЕ",
+        "render_bot_tag": "БОТ",
+        "render_fold": "ФОЛД",
+        "render_allin": "ОЛЛ-ИН",
+        "render_bet": "ставка {amount}",
+        "caption_head": "♠ **Покер — Раздача #{n}**",
+        "caption_to_call": "колл **{amount}**",
+        "caption_can_check": "может **чек**",
+        "caption_to_act": "{head}\n➤ **{actor}** ходит · {call} · \U0001F0CF покажет твои карты",
+        "result_fold_win": "\U0001F3C6 **{winner}** забирает **{amount}** фишек (все остальные сбросили).",
+        "showdown_line": "**{name}** — {cards}  ·  *{hand}*",
+        "showdown_payout": "**{name}** (+{amount})",
+        "showdown_result": "\U0001F0CF **Вскрытие**\n{lines}\n\n\U0001F4B0 Банк **{pot}** → {win}",
+        "last_standing": "\n\n\U0001F451 **{name}** — последний оставшийся игрок, стол окончен!",
+        "closed_title": "♠ Покер — Стол закрыт",
+        "closed_rank_line": "**{n}.** {name} — {stack} фишек",
+        "closed_no_players": "Нет игроков.",
+        "closed_winner": "Победитель: {name}",
+        "lobby_title": "♠ Покерный стол — Лобби",
+        "lobby_player_line": "• {name}{tag} — {stack} фишек",
+        "lobby_no_players": "Пока нет игроков.",
+        "field_players": "Игроки",
+        "field_blinds": "Блайнды",
+        "field_start_stack": "Начальный стек",
+        "lobby_footer": "Хост: {host} • Дизайн: {design} • Нажми Войти, чтобы сесть",
+        "table_embed_title": "♠ Покер — Раздача #{n}",
+        "field_community": "Общие  ·  {street}",
+        "board_label": "Board",
+        "status_folded": " — \U0001F6AB сбросил",
+        "status_allin": " — \U0001F170️ олл-ин",
+        "status_bet": " — ставка {amount}",
+        "table_row": "{cursor}**{name}** {marks}\n`{stack}` фишек{status}",
+        "field_pot": "Банк",
+        "field_to_call": "Колл",
+        "table_footer": "{actor} ходит • используй кнопки • \U0001F0CF покажет твои карты",
+        "field_result": "Результат",
+        "btn_join": "Войти",
+        "btn_leave": "Выйти",
+        "btn_add_bot": "Добавить бота",
+        "btn_remove_bot": "Убрать бота",
+        "btn_start": "Старт",
+        "btn_cancel": "Отмена",
+        "btn_fold": "Фолд",
+        "btn_call": "Колл {amount}",
+        "btn_check": "Чек",
+        "btn_raise": "Рейз",
+        "btn_allin": "Олл-ин",
+        "btn_my_cards": "Мои карты",
+        "btn_next_hand": "Следующая раздача",
+        "btn_end_table": "Завершить стол",
+        "modal_title": "Рейз",
+        "modal_label": "Поднять до (общая ставка в этом раунде)",
+        "hand_8": "Стрит-флеш",
+        "hand_7": "Каре",
+        "hand_6": "Фулл-хаус",
+        "hand_5": "Флеш",
+        "hand_4": "Стрит",
+        "hand_3": "Сет (тройка)",
+        "hand_2": "Две пары",
+        "hand_1": "Пара",
+        "hand_0": "Старшая карта",
+    },
+    "pl": {
+        "not_enabled": "Poker nie jest włączony na tym serwerze.",
+        "wrong_channel": "W pokera można grać tylko na <#{channel}>.",
+        "already_open": "Na tym kanale jest już otwarty stół pokerowy.",
+        "cant_post": "Nie mogę pisać na tym kanale.",
+        "table_closed": "Ten stół pokerowy został zamknięty.",
+        "table_closed_short": "Ten stół został zamknięty.",
+        "not_your_turn": "To nie twoja kolej.",
+        "not_your_turn_anymore": "To już nie twoja kolej.",
+        "no_cards": "Nie masz kart w tym rozdaniu.",
+        "cards_best_so_far": "\nNajlepsze jak dotąd: **{hand}**",
+        "cards_your_hand": "\U0001F0CF Twoja ręka: **{cards}**{extra}",
+        "already_started": "Gra już się rozpoczęła.",
+        "already_seated": "Już jesteś przy stole.",
+        "table_full": "Stół jest pełny.",
+        "not_seated": "Nie ma cię przy stole.",
+        "table_closed_msg": "Stół zamknięty.",
+        "host_only_addbot": "Tylko host może dodawać boty.",
+        "no_bot_seats": "Brak wolnych miejsc dla botów.",
+        "host_only_rmbot": "Tylko host może usuwać boty.",
+        "no_bots": "Nie ma botów do usunięcia.",
+        "host_only_cancel": "Tylko host może anulować stół.",
+        "table_cancelled": "Stół anulowany przez hosta.",
+        "host_only_start": "Tylko host może rozpocząć grę.",
+        "need_players": "Potrzeba co najmniej {count} graczy.",
+        "no_betting": "Aktualnie nie trwa licytacja.",
+        "no_hand": "Brak rozdania do kontynuacji.",
+        "players_only_deal": "Rozdawać mogą tylko gracze przy stole.",
+        "not_enough_chips": "Za mało graczy z żetonami.",
+        "host_only_end": "Tylko host może zakończyć stół.",
+        "err_cant_check": "Nie możesz czekać — jest zakład do sprawdzenia.",
+        "err_no_chips": "Nie masz już żetonów.",
+        "err_whole_number": "Podaj liczbę całkowitą.",
+        "err_raise_exceed": "Podbicie musi przekroczyć obecny zakład {bet}.",
+        "err_bet_at_most": "Możesz postawić najwyżej {max}.",
+        "err_min_raise": "Minimalne podbicie to {min} (lub all-in za {max}).",
+        "err_unknown_action": "Nieznana akcja.",
+        "action_check": "czek",
+        "action_fold": "fold",
+        "timeout_auto": "⏰ {name} grał za długo — automatyczny **{action}**.",
+        "render_pot": "PULA  {pot}",
+        "render_showdown": "SHOWDOWN",
+        "render_bot_tag": "BOT",
+        "render_fold": "FOLD",
+        "render_allin": "ALL-IN",
+        "render_bet": "zakład {amount}",
+        "caption_head": "♠ **Poker — Rozdanie #{n}**",
+        "caption_to_call": "do sprawdzenia **{amount}**",
+        "caption_can_check": "może **czekać**",
+        "caption_to_act": "{head}\n➤ **{actor}** gra · {call} · \U0001F0CF pokazuje twoje karty",
+        "result_fold_win": "\U0001F3C6 **{winner}** wygrywa **{amount}** żetonów (reszta spasowała).",
+        "showdown_line": "**{name}** — {cards}  ·  *{hand}*",
+        "showdown_payout": "**{name}** (+{amount})",
+        "showdown_result": "\U0001F0CF **Showdown**\n{lines}\n\n\U0001F4B0 Pula **{pot}** → {win}",
+        "last_standing": "\n\n\U0001F451 **{name}** to ostatni gracz w grze — koniec stołu!",
+        "closed_title": "♠ Poker — Stół zamknięty",
+        "closed_rank_line": "**{n}.** {name} — {stack} żetonów",
+        "closed_no_players": "Brak graczy.",
+        "closed_winner": "Zwycięzca: {name}",
+        "lobby_title": "♠ Stół pokerowy — Poczekalnia",
+        "lobby_player_line": "• {name}{tag} — {stack} żetonów",
+        "lobby_no_players": "Jeszcze nie ma graczy.",
+        "field_players": "Gracze",
+        "field_blinds": "Ciemne",
+        "field_start_stack": "Stack startowy",
+        "lobby_footer": "Host: {host} • Wygląd: {design} • Naciśnij Dołącz, aby usiąść",
+        "table_embed_title": "♠ Poker — Rozdanie #{n}",
+        "field_community": "Wspólne  ·  {street}",
+        "board_label": "Board",
+        "status_folded": " — \U0001F6AB spasował",
+        "status_allin": " — \U0001F170️ all-in",
+        "status_bet": " — zakład {amount}",
+        "table_row": "{cursor}**{name}** {marks}\n`{stack}` żetonów{status}",
+        "field_pot": "Pula",
+        "field_to_call": "Do sprawdzenia",
+        "table_footer": "{actor} gra • użyj przycisków • \U0001F0CF pokazuje twoje karty",
+        "field_result": "Wynik",
+        "btn_join": "Dołącz",
+        "btn_leave": "Opuść",
+        "btn_add_bot": "Dodaj bota",
+        "btn_remove_bot": "Usuń bota",
+        "btn_start": "Start",
+        "btn_cancel": "Anuluj",
+        "btn_fold": "Fold",
+        "btn_call": "Call {amount}",
+        "btn_check": "Czek",
+        "btn_raise": "Podbij",
+        "btn_allin": "All-in",
+        "btn_my_cards": "Moje karty",
+        "btn_next_hand": "Następne rozdanie",
+        "btn_end_table": "Zakończ stół",
+        "modal_title": "Podbicie",
+        "modal_label": "Podbij do (łączny zakład w tej rundzie)",
+        "hand_8": "Poker (Straight Flush)",
+        "hand_7": "Kareta",
+        "hand_6": "Full House",
+        "hand_5": "Kolor",
+        "hand_4": "Strit",
+        "hand_3": "Trójka",
+        "hand_2": "Dwie pary",
+        "hand_1": "Para",
+        "hand_0": "Wysoka karta",
+    },
+}
+
+t = make_translator(_STRINGS)
+
+
 def best_hand(seven):
     return max(evaluate_5(list(c)) for c in itertools.combinations(seven, 5))
 
 
-def hand_name(score):
-    return HAND_NAMES.get(score[0], "High Card")
+def hand_name(score, lang="en"):
+    return t(lang, f"hand_{score[0]}")
 
 
 # ----- Card image rendering (Pillow) -----
@@ -311,12 +833,12 @@ def render_table_png(table):
 
         # -- pot + street label (above community) --
         pot = table.pot()
-        pot_txt = f"POT  {pot}"
+        pot_txt = t(table.lang, "render_pot", pot=pot)
         d.text((cx, cy - ch // 2 - 30), pot_txt, font=f_pot, fill=(252, 248, 235), anchor="mm")
         if table.state == "betting":
             d.text((cx, cy + ch // 2 + 26), table.street.upper(), font=f_street, fill=th["accent"], anchor="mm")
         elif table.state == "hand_over":
-            d.text((cx, cy + ch // 2 + 26), "SHOWDOWN", font=f_street, fill=th["accent"], anchor="mm")
+            d.text((cx, cy + ch // 2 + 26), t(table.lang, "render_showdown"), font=f_street, fill=th["accent"], anchor="mm")
 
         # -- seats around the ellipse (seat 0 = bottom) --
         n = len(table.players)
@@ -343,7 +865,7 @@ def render_table_png(table):
             label = _fit(p.name, 14)
             d.text((x + 12, y + 8), label, font=f_name, fill=name_col)
             if p.is_bot:
-                d.text((x + bw - 12, y + 9), "BOT", font=f_tag, fill=(150, 156, 168), anchor="ra")
+                d.text((x + bw - 12, y + 9), t(table.lang, "render_bot_tag"), font=f_tag, fill=(150, 156, 168), anchor="ra")
 
             # chip stack line
             d.ellipse([x + 12, y + 38, x + 24, y + 50], fill=th["accent"], outline=(0, 0, 0))
@@ -356,11 +878,11 @@ def render_table_png(table):
             status = ""
             scol = (180, 186, 196)
             if folded:
-                status, scol = "FOLD", (150, 90, 90)
+                status, scol = t(table.lang, "render_fold"), (150, 90, 90)
             elif p.all_in:
-                status, scol = "ALL-IN", th["accent"]
+                status, scol = t(table.lang, "render_allin"), th["accent"]
             elif table.state == "betting" and p.bet > 0:
-                status, scol = f"bet {p.bet}", (206, 211, 220)
+                status, scol = t(table.lang, "render_bet", amount=p.bet), (206, 211, 220)
             if status:
                 d.text((x + bw - 12, y + 46), status, font=f_tag, fill=scol, anchor="ra")
 
@@ -408,6 +930,7 @@ class PokerTable:
         self.host_id = host_id
         self.tid = uuid.uuid4().hex[:8]
         self.theme = DEFAULT_THEME  # felt design (set from guild games settings)
+        self.lang = "en"            # game language (set from guild games settings)
         self.players = []
         self.state = "lobby"        # lobby | betting | hand_over | ended
         self.message = None
@@ -523,7 +1046,7 @@ class PokerTable:
             p.acted = True
         elif action == "check":
             if p.bet != self.current_bet:
-                return False, "You can't check — there's a bet to call."
+                return False, t(self.lang, "err_cant_check")
             p.acted = True
         elif action == "call":
             pay = min(self.current_bet - p.bet, p.stack)
@@ -536,7 +1059,7 @@ class PokerTable:
         elif action == "allin":
             pay = p.stack
             if pay <= 0:
-                return False, "You have no chips left."
+                return False, t(self.lang, "err_no_chips")
             p.stack = 0
             p.bet += pay
             p.total += pay
@@ -552,15 +1075,15 @@ class PokerTable:
             try:
                 target = int(raise_to)
             except (TypeError, ValueError):
-                return False, "Enter a whole number."
+                return False, t(self.lang, "err_whole_number")
             max_to = p.bet + p.stack
             if target <= self.current_bet:
-                return False, f"A raise must exceed the current bet of {self.current_bet}."
+                return False, t(self.lang, "err_raise_exceed", bet=self.current_bet)
             if target > max_to:
-                return False, f"You can bet at most {max_to}."
+                return False, t(self.lang, "err_bet_at_most", max=max_to)
             min_to = self.current_bet + self.last_raise
             if target < min_to and target != max_to:
-                return False, f"Minimum raise is to {min_to} (or all-in for {max_to})."
+                return False, t(self.lang, "err_min_raise", min=min_to, max=max_to)
             pay = target - p.bet
             p.stack -= pay
             p.total += pay
@@ -574,7 +1097,7 @@ class PokerTable:
                     o.acted = False
             p.acted = True
         else:
-            return False, "Unknown action."
+            return False, t(self.lang, "err_unknown_action")
         return True, None
 
     def advance_street(self):
@@ -652,11 +1175,13 @@ def _dealer_marks(table, idx):
 class RaiseModal(discord.ui.Modal, title="Raise"):
     amount = discord.ui.TextInput(label="Raise to (total bet this round)", required=True, max_length=12)
 
-    def __init__(self, cog, channel_id, tid, hint):
+    def __init__(self, cog, channel_id, tid, hint, lang="en"):
         super().__init__()
         self.cog = cog
         self.channel_id = channel_id
         self.tid = tid
+        self.title = t(lang, "modal_title")
+        self.amount.label = t(lang, "modal_label")
         self.amount.placeholder = hint
 
     async def on_submit(self, interaction):
@@ -690,21 +1215,23 @@ class Poker(commands.Cog):
     @commands.guild_only()
     async def poker(self, ctx):
         settings = await self._settings(ctx.guild.id)
+        lang = lang_of(settings)
         if not settings or not settings.get("poker_enabled"):
-            await ctx.reply("Poker is not enabled on this server.", mention_author=False)
+            await ctx.reply(t(lang, "not_enabled"), mention_author=False)
             return
         ch = settings.get("games_channel_id")
         if ch and str(ctx.channel.id) != str(ch):
-            await ctx.reply(f"Poker can only be played in <#{ch}>.", mention_author=False)
+            await ctx.reply(t(lang, "wrong_channel", channel=ch), mention_author=False)
             return
         if ctx.channel.id in self.tables:
-            await ctx.reply("A poker table is already open in this channel.", mention_author=False)
+            await ctx.reply(t(lang, "already_open"), mention_author=False)
             return
 
         table = PokerTable(ctx.guild.id, ctx.channel.id, ctx.author.id)
         theme = settings.get("poker_table_theme")
         if theme in THEMES:
             table.theme = theme
+        table.lang = lang
         table.players.append(PokerPlayer(ctx.author.id, ctx.author.display_name, STARTING_STACK))
         table.participants[ctx.author.id] = ctx.author.display_name
         self.tables[ctx.channel.id] = table
@@ -712,7 +1239,7 @@ class Poker(commands.Cog):
             table.message = await ctx.send(embed=self._lobby_embed(table), view=self._lobby_view(table))
         except discord.Forbidden:
             del self.tables[ctx.channel.id]
-            await ctx.reply("I can't post in this channel.", mention_author=False)
+            await ctx.reply(t(table.lang, "cant_post"), mention_author=False)
 
     # -- interaction routing --
     @commands.Cog.listener()
@@ -729,7 +1256,7 @@ class Poker(commands.Cog):
         table = self.tables.get(interaction.channel_id)
         if not table or table.tid != tid:
             try:
-                await interaction.response.send_message("This poker table has closed.", ephemeral=True)
+                await interaction.response.send_message(t(table.lang if table else "en", "table_closed"), ephemeral=True)
             except discord.HTTPException:
                 pass
             return
@@ -738,21 +1265,21 @@ class Poker(commands.Cog):
             # opens a modal — must respond directly, no defer
             p = table.find(interaction.user.id)
             if table.state != "betting" or table.to_act is None or table.players[table.to_act].id != interaction.user.id:
-                await interaction.response.send_message("It's not your turn.", ephemeral=True)
+                await interaction.response.send_message(t(table.lang, "not_your_turn"), ephemeral=True)
                 return
             min_to = table.current_bet + table.last_raise
             max_to = p.bet + p.stack
-            await interaction.response.send_modal(RaiseModal(self, table.channel_id, tid, f"{min_to}–{max_to}"))
+            await interaction.response.send_modal(RaiseModal(self, table.channel_id, tid, f"{min_to}–{max_to}", table.lang))
             return
 
         if action == "cards":
             p = table.find(interaction.user.id)
             if not p or not p.hole:
-                await interaction.response.send_message("You have no cards in this hand.", ephemeral=True)
+                await interaction.response.send_message(t(table.lang, "no_cards"), ephemeral=True)
                 return
             score = best_hand(p.hole + table.board) if table.board else None
-            extra = f"\nBest so far: **{hand_name(score)}**" if score else ""
-            content = f"🃏 Your hand: **{cards_str(p.hole)}**{extra}"
+            extra = t(table.lang, "cards_best_so_far", hand=hand_name(score, table.lang)) if score else ""
+            content = t(table.lang, "cards_your_hand", cards=cards_str(p.hole), extra=extra)
             buf = render_cards_png(p.hole)
             if buf is not None:
                 await interaction.response.send_message(content, file=discord.File(buf, filename="hand.png"), ephemeral=True)
@@ -774,15 +1301,15 @@ class Poker(commands.Cog):
     # -- lobby --
     async def _handle_lobby(self, interaction, table, action):
         if table.state != "lobby":
-            await interaction.response.send_message("The game has already started.", ephemeral=True)
+            await interaction.response.send_message(t(table.lang, "already_started"), ephemeral=True)
             return
         uid = interaction.user.id
         if action == "join":
             if table.find(uid):
-                await interaction.response.send_message("You're already at the table.", ephemeral=True)
+                await interaction.response.send_message(t(table.lang, "already_seated"), ephemeral=True)
                 return
             if len(table.players) >= MAX_PLAYERS:
-                await interaction.response.send_message("The table is full.", ephemeral=True)
+                await interaction.response.send_message(t(table.lang, "table_full"), ephemeral=True)
                 return
             table.players.append(PokerPlayer(uid, interaction.user.display_name, STARTING_STACK))
             table.participants[uid] = interaction.user.display_name
@@ -790,52 +1317,52 @@ class Poker(commands.Cog):
         elif action == "leave":
             p = table.find(uid)
             if not p:
-                await interaction.response.send_message("You're not at the table.", ephemeral=True)
+                await interaction.response.send_message(t(table.lang, "not_seated"), ephemeral=True)
                 return
             table.players.remove(p)
             if not table.players:
                 self.tables.pop(table.channel_id, None)
-                await interaction.response.edit_message(content="Table closed.", embed=None, view=None)
+                await interaction.response.edit_message(content=t(table.lang, "table_closed_msg"), embed=None, view=None)
                 return
             if uid == table.host_id:
                 table.host_id = table.players[0].id
             await interaction.response.edit_message(embed=self._lobby_embed(table), view=self._lobby_view(table))
         elif action == "addbot":
             if uid != table.host_id:
-                await interaction.response.send_message("Only the host can add bots.", ephemeral=True)
+                await interaction.response.send_message(t(table.lang, "host_only_addbot"), ephemeral=True)
                 return
             if len(table.players) >= MAX_PLAYERS:
-                await interaction.response.send_message("The table is full.", ephemeral=True)
+                await interaction.response.send_message(t(table.lang, "table_full"), ephemeral=True)
                 return
             used = {p.name for p in table.players if p.is_bot}
             pick = next((f"🤖 {n}" for n in BOT_NAMES if f"🤖 {n}" not in used), None)
             if pick is None:
-                await interaction.response.send_message("No more bot seats available.", ephemeral=True)
+                await interaction.response.send_message(t(table.lang, "no_bot_seats"), ephemeral=True)
                 return
             table.players.append(PokerPlayer(f"bot:{uuid.uuid4().hex[:8]}", pick, STARTING_STACK, is_bot=True))
             await interaction.response.edit_message(embed=self._lobby_embed(table), view=self._lobby_view(table))
         elif action == "rmbot":
             if uid != table.host_id:
-                await interaction.response.send_message("Only the host can remove bots.", ephemeral=True)
+                await interaction.response.send_message(t(table.lang, "host_only_rmbot"), ephemeral=True)
                 return
             bot_player = next((p for p in reversed(table.players) if p.is_bot), None)
             if not bot_player:
-                await interaction.response.send_message("There are no bots to remove.", ephemeral=True)
+                await interaction.response.send_message(t(table.lang, "no_bots"), ephemeral=True)
                 return
             table.players.remove(bot_player)
             await interaction.response.edit_message(embed=self._lobby_embed(table), view=self._lobby_view(table))
         elif action == "cancel":
             if uid != table.host_id:
-                await interaction.response.send_message("Only the host can cancel the table.", ephemeral=True)
+                await interaction.response.send_message(t(table.lang, "host_only_cancel"), ephemeral=True)
                 return
             self.tables.pop(table.channel_id, None)
-            await interaction.response.edit_message(content="Table cancelled by the host.", embed=None, view=None)
+            await interaction.response.edit_message(content=t(table.lang, "table_cancelled"), embed=None, view=None)
         elif action == "start":
             if uid != table.host_id:
-                await interaction.response.send_message("Only the host can start the game.", ephemeral=True)
+                await interaction.response.send_message(t(table.lang, "host_only_start"), ephemeral=True)
                 return
             if len(table.players) < MIN_PLAYERS:
-                await interaction.response.send_message(f"Need at least {MIN_PLAYERS} players.", ephemeral=True)
+                await interaction.response.send_message(t(table.lang, "need_players", count=MIN_PLAYERS), ephemeral=True)
                 return
             table.begin_hand()
             await interaction.response.defer()
@@ -845,10 +1372,10 @@ class Poker(commands.Cog):
     # -- betting --
     async def _handle_bet(self, interaction, table, action):
         if table.state != "betting":
-            await interaction.response.send_message("No betting is in progress.", ephemeral=True)
+            await interaction.response.send_message(t(table.lang, "no_betting"), ephemeral=True)
             return
         if table.to_act is None or table.players[table.to_act].id != interaction.user.id:
-            await interaction.response.send_message("It's not your turn.", ephemeral=True)
+            await interaction.response.send_message(t(table.lang, "not_your_turn"), ephemeral=True)
             return
         p = table.players[table.to_act]
         ok, err = table.apply_action(p, action)
@@ -861,11 +1388,11 @@ class Poker(commands.Cog):
     async def on_raise_submit(self, interaction, channel_id, tid, raw):
         table = self.tables.get(channel_id)
         if not table or table.tid != tid:
-            await interaction.response.send_message("This table has closed.", ephemeral=True)
+            await interaction.response.send_message(t(table.lang if table else "en", "table_closed_short"), ephemeral=True)
             return
         async with table.lock:
             if table.state != "betting" or table.to_act is None or table.players[table.to_act].id != interaction.user.id:
-                await interaction.response.send_message("It's not your turn anymore.", ephemeral=True)
+                await interaction.response.send_message(t(table.lang, "not_your_turn_anymore"), ephemeral=True)
                 return
             p = table.players[table.to_act]
             ok, err = table.apply_action(p, "raise", raise_to=raw.strip())
@@ -901,7 +1428,7 @@ class Poker(commands.Cog):
         winner = table.live_players()[0]
         amount = table.pot()
         winner.stack += amount
-        table.last_result = f"🏆 **{winner.name}** wins **{amount}** chips (everyone else folded)."
+        table.last_result = t(table.lang, "result_fold_win", winner=winner.name, amount=amount)
         await self._end_hand(table)
 
     async def _showdown(self, table):
@@ -909,7 +1436,7 @@ class Poker(commands.Cog):
         lines = []
         for p in sorted(table.live_players(), key=lambda x: best_hand(x.hole + table.board), reverse=True):
             sc = best_hand(p.hole + table.board)
-            lines.append(f"**{p.name}** — {cards_str(p.hole)}  ·  *{hand_name(sc)}*")
+            lines.append(t(table.lang, "showdown_line", name=p.name, cards=cards_str(p.hole), hand=hand_name(sc, table.lang)))
         payouts = Counter()
         for amount, eligible in pots:
             scored = [(p, best_hand(p.hole + table.board)) for p in eligible]
@@ -921,8 +1448,8 @@ class Poker(commands.Cog):
                 payouts[w] += share + (1 if i < rem else 0)
         for p, amt in payouts.items():
             p.stack += amt
-        win_txt = ", ".join(f"**{p.name}** (+{amt})" for p, amt in sorted(payouts.items(), key=lambda kv: -kv[1]))
-        table.last_result = "🃏 **Showdown**\n" + "\n".join(lines) + f"\n\n💰 Pot **{table.pot()}** → {win_txt}"
+        win_txt = ", ".join(t(table.lang, "showdown_payout", name=p.name, amount=amt) for p, amt in sorted(payouts.items(), key=lambda kv: -kv[1]))
+        table.last_result = t(table.lang, "showdown_result", lines="\n".join(lines), pot=table.pot(), win=win_txt)
         await self._end_hand(table)
 
     async def _end_hand(self, table):
@@ -933,7 +1460,7 @@ class Poker(commands.Cog):
         survivors = [p for p in table.players if p.stack > 0]
         if len(survivors) < MIN_PLAYERS:
             if survivors:
-                table.last_result += f"\n\n👑 **{survivors[0].name}** is the last player standing — table over!"
+                table.last_result += t(table.lang, "last_standing", name=survivors[0].name)
             await self._render(table, final=True)
             await self._score_and_close(table)
             return
@@ -980,12 +1507,12 @@ class Poker(commands.Cog):
                 print(f"[poker] score post failed for {uid}: {exc}")
         self.tables.pop(table.channel_id, None)
         embed = discord.Embed(
-            title="♠ Poker — Table closed",
+            title=t(table.lang, "closed_title"),
             color=SHOWDOWN_COLOR,
-            description="\n".join(f"**{i+1}.** {p.name} — {p.stack} chips" for i, p in enumerate(ranking)) or "No players.",
+            description="\n".join(t(table.lang, "closed_rank_line", n=i+1, name=p.name, stack=p.stack) for i, p in enumerate(ranking)) or t(table.lang, "closed_no_players"),
         )
         if winner:
-            embed.set_footer(text=f"Winner: {winner.name}")
+            embed.set_footer(text=t(table.lang, "closed_winner", name=winner.name))
         try:
             if table.message:
                 await table.message.edit(content=None, embed=embed, view=None, attachments=[])
@@ -1080,7 +1607,7 @@ class Poker(commands.Cog):
             try:
                 ch = self.bot.get_channel(table.channel_id)
                 if ch:
-                    await ch.send(f"⏰ {p.name} took too long — auto **{action}**.", delete_after=10)
+                    await ch.send(t(table.lang, "timeout_auto", name=p.name, action=t(table.lang, "action_" + action)), delete_after=10)
             except discord.HTTPException:
                 pass
             await self._after_action(table)
@@ -1112,12 +1639,12 @@ class Poker(commands.Cog):
 
     def _caption_text(self, table):
         """Plain-text caption shown above the rendered table image."""
-        head = f"♠ **Poker — Hand #{table.hand_no}**"
+        head = t(table.lang, "caption_head", n=table.hand_no)
         if table.state == "betting" and table.to_act is not None:
             actor = table.players[table.to_act]
             to_call = max(0, table.current_bet - actor.bet)
-            call_txt = f"to call **{to_call}**" if to_call else "can **check**"
-            return f"{head}\n➤ **{actor.name}** to act · {call_txt} · 🃏 shows your cards"
+            call_txt = t(table.lang, "caption_to_call", amount=to_call) if to_call else t(table.lang, "caption_can_check")
+            return t(table.lang, "caption_to_act", head=head, actor=actor.name, call=call_txt)
         if table.state == "hand_over" and table.last_result:
             return f"{head}\n{table.last_result[:1800]}"
         return head
@@ -1129,23 +1656,23 @@ class Poker(commands.Cog):
             tag = " 👑" if p.id == table.host_id else ""
             if p.is_bot:
                 tag += " 🤖"
-            lines.append(f"• {p.name}{tag} — {p.stack} chips")
+            lines.append(t(table.lang, "lobby_player_line", name=p.name, tag=tag, stack=p.stack))
         embed = discord.Embed(
-            title="♠ Poker table — Lobby",
+            title=t(table.lang, "lobby_title"),
             color=LOBBY_COLOR,
-            description="\n".join(lines) or "No players yet.",
+            description="\n".join(lines) or t(table.lang, "lobby_no_players"),
         )
-        embed.add_field(name="Players", value=f"{len(table.players)}/{MAX_PLAYERS}", inline=True)
-        embed.add_field(name="Blinds", value=f"{SMALL_BLIND}/{BIG_BLIND}", inline=True)
-        embed.add_field(name="Start stack", value=str(STARTING_STACK), inline=True)
-        embed.set_footer(text=f"Host: {host.name if host else '—'} • Design: {theme_of(table)['label']} • Press Join to take a seat")
+        embed.add_field(name=t(table.lang, "field_players"), value=f"{len(table.players)}/{MAX_PLAYERS}", inline=True)
+        embed.add_field(name=t(table.lang, "field_blinds"), value=f"{SMALL_BLIND}/{BIG_BLIND}", inline=True)
+        embed.add_field(name=t(table.lang, "field_start_stack"), value=str(STARTING_STACK), inline=True)
+        embed.set_footer(text=t(table.lang, "lobby_footer", host=(host.name if host else '—'), design=theme_of(table)['label']))
         return embed
 
     def _table_embed(self, table):
         color = SHOWDOWN_COLOR if table.state == "hand_over" else TABLE_COLOR
-        embed = discord.Embed(title=f"♠ Poker — Hand #{table.hand_no}", color=color)
+        embed = discord.Embed(title=t(table.lang, "table_embed_title", n=table.hand_no), color=color)
         embed.add_field(
-            name=f"Community  ·  {table.street.title() if table.state == 'betting' else 'Board'}",
+            name=t(table.lang, "field_community", street=(table.street.title() if table.state == 'betting' else t(table.lang, "board_label"))),
             value=cards_str(table.board),
             inline=False,
         )
@@ -1157,52 +1684,52 @@ class Poker(commands.Cog):
             cursor = "➤ " if (table.state == "betting" and table.to_act == idx) else ""
             status = ""
             if p.folded:
-                status = " — 🚫 folded"
+                status = t(table.lang, "status_folded")
             elif p.all_in:
-                status = " — 🅰️ all-in"
+                status = t(table.lang, "status_allin")
             elif table.state == "betting" and p.bet > 0:
-                status = f" — bet {p.bet}"
-            rows.append(f"{cursor}**{p.name}** {marks}\n`{p.stack}` chips{status}")
-        embed.add_field(name="Players", value="\n".join(rows) or "—", inline=False)
-        embed.add_field(name="Pot", value=str(table.pot()), inline=True)
+                status = t(table.lang, "status_bet", amount=p.bet)
+            rows.append(t(table.lang, "table_row", cursor=cursor, name=p.name, marks=marks, stack=p.stack, status=status))
+        embed.add_field(name=t(table.lang, "field_players"), value="\n".join(rows) or "—", inline=False)
+        embed.add_field(name=t(table.lang, "field_pot"), value=str(table.pot()), inline=True)
         if table.state == "betting":
             to_call = max(0, table.current_bet - table.players[table.to_act].bet) if table.to_act is not None else 0
-            embed.add_field(name="To call", value=str(to_call), inline=True)
+            embed.add_field(name=t(table.lang, "field_to_call"), value=str(to_call), inline=True)
             actor = table.players[table.to_act].name if table.to_act is not None else "—"
-            embed.set_footer(text=f"{actor} to act • use the buttons • 🃏 shows your cards")
+            embed.set_footer(text=t(table.lang, "table_footer", actor=actor))
         if table.state == "hand_over" and table.last_result:
-            embed.add_field(name="Result", value=table.last_result[:1024], inline=False)
+            embed.add_field(name=t(table.lang, "field_result"), value=table.last_result[:1024], inline=False)
         return embed
 
     # -- views (buttons handled in on_interaction) --
     def _lobby_view(self, table):
         v = discord.ui.View(timeout=None)
-        v.add_item(discord.ui.Button(style=discord.ButtonStyle.success, label="Join", emoji="➕", custom_id=f"pk:join:{table.tid}"))
-        v.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, label="Leave", emoji="➖", custom_id=f"pk:leave:{table.tid}"))
-        v.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, label="Add bot", emoji="🤖", custom_id=f"pk:addbot:{table.tid}"))
-        v.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, label="Remove bot", emoji="🗑️", custom_id=f"pk:rmbot:{table.tid}"))
-        v.add_item(discord.ui.Button(style=discord.ButtonStyle.primary, label="Start", emoji="▶️", custom_id=f"pk:start:{table.tid}"))
-        v.add_item(discord.ui.Button(style=discord.ButtonStyle.danger, label="Cancel", emoji="✖️", custom_id=f"pk:cancel:{table.tid}"))
+        v.add_item(discord.ui.Button(style=discord.ButtonStyle.success, label=t(table.lang, "btn_join"), emoji="➕", custom_id=f"pk:join:{table.tid}"))
+        v.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, label=t(table.lang, "btn_leave"), emoji="➖", custom_id=f"pk:leave:{table.tid}"))
+        v.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, label=t(table.lang, "btn_add_bot"), emoji="🤖", custom_id=f"pk:addbot:{table.tid}"))
+        v.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, label=t(table.lang, "btn_remove_bot"), emoji="🗑️", custom_id=f"pk:rmbot:{table.tid}"))
+        v.add_item(discord.ui.Button(style=discord.ButtonStyle.primary, label=t(table.lang, "btn_start"), emoji="▶️", custom_id=f"pk:start:{table.tid}"))
+        v.add_item(discord.ui.Button(style=discord.ButtonStyle.danger, label=t(table.lang, "btn_cancel"), emoji="✖️", custom_id=f"pk:cancel:{table.tid}"))
         return v
 
     def _betting_view(self, table):
         v = discord.ui.View(timeout=None)
         facing = table.to_act is not None and table.current_bet > table.players[table.to_act].bet
-        v.add_item(discord.ui.Button(style=discord.ButtonStyle.danger, label="Fold", emoji="❌", custom_id=f"pk:fold:{table.tid}"))
+        v.add_item(discord.ui.Button(style=discord.ButtonStyle.danger, label=t(table.lang, "btn_fold"), emoji="❌", custom_id=f"pk:fold:{table.tid}"))
         if facing:
             to_call = table.current_bet - table.players[table.to_act].bet
-            v.add_item(discord.ui.Button(style=discord.ButtonStyle.primary, label=f"Call {to_call}", emoji="📞", custom_id=f"pk:call:{table.tid}"))
+            v.add_item(discord.ui.Button(style=discord.ButtonStyle.primary, label=t(table.lang, "btn_call", amount=to_call), emoji="📞", custom_id=f"pk:call:{table.tid}"))
         else:
-            v.add_item(discord.ui.Button(style=discord.ButtonStyle.success, label="Check", emoji="✅", custom_id=f"pk:check:{table.tid}"))
-        v.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, label="Raise", emoji="⬆️", custom_id=f"pk:raise:{table.tid}"))
-        v.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, label="All-in", emoji="🅰️", custom_id=f"pk:allin:{table.tid}"))
-        v.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, label="My cards", emoji="🃏", custom_id=f"pk:cards:{table.tid}"))
+            v.add_item(discord.ui.Button(style=discord.ButtonStyle.success, label=t(table.lang, "btn_check"), emoji="✅", custom_id=f"pk:check:{table.tid}"))
+        v.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, label=t(table.lang, "btn_raise"), emoji="⬆️", custom_id=f"pk:raise:{table.tid}"))
+        v.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, label=t(table.lang, "btn_allin"), emoji="🅰️", custom_id=f"pk:allin:{table.tid}"))
+        v.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, label=t(table.lang, "btn_my_cards"), emoji="🃏", custom_id=f"pk:cards:{table.tid}"))
         return v
 
     def _over_view(self, table):
         v = discord.ui.View(timeout=None)
-        v.add_item(discord.ui.Button(style=discord.ButtonStyle.success, label="Next hand", emoji="🔁", custom_id=f"pk:nexthand:{table.tid}"))
-        v.add_item(discord.ui.Button(style=discord.ButtonStyle.danger, label="End table", emoji="⏹️", custom_id=f"pk:end:{table.tid}"))
+        v.add_item(discord.ui.Button(style=discord.ButtonStyle.success, label=t(table.lang, "btn_next_hand"), emoji="🔁", custom_id=f"pk:nexthand:{table.tid}"))
+        v.add_item(discord.ui.Button(style=discord.ButtonStyle.danger, label=t(table.lang, "btn_end_table"), emoji="⏹️", custom_id=f"pk:end:{table.tid}"))
         return v
 
 

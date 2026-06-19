@@ -416,6 +416,10 @@ export default {
     inviteBot: 'ProjectX\'i bu sunucuya davet et',
     botMissingPill: 'Bot sunucuda değil'
   },
+  games: {
+    languageLabel: 'Oyun dili',
+    languageHint: 'Botun tüm oyun mesajlarında kullandığı dil (tüm oyunlar için geçerlidir).'
+  },
   poker: {
     eyebrow: 'Oyunlar', title: 'Poker',
     sub: 'Çok oyunculu Texas Hold’em masalarını doğrudan bir kanalda yürütün.',

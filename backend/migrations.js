@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 30;
+const CURRENT_SCHEMA_VERSION = 31;
 
 /**
  * Initialize schema version tracking
@@ -89,7 +89,8 @@ async function applyMigrations(fromVersion, toVersion) {
     27: migrationV27,
     28: migrationV28,
     29: migrationV29,
-    30: migrationV30
+    30: migrationV30,
+    31: migrationV31
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -1773,6 +1774,19 @@ function migrationV29() {
 function migrationV30() {
   return runSchemaBatch(30, [
     "ALTER TABLE guild_games_settings ADD COLUMN poker_table_theme TEXT DEFAULT 'classic'"
+  ]);
+}
+
+/**
+ * Migration V31: per-guild game language (shared across the whole Games category).
+ *   - guild_games_settings.games_language: language key the bot renders all game
+ *     text in (en|de|tr|ru|pl). Default 'en'.
+ * Idempotent ALTER ("duplicate column name" swallowed); mirrored in
+ * initializeDatabase().
+ */
+function migrationV31() {
+  return runSchemaBatch(31, [
+    "ALTER TABLE guild_games_settings ADD COLUMN games_language TEXT DEFAULT 'en'"
   ]);
 }
 

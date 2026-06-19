@@ -1151,6 +1151,7 @@ function initializeDatabase() {
         hangman_enabled   BOOLEAN DEFAULT 0,
         poker_enabled     BOOLEAN DEFAULT 0,
         poker_table_theme TEXT DEFAULT 'classic',
+        games_language    TEXT DEFAULT 'en',
         updated_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
       )
@@ -1160,6 +1161,9 @@ function initializeDatabase() {
     });
     db.run("ALTER TABLE guild_games_settings ADD COLUMN poker_table_theme TEXT DEFAULT 'classic'", (err) => {
       if (err && !/duplicate column name/i.test(err.message)) console.error('Warning: guild_games_settings.poker_table_theme:', err.message);
+    });
+    db.run("ALTER TABLE guild_games_settings ADD COLUMN games_language TEXT DEFAULT 'en'", (err) => {
+      if (err && !/duplicate column name/i.test(err.message)) console.error('Warning: guild_games_settings.games_language:', err.message);
     });
     db.run(`
       CREATE TABLE IF NOT EXISTS guild_game_scores (
@@ -6773,6 +6777,9 @@ export const GAME_KEYS = ['tictactoe', 'rps', 'trivia', 'connect4', 'hangman', '
 /** Valid Poker table render themes (felt design). Source of truth shared with the bot + dashboard picker. */
 export const POKER_THEMES = ['classic', 'midnight', 'crimson', 'charcoal', 'royal'];
 
+/** Valid game languages (shared across the whole Games category). Source of truth shared with the bot + dashboard picker. */
+export const GAME_LANGUAGES = ['en', 'de', 'tr', 'ru', 'pl'];
+
 export const GAMES_DEFAULTS = {
   games_channel_id: null,
   tictactoe_enabled: false,
@@ -6781,7 +6788,8 @@ export const GAMES_DEFAULTS = {
   connect4_enabled: false,
   hangman_enabled: false,
   poker_enabled: false,
-  poker_table_theme: 'classic'
+  poker_table_theme: 'classic',
+  games_language: 'en'
 };
 
 function shapeGames(row) {
@@ -6794,7 +6802,8 @@ function shapeGames(row) {
     connect4_enabled: !!row.connect4_enabled,
     hangman_enabled: !!row.hangman_enabled,
     poker_enabled: !!row.poker_enabled,
-    poker_table_theme: POKER_THEMES.includes(row.poker_table_theme) ? row.poker_table_theme : 'classic'
+    poker_table_theme: POKER_THEMES.includes(row.poker_table_theme) ? row.poker_table_theme : 'classic',
+    games_language: GAME_LANGUAGES.includes(row.games_language) ? row.games_language : 'en'
   };
 }
 
@@ -6819,9 +6828,12 @@ export function upsertGamesSettings(guildId, settings) {
     if ('poker_table_theme' in settings) {
       next.poker_table_theme = POKER_THEMES.includes(settings.poker_table_theme) ? settings.poker_table_theme : 'classic';
     }
+    if ('games_language' in settings) {
+      next.games_language = GAME_LANGUAGES.includes(settings.games_language) ? settings.games_language : 'en';
+    }
     await runStmt(
-      `INSERT INTO guild_games_settings (guild_id, games_channel_id, tictactoe_enabled, rps_enabled, trivia_enabled, connect4_enabled, hangman_enabled, poker_enabled, poker_table_theme)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO guild_games_settings (guild_id, games_channel_id, tictactoe_enabled, rps_enabled, trivia_enabled, connect4_enabled, hangman_enabled, poker_enabled, poker_table_theme, games_language)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(guild_id) DO UPDATE SET
          games_channel_id = excluded.games_channel_id,
          tictactoe_enabled = excluded.tictactoe_enabled,
@@ -6831,11 +6843,12 @@ export function upsertGamesSettings(guildId, settings) {
          hangman_enabled = excluded.hangman_enabled,
          poker_enabled = excluded.poker_enabled,
          poker_table_theme = excluded.poker_table_theme,
+         games_language = excluded.games_language,
          updated_at = CURRENT_TIMESTAMP`,
       [guildId, next.games_channel_id,
         next.tictactoe_enabled ? 1 : 0, next.rps_enabled ? 1 : 0, next.trivia_enabled ? 1 : 0,
         next.connect4_enabled ? 1 : 0, next.hangman_enabled ? 1 : 0, next.poker_enabled ? 1 : 0,
-        next.poker_table_theme]
+        next.poker_table_theme, next.games_language]
     );
     return shapeGames(await dbGet('SELECT * FROM guild_games_settings WHERE guild_id = ?', [guildId]));
   });
