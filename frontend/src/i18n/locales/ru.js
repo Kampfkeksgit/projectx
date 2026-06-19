@@ -872,7 +872,11 @@ export default {
       giveaways: 'Розыгрыши',
       suggestions: 'Предложения',
       verification: 'Верификация',
-      birthday: 'Дни рождения'
+      birthday: 'Дни рождения',
+      polls: 'Опросы',
+      applications: 'Заявки',
+      economy: 'Экономика',
+      games: 'Игры'
     }
   },
   customCommands: {

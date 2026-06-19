@@ -914,7 +914,11 @@ export default {
       giveaways: 'Giveaways',
       suggestions: 'Vorschläge',
       verification: 'Verifizierung',
-      birthday: 'Geburtstag'
+      birthday: 'Geburtstag',
+      polls: 'Umfragen',
+      applications: 'Bewerbungen',
+      economy: 'Wirtschaft',
+      games: 'Spiele'
     }
   },
   customCommands: {

@@ -872,7 +872,11 @@ export default {
       giveaways: 'Çekilişler',
       suggestions: 'Öneriler',
       verification: 'Doğrulama',
-      birthday: 'Doğum Günü'
+      birthday: 'Doğum Günü',
+      polls: 'Anketler',
+      applications: 'Başvurular',
+      economy: 'Ekonomi',
+      games: 'Oyunlar'
     }
   },
   customCommands: {

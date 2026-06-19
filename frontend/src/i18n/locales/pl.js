@@ -872,7 +872,11 @@ export default {
       giveaways: 'Konkursy',
       suggestions: 'Sugestie',
       verification: 'Weryfikacja',
-      birthday: 'Urodziny'
+      birthday: 'Urodziny',
+      polls: 'Ankiety',
+      applications: 'Aplikacje',
+      economy: 'Ekonomia',
+      games: 'Gry'
     }
   },
   customCommands: {
