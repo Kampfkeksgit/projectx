@@ -1200,7 +1200,18 @@ export default {
     detailsChannels: 'Kanały',
     detailsUncategorized: 'Bez kategorii',
     detailsError: 'Nie udało się wczytać szczegółów migawki',
-    close: 'Zamknij'
+    close: 'Zamknij',
+    templateButton: 'Zastosuj szablon',
+    templateTitle: 'Zastosuj szablon serwera',
+    templateWarn: 'Skopiuj role i kanały z jednego z Twoich innych serwerów tutaj. Wybierz, jak potraktować istniejące elementy.',
+    templateSourceLabel: 'Serwer źródłowy',
+    templateSnapshotLabel: 'Migawka',
+    templateChooseServer: 'Wybierz serwer…',
+    templateChooseSnapshot: 'Wybierz migawkę…',
+    templateEmpty: 'Żaden z Twoich innych serwerów nie ma jeszcze migawki. Najpierw utwórz ją tam.',
+    templateApply: 'Zastosuj',
+    templateQueued: 'Zastosowanie szablonu w kolejce',
+    templateError: 'Nie udało się zastosować szablonu'
   },
   scheduled: {
     eyebrow: 'Konfiguracja',

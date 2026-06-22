@@ -1242,7 +1242,18 @@ export default {
     detailsChannels: 'Kanäle',
     detailsUncategorized: 'Ohne Kategorie',
     detailsError: 'Snapshot-Details konnten nicht geladen werden',
-    close: 'Schließen'
+    close: 'Schließen',
+    templateButton: 'Vorlage anwenden',
+    templateTitle: 'Server-Vorlage anwenden',
+    templateWarn: 'Kopiere Rollen und Kanäle von einem deiner anderen Server hierher. Wähle, wie bestehende Elemente behandelt werden.',
+    templateSourceLabel: 'Quell-Server',
+    templateSnapshotLabel: 'Snapshot',
+    templateChooseServer: 'Server wählen…',
+    templateChooseSnapshot: 'Snapshot wählen…',
+    templateEmpty: 'Keiner deiner anderen Server hat bisher einen Snapshot. Erstelle dort zuerst einen.',
+    templateApply: 'Anwenden',
+    templateQueued: 'Vorlagen-Anwendung eingereiht',
+    templateError: 'Vorlage konnte nicht angewendet werden'
   },
   scheduled: {
     eyebrow: 'Konfiguration',

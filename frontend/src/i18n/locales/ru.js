@@ -1200,7 +1200,18 @@ export default {
     detailsChannels: 'Каналы',
     detailsUncategorized: 'Без категории',
     detailsError: 'Не удалось загрузить данные снимка',
-    close: 'Закрыть'
+    close: 'Закрыть',
+    templateButton: 'Применить шаблон',
+    templateTitle: 'Применить шаблон сервера',
+    templateWarn: 'Скопируйте роли и каналы с другого вашего сервера сюда. Выберите, как обрабатывать существующие элементы.',
+    templateSourceLabel: 'Исходный сервер',
+    templateSnapshotLabel: 'Снимок',
+    templateChooseServer: 'Выберите сервер…',
+    templateChooseSnapshot: 'Выберите снимок…',
+    templateEmpty: 'Ни на одном из ваших других серверов пока нет снимков. Сначала создайте снимок там.',
+    templateApply: 'Применить',
+    templateQueued: 'Применение шаблона поставлено в очередь',
+    templateError: 'Не удалось применить шаблон'
   },
   scheduled: {
     eyebrow: 'Настройка',
