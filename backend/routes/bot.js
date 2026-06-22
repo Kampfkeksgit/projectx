@@ -92,7 +92,10 @@ import {
   economyBuy,
   getGamesSettings,
   recordGameScore,
-  getGameLeaderboard
+  getGameLeaderboard,
+  getDueBackupJobs,
+  updateBackupJob,
+  createBackup
 } from '../db.js'
 import { requireBotToken } from '../middleware/session.js'
 import { setBotStats } from '../state/botStats.js'
@@ -933,6 +936,48 @@ router.put('/scheduled/:id/ran', requireBotToken, async (req, res) => {
   } catch (error) {
     console.error('Bot mark scheduled ran error:', error.message)
     res.status(500).json({ error: 'Failed to mark scheduled message run' })
+  }
+})
+
+// ----- Server Backup & Restore (v32) -----
+
+// Backup: jobs that are due now (across all guilds). Restore jobs include `.data`.
+router.get('/backup/jobs/due', requireBotToken, async (req, res) => {
+  try {
+    const jobs = await getDueBackupJobs()
+    return res.json({ jobs })
+  } catch (error) {
+    console.error('Bot get due backup jobs error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch due backup jobs' })
+  }
+})
+
+// Backup: update a job's status / result.
+router.put('/backup/jobs/:job_id', requireBotToken, async (req, res) => {
+  try {
+    const { status, backup_id, message } = req.body || {}
+    await updateBackupJob(req.params.job_id, { status, backup_id, message })
+    return res.json({ success: true })
+  } catch (error) {
+    console.error('Bot update backup job error:', error.message)
+    res.status(500).json({ error: 'Failed to update backup job' })
+  }
+})
+
+// Backup: store a snapshot created by the bot.
+router.post('/guilds/:guild_id/backups', requireBotToken, async (req, res) => {
+  try {
+    const guildId = req.params.guild_id
+    if (!SNOWFLAKE_REGEX.test(guildId)) {
+      return res.status(400).json({ error: 'Invalid guild_id' })
+    }
+
+    const { name, guild_name, guild_icon_url, data } = req.body || {}
+    const snapshot = await createBackup(guildId, { name, guild_name, guild_icon_url, data })
+    return res.json({ id: snapshot.id })
+  } catch (error) {
+    console.error('Bot create backup error:', error.stack || error.message)
+    res.status(500).json({ error: 'Failed to create backup' })
   }
 })
 
