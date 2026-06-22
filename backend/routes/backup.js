@@ -69,14 +69,16 @@ router.post('/apply-template', requireSession, requireGuildAccess, async (req, r
     const snapshot = await getBackup(sourceGuildId, backupId)
     if (!snapshot) return res.status(404).json({ error: 'Snapshot not found' })
 
+    const parts = (req.body && req.body.parts) || null
+
     let job
     try {
-      job = await createBackupJob(targetId, { type: 'restore', backup_id: backupId, mode })
+      job = await createBackupJob(targetId, { type: 'restore', backup_id: backupId, mode, parts })
     } catch (err) {
       if (err && err.code === 'VALIDATION') return res.status(400).json({ error: err.message })
       throw err
     }
-    await logAuditAction(req.user.id, targetId, 'BACKUP_APPLY_TEMPLATE', { source_guild_id: sourceGuildId, backup_id: backupId, mode })
+    await logAuditAction(req.user.id, targetId, 'BACKUP_APPLY_TEMPLATE', { source_guild_id: sourceGuildId, backup_id: backupId, mode, parts: job.parts })
     res.json({ success: true, job })
   } catch (error) {
     console.error('Apply backup template error:', error.message)
@@ -124,15 +126,16 @@ router.post('/:backup_id/restore', requireSession, requireGuildAccess, async (re
 
     let mode = (req.body && req.body.mode) || 'missing'
     if (!RESTORE_MODES.includes(mode)) mode = 'missing'
+    const parts = (req.body && req.body.parts) || null
 
     let job
     try {
-      job = await createBackupJob(guildId, { type: 'restore', backup_id: backupId, mode })
+      job = await createBackupJob(guildId, { type: 'restore', backup_id: backupId, mode, parts })
     } catch (err) {
       if (err && err.code === 'VALIDATION') return res.status(400).json({ error: err.message })
       throw err
     }
-    await logAuditAction(req.user.id, guildId, 'BACKUP_RESTORE_REQUEST', { backup_id: backupId, mode })
+    await logAuditAction(req.user.id, guildId, 'BACKUP_RESTORE_REQUEST', { backup_id: backupId, mode, parts: job.parts })
     res.json({ success: true, job })
   } catch (error) {
     console.error('Create backup restore error:', error.message)

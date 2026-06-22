@@ -1253,7 +1253,12 @@ export default {
     templateEmpty: 'None of your other servers have a snapshot yet. Create one there first.',
     templateApply: 'Apply',
     templateQueued: 'Template apply queued',
-    templateError: 'Failed to apply template'
+    templateError: 'Failed to apply template',
+    partsLabel: 'What to apply',
+    partRoles: 'Roles',
+    partChannels: 'Channels',
+    partIcon: 'Server icon',
+    partName: 'Server name'
   },
   scheduled: {
     eyebrow: 'Configuration',

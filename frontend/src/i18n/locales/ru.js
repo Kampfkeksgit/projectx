@@ -1211,7 +1211,12 @@ export default {
     templateEmpty: 'Ни на одном из ваших других серверов пока нет снимков. Сначала создайте снимок там.',
     templateApply: 'Применить',
     templateQueued: 'Применение шаблона поставлено в очередь',
-    templateError: 'Не удалось применить шаблон'
+    templateError: 'Не удалось применить шаблон',
+    partsLabel: 'Что применить',
+    partRoles: 'Роли',
+    partChannels: 'Каналы',
+    partIcon: 'Значок сервера',
+    partName: 'Название сервера'
   },
   scheduled: {
     eyebrow: 'Настройка',
