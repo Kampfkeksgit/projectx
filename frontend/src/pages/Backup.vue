@@ -6,12 +6,20 @@
         <h1 class="config__title">{{ t('backup.title') }}</h1>
         <p class="config__sub">{{ t('backup.sub') }}</p>
       </div>
-      <AppButton variant="gradient" :loading="creating" :disabled="snapshotJobActive" @click="createSnapshot">
-        <template #icon-left>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-        </template>
-        {{ t('backup.createButton') }}
-      </AppButton>
+      <div class="config__head-actions">
+        <AppButton variant="ghost" :disabled="anyJobActive" @click="openTemplate">
+          <template #icon-left>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </template>
+          {{ t('backup.templateButton') }}
+        </AppButton>
+        <AppButton variant="gradient" :loading="creating" :disabled="snapshotJobActive" @click="createSnapshot">
+          <template #icon-left>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          </template>
+          {{ t('backup.createButton') }}
+        </AppButton>
+      </div>
     </header>
 
     <div class="config__form">
@@ -180,6 +188,68 @@
         </div>
       </transition>
     </Teleport>
+
+    <!-- Apply template (from another server) modal -->
+    <Teleport to="body">
+      <transition name="modal">
+        <div v-if="templateOpen" class="modal-overlay" @click.self="closeTemplate">
+          <div class="modal modal--wide">
+            <h3 class="modal__title">{{ t('backup.templateTitle') }}</h3>
+            <p class="modal__body">{{ t('backup.templateWarn') }}</p>
+
+            <div v-if="templateLoading" class="detail-state">{{ t('common.loading') }}</div>
+            <div v-else-if="templateSources.length === 0" class="detail-state">{{ t('backup.templateEmpty') }}</div>
+
+            <div v-else class="tmpl-body">
+              <label class="tmpl-field">
+                <span class="tmpl-field__label">{{ t('backup.templateSourceLabel') }}</span>
+                <select v-model="templateSourceId" class="tmpl-select" @change="templateBackupId = ''">
+                  <option value="" disabled>{{ t('backup.templateChooseServer') }}</option>
+                  <option v-for="s in templateSources" :key="s.guild_id" :value="s.guild_id">{{ s.guild_name || s.guild_id }}</option>
+                </select>
+              </label>
+
+              <label v-if="templateSourceId" class="tmpl-field">
+                <span class="tmpl-field__label">{{ t('backup.templateSnapshotLabel') }}</span>
+                <select v-model="templateBackupId" class="tmpl-select">
+                  <option value="" disabled>{{ t('backup.templateChooseSnapshot') }}</option>
+                  <option v-for="snap in templateSnapshots" :key="snap.id" :value="snap.id">
+                    {{ snap.name || fmtDate(snap.created_at) }} — {{ t('backup.channelsRoles', { channels: snap.channels_count, roles: snap.roles_count }) }}
+                  </option>
+                </select>
+              </label>
+
+              <div v-if="templateBackupId" class="mode-cards">
+                <button type="button" class="mode-card" :class="{ 'is-active': templateMode === 'missing' }" @click="templateMode = 'missing'">
+                  <span class="mode-card__radio"></span>
+                  <span class="mode-card__text">
+                    <span class="mode-card__title">{{ t('backup.modeMissing') }}</span>
+                    <span class="mode-card__hint">{{ t('backup.modeMissingHint') }}</span>
+                  </span>
+                </button>
+                <button type="button" class="mode-card mode-card--danger" :class="{ 'is-active': templateMode === 'mirror' }" @click="templateMode = 'mirror'">
+                  <span class="mode-card__radio"></span>
+                  <span class="mode-card__text">
+                    <span class="mode-card__title">{{ t('backup.modeMirror') }}</span>
+                    <span class="mode-card__hint">{{ t('backup.modeMirrorHint') }}</span>
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <div class="modal__actions">
+              <AppButton variant="ghost" @click="closeTemplate">{{ t('backup.cancel') }}</AppButton>
+              <AppButton
+                :variant="templateMode === 'mirror' ? 'danger' : 'primary'"
+                :disabled="!templateBackupId || anyJobActive"
+                :loading="templateSubmitting"
+                @click="applyTemplate"
+              >{{ t('backup.templateApply') }}</AppButton>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </Teleport>
   </div>
 </template>
 
@@ -215,6 +285,18 @@ const restoreSubmitting = ref(false)
 
 const deleteTarget = ref(null)
 const deleteSubmitting = ref(false)
+
+const templateOpen = ref(false)
+const templateLoading = ref(false)
+const templateSources = ref([])
+const templateSourceId = ref('')
+const templateBackupId = ref('')
+const templateMode = ref('missing')
+const templateSubmitting = ref(false)
+
+const templateSnapshots = computed(() =>
+  templateSources.value.find(s => s.guild_id === templateSourceId.value)?.snapshots || []
+)
 
 let pollTimer = null
 
@@ -403,6 +485,49 @@ async function confirmRestore() {
   }
 }
 
+// ---- Apply template from another server ----
+async function openTemplate() {
+  templateOpen.value = true
+  templateSources.value = []
+  templateSourceId.value = ''
+  templateBackupId.value = ''
+  templateMode.value = 'missing'
+  templateLoading.value = true
+  try {
+    const { data } = await api.get(`/guilds/${guildId.value}/backups/templates`)
+    templateSources.value = (data?.success && Array.isArray(data.sources)) ? data.sources : []
+  } catch (err) {
+    templateSources.value = []
+    toast.error(err.response?.data?.error || t('backup.templateError'))
+  } finally {
+    templateLoading.value = false
+  }
+}
+
+function closeTemplate() {
+  templateOpen.value = false
+}
+
+async function applyTemplate() {
+  if (!templateSourceId.value || !templateBackupId.value) return
+  templateSubmitting.value = true
+  try {
+    const { data } = await api.post(`/guilds/${guildId.value}/backups/apply-template`, {
+      source_guild_id: templateSourceId.value,
+      backup_id: templateBackupId.value,
+      mode: templateMode.value
+    })
+    if (data?.success && data.job) jobs.value = [data.job, ...jobs.value]
+    closeTemplate()
+    toast.success(t('backup.templateQueued'))
+    syncPolling()
+  } catch (err) {
+    toast.error(err.response?.data?.error || t('backup.templateError'))
+  } finally {
+    templateSubmitting.value = false
+  }
+}
+
 function openDelete(snap) {
   deleteTarget.value = snap
 }
@@ -432,6 +557,7 @@ async function confirmDelete() {
 .config__eyebrow { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-soft); margin-bottom: var(--space-2); }
 .config__title { font-size: clamp(1.6rem, 2.5vw, 2rem); letter-spacing: -0.02em; margin-bottom: var(--space-2); }
 .config__sub { color: var(--color-text-muted); }
+.config__head-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 .config__form { display: flex; flex-direction: column; gap: var(--space-4); max-width: 920px; }
 .form-card { background: var(--color-surface); background-image: var(--gradient-card); border: 1px solid var(--color-border); border-radius: var(--radius-xl); padding: var(--space-5) var(--space-6); box-shadow: var(--shadow-inset); }
 .state { color: var(--color-text-muted); text-align: center; }
@@ -491,6 +617,12 @@ async function confirmDelete() {
 .detail-cat:first-child { margin-top: 0; }
 .detail-chan { color: var(--color-text-muted); }
 .detail-chan--nested { padding-left: var(--space-4); }
+
+.tmpl-body { display: flex; flex-direction: column; gap: var(--space-4); }
+.tmpl-field { display: flex; flex-direction: column; gap: var(--space-2); }
+.tmpl-field__label { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-soft); }
+.tmpl-select { width: 100%; padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-bg); color: var(--color-text); font-size: 0.92rem; }
+.tmpl-select:focus { outline: none; border-color: var(--color-primary); }
 
 .detail-roles { display: flex; flex-wrap: wrap; gap: var(--space-2); max-height: 200px; overflow-y: auto; }
 .detail-role { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--color-border); border-radius: 999px; font-size: 0.82rem; }

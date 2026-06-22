@@ -1242,7 +1242,18 @@ export default {
     detailsChannels: 'Channels',
     detailsUncategorized: 'No category',
     detailsError: 'Failed to load snapshot details',
-    close: 'Close'
+    close: 'Close',
+    templateButton: 'Apply template',
+    templateTitle: 'Apply a server template',
+    templateWarn: 'Copy roles and channels from one of your other servers into this one. Choose how existing items are handled.',
+    templateSourceLabel: 'Source server',
+    templateSnapshotLabel: 'Snapshot',
+    templateChooseServer: 'Choose a server…',
+    templateChooseSnapshot: 'Choose a snapshot…',
+    templateEmpty: 'None of your other servers have a snapshot yet. Create one there first.',
+    templateApply: 'Apply',
+    templateQueued: 'Template apply queued',
+    templateError: 'Failed to apply template'
   },
   scheduled: {
     eyebrow: 'Configuration',

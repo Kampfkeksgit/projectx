@@ -1200,7 +1200,18 @@ export default {
     detailsChannels: 'Kanallar',
     detailsUncategorized: 'Kategorisiz',
     detailsError: 'Anlık görüntü ayrıntıları yüklenemedi',
-    close: 'Kapat'
+    close: 'Kapat',
+    templateButton: 'Şablon uygula',
+    templateTitle: 'Sunucu şablonu uygula',
+    templateWarn: 'Diğer sunucularından birinden rolleri ve kanalları buraya kopyala. Mevcut öğelerin nasıl işleneceğini seç.',
+    templateSourceLabel: 'Kaynak sunucu',
+    templateSnapshotLabel: 'Anlık görüntü',
+    templateChooseServer: 'Bir sunucu seç…',
+    templateChooseSnapshot: 'Bir anlık görüntü seç…',
+    templateEmpty: 'Diğer sunucularının hiçbirinde henüz anlık görüntü yok. Önce orada bir tane oluştur.',
+    templateApply: 'Uygula',
+    templateQueued: 'Şablon uygulaması sıraya alındı',
+    templateError: 'Şablon uygulanamadı'
   },
   scheduled: {
     eyebrow: 'Yapılandırma',
