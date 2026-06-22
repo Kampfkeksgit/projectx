@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 33;
+const CURRENT_SCHEMA_VERSION = 34;
 
 /**
  * Initialize schema version tracking
@@ -92,7 +92,8 @@ async function applyMigrations(fromVersion, toVersion) {
     30: migrationV30,
     31: migrationV31,
     32: migrationV32,
-    33: migrationV33
+    33: migrationV33,
+    34: migrationV34
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -1842,6 +1843,37 @@ function migrationV32() {
 function migrationV33() {
   return runSchemaBatch(33, [
     'ALTER TABLE guild_backup_jobs ADD COLUMN parts TEXT'
+  ]);
+}
+
+/**
+ * Migration V34: template marketplace.
+ *   - marketplace_templates: server templates the system owner publishes from a
+ *     guild snapshot, browsable + applicable by any Pro guild. Holds its own
+ *     copy of the snapshot data (member-specific overwrites stripped at publish
+ *     for privacy) plus meta + a uses counter + a status (approved/pending/
+ *     rejected — owner-published entries are 'approved'). Idempotent; mirrored
+ *     in initializeDatabase().
+ */
+function migrationV34() {
+  return runSchemaBatch(34, [
+    `CREATE TABLE IF NOT EXISTS marketplace_templates (
+      id             TEXT PRIMARY KEY,
+      owner_user_id  TEXT,
+      source_guild_id TEXT,
+      name           TEXT,
+      description    TEXT,
+      category       TEXT,
+      guild_name     TEXT,
+      guild_icon_url TEXT,
+      channels_count INTEGER DEFAULT 0,
+      roles_count    INTEGER DEFAULT 0,
+      data           TEXT,
+      status         TEXT NOT NULL DEFAULT 'approved',
+      uses           INTEGER DEFAULT 0,
+      created_at     INTEGER DEFAULT 0
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_marketplace_status ON marketplace_templates(status)'
   ]);
 }
 

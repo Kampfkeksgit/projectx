@@ -16,7 +16,12 @@ import {
   getMaintenanceState,
   setMaintenanceState,
   getUsersForExport,
-  getGuildsForExport
+  getGuildsForExport,
+  getBackup,
+  createMarketplaceTemplate,
+  getAdminMarketplaceTemplates,
+  deleteMarketplaceTemplate,
+  setMarketplaceTemplateStatus
 } from '../db.js'
 import { requireSession, requireOwner, isOwner } from '../middleware/session.js'
 
@@ -280,5 +285,69 @@ function sendCsv(res, filename, csv) {
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
   res.send('﻿' + csv) // BOM so Excel reads UTF-8 correctly
 }
+
+// ---------- Template Marketplace (owner-only) ----------
+
+/**
+ * POST /api/admin/marketplace/publish
+ * Body: { source_guild_id, backup_id, name?, description?, category? }
+ * Publish one of the owner's guild snapshots as a public marketplace template.
+ */
+router.post('/marketplace/publish', async (req, res) => {
+  try {
+    const { source_guild_id, backup_id, name, description, category } = req.body || {}
+    if (!source_guild_id || !backup_id) return res.status(400).json({ error: 'source_guild_id and backup_id required' })
+    const snapshot = await getBackup(source_guild_id, backup_id)
+    if (!snapshot) return res.status(404).json({ error: 'Snapshot not found' })
+    const tpl = await createMarketplaceTemplate(req.user.id, source_guild_id, {
+      name, description, category,
+      guild_name: snapshot.guild_name,
+      guild_icon_url: snapshot.guild_icon_url,
+      data: snapshot.data
+    })
+    await logAuditAction(req.user.id, source_guild_id, 'MARKETPLACE_PUBLISH', { template_id: tpl.id, name: tpl.name })
+    res.json({ success: true, template: tpl })
+  } catch (error) {
+    console.error('Marketplace publish error:', error.message)
+    res.status(500).json({ error: 'Failed to publish template' })
+  }
+})
+
+/** GET /api/admin/marketplace — all templates (any status) for management. */
+router.get('/marketplace', async (req, res) => {
+  try {
+    const templates = await getAdminMarketplaceTemplates()
+    res.json({ success: true, templates })
+  } catch (error) {
+    console.error('Marketplace list error:', error.message)
+    res.status(500).json({ error: 'Failed to list templates' })
+  }
+})
+
+/** PUT /api/admin/marketplace/:id/status  Body: { status } */
+router.put('/marketplace/:id/status', async (req, res) => {
+  try {
+    const changes = await setMarketplaceTemplateStatus(req.params.id, (req.body && req.body.status))
+    if (changes === 0) return res.status(404).json({ error: 'Template not found' })
+    await logAuditAction(req.user.id, null, 'MARKETPLACE_STATUS', { template_id: req.params.id, status: req.body?.status })
+    res.json({ success: true })
+  } catch (error) {
+    console.error('Marketplace status error:', error.message)
+    res.status(500).json({ error: 'Failed to update template' })
+  }
+})
+
+/** DELETE /api/admin/marketplace/:id */
+router.delete('/marketplace/:id', async (req, res) => {
+  try {
+    const changes = await deleteMarketplaceTemplate(req.params.id)
+    if (changes === 0) return res.status(404).json({ error: 'Template not found' })
+    await logAuditAction(req.user.id, null, 'MARKETPLACE_DELETE', { template_id: req.params.id })
+    res.json({ success: true })
+  } catch (error) {
+    console.error('Marketplace delete error:', error.message)
+    res.status(500).json({ error: 'Failed to delete template' })
+  }
+})
 
 export default router

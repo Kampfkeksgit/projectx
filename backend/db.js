@@ -1212,6 +1212,25 @@ function initializeDatabase() {
     db.run('ALTER TABLE guild_backup_jobs ADD COLUMN parts TEXT', (err) => {
       if (err && !/duplicate column name/i.test(err.message)) console.error('Warning: guild_backup_jobs.parts:', err.message);
     });
+    db.run(`
+      CREATE TABLE IF NOT EXISTS marketplace_templates (
+        id             TEXT PRIMARY KEY,
+        owner_user_id  TEXT,
+        source_guild_id TEXT,
+        name           TEXT,
+        description    TEXT,
+        category       TEXT,
+        guild_name     TEXT,
+        guild_icon_url TEXT,
+        channels_count INTEGER DEFAULT 0,
+        roles_count    INTEGER DEFAULT 0,
+        data           TEXT,
+        status         TEXT NOT NULL DEFAULT 'approved',
+        uses           INTEGER DEFAULT 0,
+        created_at     INTEGER DEFAULT 0
+      )
+    `, (err) => { if (err) console.error('Error creating marketplace_templates table:', err); });
+    db.run('CREATE INDEX IF NOT EXISTS idx_marketplace_status ON marketplace_templates(status)', () => {});
 
     // Create audit_log table
     db.run(`
@@ -7131,10 +7150,13 @@ export function getActiveBackupJobs(guildId) {
  */
 export function getDueBackupJobs() {
   return new Promise((resolve, reject) => {
+    // backup_id may reference either a per-guild snapshot (guild_backups) or a
+    // published marketplace template (marketplace_templates) — resolve from both.
     db.all(
-      `SELECT j.*, b.data AS backup_data, b.guild_name AS backup_guild_name
+      `SELECT j.*, COALESCE(b.data, m.data) AS backup_data
          FROM guild_backup_jobs j
          LEFT JOIN guild_backups b ON b.id = j.backup_id
+         LEFT JOIN marketplace_templates m ON m.id = j.backup_id
         WHERE j.status = 'pending'
           AND j.guild_id NOT IN (SELECT id FROM guilds WHERE blocked = 1)
           AND ${tierFilterSql('pro', 'j.guild_id')}
@@ -7172,6 +7194,137 @@ export function updateBackupJob(jobId, { status, backup_id, message } = {}) {
         [nextStatus, nextBackup, nextMessage, backupNowSeconds(), jobId],
         function (err) { if (err) reject(err); else resolve(this.changes); }
       );
+    });
+  });
+}
+
+// ============================================================
+// Template Marketplace (v34) — owner-published server templates
+// ============================================================
+
+export const MARKETPLACE_STATUSES = ['approved', 'pending', 'rejected'];
+
+/** Strip member-specific permission overwrites from a snapshot before publishing
+ * (privacy: don't leak source-guild member IDs; they're useless cross-server). */
+function stripMemberOverwrites(data) {
+  const clone = (() => {
+    try { return JSON.parse(typeof data === 'string' ? data : JSON.stringify(data || {})); }
+    catch { return {}; }
+  })();
+  if (Array.isArray(clone.channels)) {
+    for (const ch of clone.channels) {
+      if (Array.isArray(ch.overwrites)) {
+        ch.overwrites = ch.overwrites.filter((ow) => ow && ow.target_type === 'role');
+      }
+    }
+  }
+  return clone;
+}
+
+function shapeMarketplaceMeta(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name || '',
+    description: row.description || '',
+    category: row.category || '',
+    guild_name: row.guild_name || '',
+    guild_icon_url: row.guild_icon_url || '',
+    channels_count: row.channels_count || 0,
+    roles_count: row.roles_count || 0,
+    status: row.status || 'approved',
+    uses: row.uses || 0,
+    created_at: row.created_at || 0
+  };
+}
+
+/** Owner: publish a snapshot blob as a marketplace template. */
+export function createMarketplaceTemplate(ownerUserId, sourceGuildId, { name, description, category, guild_name, guild_icon_url, data } = {}) {
+  const id = randomUUID();
+  const now = backupNowSeconds();
+  const clean = stripMemberOverwrites(data);
+  const dataStr = JSON.stringify(clean);
+  const { channels, roles } = backupCounts(dataStr);
+  const safeName = (name && String(name).trim()) ? String(name).trim().slice(0, 120) : (guild_name || 'Template');
+  const safeDesc = description ? String(description).slice(0, 500) : null;
+  const safeCat = category ? String(category).trim().slice(0, 40) : null;
+  return new Promise((resolve, reject) => {
+    db.run(
+      `INSERT INTO marketplace_templates (id, owner_user_id, source_guild_id, name, description, category, guild_name, guild_icon_url, channels_count, roles_count, data, status, uses, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved', 0, ?)`,
+      [id, ownerUserId || null, sourceGuildId || null, safeName, safeDesc, safeCat, guild_name || null, guild_icon_url || null, channels, roles, dataStr, now],
+      function (err) {
+        if (err) return reject(err);
+        db.get('SELECT * FROM marketplace_templates WHERE id = ?', [id], (gErr, row) => {
+          if (gErr) reject(gErr); else resolve(shapeMarketplaceMeta(row));
+        });
+      }
+    );
+  });
+}
+
+/** Public/browse: approved templates (no data blob). Optional category filter. */
+export function getMarketplaceTemplates({ category = null, status = 'approved' } = {}) {
+  return new Promise((resolve, reject) => {
+    const where = ['status = ?'];
+    const params = [MARKETPLACE_STATUSES.includes(status) ? status : 'approved'];
+    if (category) { where.push('category = ?'); params.push(String(category)); }
+    db.all(
+      `SELECT id, name, description, category, guild_name, guild_icon_url, channels_count, roles_count, status, uses, created_at
+         FROM marketplace_templates WHERE ${where.join(' AND ')} ORDER BY uses DESC, created_at DESC`,
+      params,
+      (err, rows) => { if (err) reject(err); else resolve((rows || []).map(shapeMarketplaceMeta)); }
+    );
+  });
+}
+
+/** Owner: every template regardless of status (management list). */
+export function getAdminMarketplaceTemplates() {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `SELECT id, name, description, category, guild_name, guild_icon_url, channels_count, roles_count, status, uses, created_at
+         FROM marketplace_templates ORDER BY created_at DESC`,
+      [],
+      (err, rows) => { if (err) reject(err); else resolve((rows || []).map(shapeMarketplaceMeta)); }
+    );
+  });
+}
+
+/** Full template incl. parsed data blob (preview + apply existence check). */
+export function getMarketplaceTemplate(id) {
+  return new Promise((resolve, reject) => {
+    db.get('SELECT * FROM marketplace_templates WHERE id = ?', [id], (err, row) => {
+      if (err) return reject(err);
+      if (!row) return resolve(null);
+      let data = {};
+      try { data = JSON.parse(row.data || '{}'); } catch { data = {}; }
+      resolve({ ...shapeMarketplaceMeta(row), data });
+    });
+  });
+}
+
+export function deleteMarketplaceTemplate(id) {
+  return new Promise((resolve, reject) => {
+    db.run('DELETE FROM marketplace_templates WHERE id = ?', [id], function (err) {
+      if (err) reject(err); else resolve(this.changes);
+    });
+  });
+}
+
+export function setMarketplaceTemplateStatus(id, status) {
+  const safe = MARKETPLACE_STATUSES.includes(status) ? status : 'pending';
+  return new Promise((resolve, reject) => {
+    db.run('UPDATE marketplace_templates SET status = ? WHERE id = ?', [safe, id], function (err) {
+      if (err) reject(err); else resolve(this.changes);
+    });
+  });
+}
+
+/** Count an application of a marketplace template. */
+export function incrementMarketplaceUses(id) {
+  return new Promise((resolve, reject) => {
+    db.run('UPDATE marketplace_templates SET uses = uses + 1 WHERE id = ?', [id], function (err) {
+      if (err) reject(err); else resolve(this.changes);
     });
   });
 }
