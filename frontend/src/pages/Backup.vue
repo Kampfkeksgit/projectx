@@ -62,6 +62,12 @@
           <AppButton variant="primary" :loading="restoringIds.has(snap.id)" :disabled="anyJobActive" @click="openRestore(snap)">
             {{ t('backup.restore') }}
           </AppButton>
+          <AppButton v-if="auth.user?.is_owner" variant="ghost" @click="openPublish(snap)">
+            <template #icon-left>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            </template>
+            {{ t('backup.publish') }}
+          </AppButton>
           <AppButton variant="danger" :loading="deletingIds.has(snap.id)" :disabled="anyJobActive" @click="openDelete(snap)">
             {{ t('backup.delete') }}
           </AppButton>
@@ -197,6 +203,38 @@
       </transition>
     </Teleport>
 
+    <!-- Publish to marketplace modal (owner only) -->
+    <Teleport to="body">
+      <transition name="modal">
+        <div v-if="publishTarget" class="modal-overlay" @click.self="publishTarget = null">
+          <div class="modal">
+            <h3 class="modal__title">{{ t('backup.publishTitle') }}</h3>
+            <p class="modal__body">{{ t('backup.publishIntro') }}</p>
+
+            <div class="tmpl-body">
+              <label class="tmpl-field">
+                <span class="tmpl-field__label">{{ t('backup.publishName') }}</span>
+                <input type="text" v-model="publishName" class="tmpl-input" />
+              </label>
+              <label class="tmpl-field">
+                <span class="tmpl-field__label">{{ t('backup.publishDescription') }}</span>
+                <textarea v-model="publishDescription" class="tmpl-textarea" rows="3"></textarea>
+              </label>
+              <label class="tmpl-field">
+                <span class="tmpl-field__label">{{ t('backup.publishCategory') }}</span>
+                <input type="text" v-model="publishCategory" class="tmpl-input" />
+              </label>
+            </div>
+
+            <div class="modal__actions">
+              <AppButton variant="ghost" @click="publishTarget = null">{{ t('backup.cancel') }}</AppButton>
+              <AppButton variant="primary" :loading="publishSubmitting" @click="confirmPublish">{{ t('backup.publishSubmit') }}</AppButton>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </Teleport>
+
     <!-- Apply template (from another server) modal -->
     <Teleport to="body">
       <transition name="modal">
@@ -205,29 +243,64 @@
             <h3 class="modal__title">{{ t('backup.templateTitle') }}</h3>
             <p class="modal__body">{{ t('backup.templateWarn') }}</p>
 
-            <div v-if="templateLoading" class="detail-state">{{ t('common.loading') }}</div>
-            <div v-else-if="templateSources.length === 0" class="detail-state">{{ t('backup.templateEmpty') }}</div>
+            <div class="tmpl-tabs" role="tablist">
+              <button type="button" class="tmpl-tab" :class="{ 'is-active': templateTab === 'own' }" @click="templateTab = 'own'">{{ t('backup.ownServersTab') }}</button>
+              <button type="button" class="tmpl-tab" :class="{ 'is-active': templateTab === 'market' }" @click="templateTab = 'market'">{{ t('backup.marketplaceTab') }}</button>
+            </div>
 
-            <div v-else class="tmpl-body">
-              <label class="tmpl-field">
-                <span class="tmpl-field__label">{{ t('backup.templateSourceLabel') }}</span>
-                <select v-model="templateSourceId" class="tmpl-select" @change="templateBackupId = ''">
-                  <option value="" disabled>{{ t('backup.templateChooseServer') }}</option>
-                  <option v-for="s in templateSources" :key="s.guild_id" :value="s.guild_id">{{ s.guild_name || s.guild_id }}</option>
-                </select>
-              </label>
+            <!-- My servers tab -->
+            <template v-if="templateTab === 'own'">
+              <div v-if="templateLoading" class="detail-state">{{ t('common.loading') }}</div>
+              <div v-else-if="templateSources.length === 0" class="detail-state">{{ t('backup.templateEmpty') }}</div>
 
-              <label v-if="templateSourceId" class="tmpl-field">
-                <span class="tmpl-field__label">{{ t('backup.templateSnapshotLabel') }}</span>
-                <select v-model="templateBackupId" class="tmpl-select">
-                  <option value="" disabled>{{ t('backup.templateChooseSnapshot') }}</option>
-                  <option v-for="snap in templateSnapshots" :key="snap.id" :value="snap.id">
-                    {{ snap.name || fmtDate(snap.created_at) }} — {{ t('backup.channelsRoles', { channels: snap.channels_count, roles: snap.roles_count }) }}
-                  </option>
-                </select>
-              </label>
+              <div v-else class="tmpl-body">
+                <label class="tmpl-field">
+                  <span class="tmpl-field__label">{{ t('backup.templateSourceLabel') }}</span>
+                  <select v-model="templateSourceId" class="tmpl-select" @change="templateBackupId = ''">
+                    <option value="" disabled>{{ t('backup.templateChooseServer') }}</option>
+                    <option v-for="s in templateSources" :key="s.guild_id" :value="s.guild_id">{{ s.guild_name || s.guild_id }}</option>
+                  </select>
+                </label>
 
-              <div v-if="templateBackupId" class="mode-cards">
+                <label v-if="templateSourceId" class="tmpl-field">
+                  <span class="tmpl-field__label">{{ t('backup.templateSnapshotLabel') }}</span>
+                  <select v-model="templateBackupId" class="tmpl-select">
+                    <option value="" disabled>{{ t('backup.templateChooseSnapshot') }}</option>
+                    <option v-for="snap in templateSnapshots" :key="snap.id" :value="snap.id">
+                      {{ snap.name || fmtDate(snap.created_at) }} — {{ t('backup.channelsRoles', { channels: snap.channels_count, roles: snap.roles_count }) }}
+                    </option>
+                  </select>
+                </label>
+              </div>
+            </template>
+
+            <!-- Marketplace tab -->
+            <template v-else>
+              <div v-if="marketplaceTemplates.length === 0" class="detail-state">{{ t('backup.marketplaceEmpty') }}</div>
+              <div v-else class="tmpl-body">
+                <label class="tmpl-field">
+                  <span class="tmpl-field__label">{{ t('backup.marketplaceTab') }}</span>
+                  <select v-model="marketplaceId" class="tmpl-select">
+                    <option value="" disabled>{{ t('backup.marketplaceChoose') }}</option>
+                    <option v-for="m in marketplaceTemplates" :key="m.id" :value="m.id">
+                      {{ m.name }} — {{ t('backup.channelsRoles', { channels: m.channels_count, roles: m.roles_count }) }} · {{ t('backup.marketplaceUses', { count: m.uses }) }}
+                    </option>
+                  </select>
+                </label>
+
+                <div v-if="selectedMarketplace" class="tmpl-market-info">
+                  <p v-if="selectedMarketplace.description" class="tmpl-market-desc">{{ selectedMarketplace.description }}</p>
+                  <button v-if="auth.user?.is_owner" type="button" class="tmpl-remove" :disabled="removingTemplate" @click="removeMarketplaceTemplate">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    {{ t('backup.removeTemplate') }}
+                  </button>
+                </div>
+              </div>
+            </template>
+
+            <!-- Shared mode + parts (both tabs) -->
+            <div v-if="(templateTab === 'own' && templateBackupId) || (templateTab === 'market' && marketplaceId)" class="tmpl-shared">
+              <div class="mode-cards">
                 <button type="button" class="mode-card" :class="{ 'is-active': templateMode === 'missing' }" @click="templateMode = 'missing'">
                   <span class="mode-card__radio"></span>
                   <span class="mode-card__text">
@@ -244,7 +317,7 @@
                 </button>
               </div>
 
-              <div v-if="templateBackupId" class="parts-group">
+              <div class="parts-group">
                 <div class="parts-group__label">{{ t('backup.partsLabel') }}</div>
                 <label class="parts-check"><input type="checkbox" v-model="parts.roles" /><span>{{ t('backup.partRoles') }}</span></label>
                 <label class="parts-check"><input type="checkbox" v-model="parts.channels" /><span>{{ t('backup.partChannels') }}</span></label>
@@ -256,11 +329,19 @@
             <div class="modal__actions">
               <AppButton variant="ghost" @click="closeTemplate">{{ t('backup.cancel') }}</AppButton>
               <AppButton
+                v-if="templateTab === 'own'"
                 :variant="templateMode === 'mirror' ? 'danger' : 'primary'"
                 :disabled="!templateBackupId || anyJobActive || noPartsSelected"
                 :loading="templateSubmitting"
                 @click="applyTemplate"
               >{{ t('backup.templateApply') }}</AppButton>
+              <AppButton
+                v-else
+                :variant="templateMode === 'mirror' ? 'danger' : 'primary'"
+                :disabled="!marketplaceId || anyJobActive || noPartsSelected"
+                :loading="templateSubmitting"
+                @click="applyMarketplace"
+              >{{ t('backup.marketplaceApply') }}</AppButton>
             </div>
           </div>
         </div>
@@ -276,10 +357,12 @@ import AppButton from '../components/AppButton.vue'
 import api from '../services/api.js'
 import { useToast } from '../composables/useToast.js'
 import { useI18n } from '../i18n/index.js'
+import { useAuth } from '../stores/auth.js'
 
 const route = useRoute()
 const toast = useToast()
 const { t, locale } = useI18n()
+const auth = useAuth().state
 const guildId = computed(() => route.params.guild_id)
 
 const snapshots = ref([])
@@ -324,6 +407,22 @@ const templateSubmitting = ref(false)
 const templateSnapshots = computed(() =>
   templateSources.value.find(s => s.guild_id === templateSourceId.value)?.snapshots || []
 )
+
+// Apply-template modal tabs: 'own' (other servers) | 'market' (public templates)
+const templateTab = ref('own')
+const marketplaceTemplates = ref([])
+const marketplaceId = ref('')
+const selectedMarketplace = computed(() =>
+  marketplaceTemplates.value.find(m => String(m.id) === String(marketplaceId.value)) || null
+)
+const removingTemplate = ref(false)
+
+// Publish-to-marketplace modal
+const publishTarget = ref(null)
+const publishName = ref('')
+const publishDescription = ref('')
+const publishCategory = ref('')
+const publishSubmitting = ref(false)
 
 let pollTimer = null
 
@@ -516,10 +615,13 @@ async function confirmRestore() {
 // ---- Apply template from another server ----
 async function openTemplate() {
   templateOpen.value = true
+  templateTab.value = 'own'
   templateSources.value = []
   templateSourceId.value = ''
   templateBackupId.value = ''
   templateMode.value = 'missing'
+  marketplaceTemplates.value = []
+  marketplaceId.value = ''
   resetParts()
   templateLoading.value = true
   try {
@@ -531,10 +633,85 @@ async function openTemplate() {
   } finally {
     templateLoading.value = false
   }
+  loadMarketplace()
 }
 
 function closeTemplate() {
   templateOpen.value = false
+}
+
+async function loadMarketplace() {
+  try {
+    const { data } = await api.get(`/guilds/${guildId.value}/backups/marketplace`)
+    marketplaceTemplates.value = (data?.success && Array.isArray(data.templates)) ? data.templates : []
+  } catch (err) {
+    marketplaceTemplates.value = []
+  }
+}
+
+async function applyMarketplace() {
+  if (!marketplaceId.value || noPartsSelected.value) return
+  templateSubmitting.value = true
+  try {
+    const { data } = await api.post(`/guilds/${guildId.value}/backups/apply-marketplace`, {
+      template_id: marketplaceId.value,
+      mode: templateMode.value,
+      parts: { ...parts }
+    })
+    if (data?.success && data.job) jobs.value = [data.job, ...jobs.value]
+    closeTemplate()
+    toast.success(t('backup.templateQueued'))
+    syncPolling()
+  } catch (err) {
+    toast.error(err.response?.data?.error || t('backup.templateError'))
+  } finally {
+    templateSubmitting.value = false
+  }
+}
+
+async function removeMarketplaceTemplate() {
+  const tpl = selectedMarketplace.value
+  if (!tpl) return
+  removingTemplate.value = true
+  try {
+    await api.delete(`/admin/marketplace/${tpl.id}`)
+    marketplaceId.value = ''
+    await loadMarketplace()
+    toast.success(t('backup.templateRemoved'))
+  } catch (err) {
+    toast.error(err.response?.data?.error || t('backup.removeError'))
+  } finally {
+    removingTemplate.value = false
+  }
+}
+
+// ---- Publish a snapshot to the marketplace (owner only) ----
+function openPublish(snap) {
+  publishTarget.value = snap
+  publishName.value = snap.name || snap.guild_name || ''
+  publishDescription.value = ''
+  publishCategory.value = ''
+}
+
+async function confirmPublish() {
+  const snap = publishTarget.value
+  if (!snap) return
+  publishSubmitting.value = true
+  try {
+    await api.post('/admin/marketplace/publish', {
+      source_guild_id: guildId.value,
+      backup_id: snap.id,
+      name: publishName.value,
+      description: publishDescription.value,
+      category: publishCategory.value
+    })
+    publishTarget.value = null
+    toast.success(t('backup.published'))
+  } catch (err) {
+    toast.error(err.response?.data?.error || t('backup.publishError'))
+  } finally {
+    publishSubmitting.value = false
+  }
 }
 
 async function applyTemplate() {
@@ -658,6 +835,21 @@ async function confirmDelete() {
 .tmpl-field__label { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-soft); }
 .tmpl-select { width: 100%; padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-bg); color: var(--color-text); font-size: 0.92rem; }
 .tmpl-select:focus { outline: none; border-color: var(--color-primary); }
+.tmpl-input, .tmpl-textarea { width: 100%; padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-bg); color: var(--color-text); font-size: 0.92rem; font-family: inherit; }
+.tmpl-input:focus, .tmpl-textarea:focus { outline: none; border-color: var(--color-primary); }
+.tmpl-textarea { resize: vertical; min-height: 72px; line-height: 1.5; }
+
+.tmpl-tabs { display: inline-flex; gap: 2px; padding: 3px; margin-bottom: var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-bg); }
+.tmpl-tab { padding: 6px 16px; border: none; border-radius: calc(var(--radius-lg) - 3px); background: transparent; color: var(--color-text-muted); font-size: 0.88rem; font-weight: 600; cursor: pointer; transition: background var(--transition), color var(--transition); }
+.tmpl-tab:hover { color: var(--color-text); }
+.tmpl-tab.is-active { background: var(--color-surface); color: var(--color-text); box-shadow: var(--shadow-inset); }
+
+.tmpl-shared { display: flex; flex-direction: column; gap: 0; }
+.tmpl-shared .mode-cards { margin-top: var(--space-4); }
+.tmpl-market-info { display: flex; flex-direction: column; gap: var(--space-2); }
+.tmpl-market-desc { color: var(--color-text-muted); font-size: 0.86rem; line-height: 1.5; margin: 0; }
+.tmpl-remove { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; padding: 0; border: none; background: transparent; color: var(--color-danger); font-size: 0.82rem; font-weight: 600; cursor: pointer; }
+.tmpl-remove:disabled { opacity: 0.5; cursor: default; }
 
 .detail-roles { display: flex; flex-wrap: wrap; gap: var(--space-2); max-height: 200px; overflow-y: auto; }
 .detail-role { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--color-border); border-radius: 999px; font-size: 0.82rem; }

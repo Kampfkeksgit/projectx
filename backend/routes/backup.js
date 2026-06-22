@@ -7,6 +7,9 @@ import {
   getActiveBackupJobs,
   getUserManageableGuilds,
   userIsGuildAdmin,
+  getMarketplaceTemplates,
+  getMarketplaceTemplate,
+  incrementMarketplaceUses,
   RESTORE_MODES,
   logAuditAction
 } from '../db.js'
@@ -82,6 +85,62 @@ router.post('/apply-template', requireSession, requireGuildAccess, async (req, r
     res.json({ success: true, job })
   } catch (error) {
     console.error('Apply backup template error:', error.message)
+    res.status(500).json({ error: 'Failed to apply template' })
+  }
+})
+
+// Marketplace: approved public templates (browse + apply source). Registered
+// before GET /:backup_id so "/marketplace" isn't captured as an id.
+router.get('/marketplace', requireSession, requireGuildAccess, async (req, res) => {
+  try {
+    const category = req.query.category ? String(req.query.category) : null
+    const templates = await getMarketplaceTemplates({ category })
+    res.json({ success: true, templates })
+  } catch (error) {
+    console.error('Marketplace browse error:', error.message)
+    res.status(500).json({ error: 'Failed to load marketplace' })
+  }
+})
+
+// Full marketplace template incl. data blob — for the preview before applying.
+router.get('/marketplace/:template_id', requireSession, requireGuildAccess, async (req, res) => {
+  try {
+    const tpl = await getMarketplaceTemplate(req.params.template_id)
+    if (!tpl || tpl.status !== 'approved') return res.status(404).json({ error: 'Template not found' })
+    res.json({ success: true, template: tpl })
+  } catch (error) {
+    console.error('Marketplace detail error:', error.message)
+    res.status(500).json({ error: 'Failed to load template' })
+  }
+})
+
+// Apply a marketplace template to this server (Pro — POST passes the premium gate).
+router.post('/apply-marketplace', requireSession, requireGuildAccess, async (req, res) => {
+  try {
+    const targetId = req.params.guild_id
+    const templateId = req.body && req.body.template_id
+    let mode = (req.body && req.body.mode) || 'missing'
+    if (!RESTORE_MODES.includes(mode)) mode = 'missing'
+    const parts = (req.body && req.body.parts) || null
+
+    if (!templateId) return res.status(400).json({ error: 'template_id required' })
+    const tpl = await getMarketplaceTemplate(templateId)
+    if (!tpl || tpl.status !== 'approved') return res.status(404).json({ error: 'Template not found' })
+
+    let job
+    try {
+      // backup_id holds the marketplace template id; getDueBackupJobs resolves its
+      // data via the marketplace_templates join.
+      job = await createBackupJob(targetId, { type: 'restore', backup_id: templateId, mode, parts })
+    } catch (err) {
+      if (err && err.code === 'VALIDATION') return res.status(400).json({ error: err.message })
+      throw err
+    }
+    await incrementMarketplaceUses(templateId)
+    await logAuditAction(req.user.id, targetId, 'BACKUP_APPLY_MARKETPLACE', { template_id: templateId, mode, parts: job.parts })
+    res.json({ success: true, job })
+  } catch (error) {
+    console.error('Apply marketplace template error:', error.message)
     res.status(500).json({ error: 'Failed to apply template' })
   }
 })
