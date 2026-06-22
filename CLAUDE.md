@@ -154,7 +154,8 @@ projectx/
 │                               # Overwrites als allow/deny-Bitfields) + Server-Style → POST /api/bot/guilds/:id/backups.
 │                               # restore: Rollen-Mapping old→neu (Hierarchie-Guard < Bot-Top-Rolle, @everyone gemappt),
 │                               # Kategorien dann Channels, Overwrites umgemappt; mode=missing legt nur Fehlendes an,
-│                               # mode=mirror gleicht zusätzlich an + löscht Channels die NICHT im Snapshot sind;
+│                               # mode=mirror gleicht zusätzlich an + löscht Channels UND Rollen die NICHT im Snapshot sind
+│                               # (Rollen-Löschung nur wenn parts.roles; nie @everyone/managed/über Bot-Top-Rolle);
 │                               # Server-Name/-Icon nur mit MANAGE_GUILD. asyncio.sleep zwischen Creates (Rate-Limit).
 ├── backend/                    # Node.js / Express API
 │   ├── server.js               # App-Init, CORS+cookies, Migration-Bootstrap, Route-Mounts, Warnings
@@ -1006,6 +1007,7 @@ Empfehlung aus [README.md](README.md): SQLite → PostgreSQL für Multi-Instance
 - **Backup: Rollen-Bugfix + Teil-Auswahl (Schema v33):**
   - **Bugfix Rollen-Restore:** `_restore_roles` in [server_backup.py](bot/cogs/server_backup.py) übersprang Rollen per Vergleich der **Snapshot-Position** (vom Quell-Server) mit der Bot-Top-Rollen-Position (Ziel-Server) — über Server hinweg sinnlos, daher wurden beim Anwenden einer Vorlage praktisch **alle** Rollen übersprungen. Guard entfernt: Discord legt neue Rollen ohnehin direkt über `@everyone` an (nur Manage-Roles-Permission nötig); fehlt sie → `Forbidden` wird gemeldet. Rollen werden jetzt (höchste Position zuerst) angelegt.
   - **Teil-Auswahl beim Restore/Vorlage-Anwenden:** Im Restore- **und** Vorlage-Modal kann jetzt gewählt werden, **was** angewendet wird — Rollen / Kanäle / Server-Icon / Servername (Checkboxen, default alle an). Schema v33 = idempotenter ALTER `guild_backup_jobs.parts TEXT` (JSON, NULL=alle). `RESTORE_PARTS` + `sanitizeBackupParts` in [db.js](backend/db.js); `createBackupJob`/`shapeBackupJob` reichen `parts` durch; beide Cookie-Endpoints (`/restore`, `/apply-template`) nehmen `parts` entgegen. Der Bot baut das Rollen-Mapping **immer** (damit Channel-Overwrites existierende Rollen treffen), legt fehlende Rollen aber nur bei `parts.roles` an; Kanäle/Name/Icon je nach Flag.
+  - **Mirror löscht jetzt auch Rollen:** Der `mirror`-Modus entfernte bisher nur überzählige Channels, nicht Rollen (obwohl der UI-Hinweis es versprach). `_restore_roles` löscht im `mirror`-Modus jetzt auch live-Rollen, die **nicht** im Snapshot sind (nur wenn `parts.roles`; nie `@everyone`/managed/Rollen über der Bot-Top-Rolle).
   - i18n: 5 neue Keys (`backup.partsLabel`/`partRoles`/`partChannels`/`partIcon`/`partName`) in allen 5 Sprachen (Key-Parität 1332/Locale).
   - Verifiziert: Migration v33 sauber, DB-Smoke (parts-Roundtrip: partial/all-false→null/none→null/due-job) grün, Bot parst, Frontend-Build grün.
 - **Datum:** 2026-06-22

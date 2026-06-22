@@ -287,7 +287,7 @@ class ServerBackup(commands.Cog):
         # 1) Roles → build old_id -> live discord.Role map. We always build the
         #    map (so channel overwrites can reference existing roles by name), but
         #    only CREATE missing roles when the user selected the roles part.
-        role_map = await self._restore_roles(guild, data.get("roles") or [], notes, create=do_roles)
+        role_map = await self._restore_roles(guild, data.get("roles") or [], notes, create=do_roles, mode=mode)
 
         # 2) Categories first (so channels can attach), then non-category channels.
         if do_channels:
@@ -300,9 +300,11 @@ class ServerBackup(commands.Cog):
             notes.append("Restore complete (no changes needed).")
         return _safe_msg(" | ".join(notes))
 
-    async def _restore_roles(self, guild, snapshot_roles, notes, create=True):
+    async def _restore_roles(self, guild, snapshot_roles, notes, create=True, mode="missing"):
         """Returns old_role_id(str) -> discord.Role. Maps existing roles by exact
-        name; when create=True also creates the missing ones.
+        name; when create=True also creates the missing ones. In mirror mode (and
+        only when create=True, i.e. the roles part is selected) it ALSO deletes
+        live roles that are not in the snapshot.
 
         NOTE: We do NOT skip roles by comparing the snapshot position to the bot's
         top role — those positions come from a DIFFERENT server when applying a
@@ -382,6 +384,31 @@ class ServerBackup(commands.Cog):
 
         if created:
             notes.append(f"Created {created} role(s)")
+
+        # Mirror: delete live roles NOT in the snapshot (match by name). Never
+        # touch @everyone, managed/integration roles (incl. the bot's own role),
+        # or roles at/above the bot's top role (the bot can't manage those).
+        if mode == "mirror":
+            snapshot_names = {sr.get("name") for sr in snapshot_roles}
+            my_top = guild.me.top_role.position
+            deleted = 0
+            for r in list(guild.roles):
+                if r.is_default() or r.managed:
+                    continue
+                if r.name in snapshot_names:
+                    continue  # NEVER delete a role that exists in the snapshot
+                if r.position >= my_top:
+                    notes.append(f"Kept role '{r.name}' (above bot's top role)")
+                    continue
+                try:
+                    await r.delete(reason="Backup mirror restore")
+                    deleted += 1
+                    await asyncio.sleep(0.3)
+                except Exception as exc:
+                    notes.append(f"Could not delete role '{r.name}': {str(exc)[:60]}")
+            if deleted:
+                notes.append(f"Mirror removed {deleted} role(s) not in snapshot")
+
         return role_map
 
     def _build_overwrites(self, guild, snapshot_overwrites, role_map):
