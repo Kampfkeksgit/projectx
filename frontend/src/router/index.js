@@ -38,6 +38,7 @@ const Trivia = () => import('../pages/Trivia.vue')
 const ConnectFour = () => import('../pages/ConnectFour.vue')
 const Hangman = () => import('../pages/Hangman.vue')
 const Poker = () => import('../pages/Poker.vue')
+const Backup = () => import('../pages/Backup.vue')
 const Premium = () => import('../pages/Premium.vue')
 const Impressum = () => import('../pages/legal/Impressum.vue')
 const Privacy = () => import('../pages/legal/Privacy.vue')
@@ -103,6 +104,7 @@ const routes = [
       { path: 'connect4', name: 'connect4', component: ConnectFour },
       { path: 'hangman', name: 'hangman', component: Hangman },
       { path: 'poker', name: 'poker', component: Poker },
+      { path: 'backup', name: 'backup', component: Backup },
       { path: 'premium', name: 'premium', component: Premium }
     ]
   },

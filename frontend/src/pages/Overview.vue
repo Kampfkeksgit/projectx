@@ -575,6 +575,28 @@
         </div>
       </article>
 
+      <article class="config-card">
+        <div class="config-card__head">
+          <div class="config-card__icon config-card__icon--backup">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+          </div>
+          <div>
+            <h3 class="config-card__title">{{ t('overview.backupTitle') }}</h3>
+            <p class="config-card__desc">{{ t('overview.backupDesc') }}</p>
+          </div>
+        </div>
+        <div class="config-card__meta">
+          <span class="status status--on">
+            <span class="status__dot"></span>
+            {{ t('overview.backupCount', { count: extraEnabled.backupCount }) }}
+          </span>
+        </div>
+        <div class="config-card__cta">
+          <AppButton v-if="botPresent" tag="router-link" :to="`/dashboard/${guildId}/backup`" variant="gradient">{{ t('common.configure') }}</AppButton>
+          <AppButton v-else tag="a" :href="inviteUrl" target="_blank" rel="noopener noreferrer" variant="ghost">{{ t('common.invite') }}</AppButton>
+        </div>
+      </article>
+
       <article
         v-for="g in gameCards"
         :key="g.key"
@@ -636,10 +658,11 @@ const guildName = computed(() => {
 
 const botPresent = computed(() => !!store.cache.guild?.bot_present)
 
-// Bot invite URL for the current guild. Permissions bitmask 285223958 =
+// Bot invite URL for the current guild. Permissions bitmask 285223990 =
 // VIEW_CHANNEL + SEND_MESSAGES + MANAGE_MESSAGES + KICK_MEMBERS + BAN_MEMBERS +
 // MANAGE_ROLES + MANAGE_CHANNELS (Stats: rename/create channels) +
-// MOVE_MEMBERS (Temp-Voice: move members into their created channel).
+// MOVE_MEMBERS (Temp-Voice: move members into their created channel) +
+// MANAGE_GUILD (Backup: restore the server name).
 // disable_guild_select=true keeps Discord on the guild we pre-selected.
 const inviteUrl = computed(() => {
   const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID || ''
@@ -648,7 +671,7 @@ const inviteUrl = computed(() => {
   const params = new URLSearchParams({
     client_id: clientId,
     scope: 'bot applications.commands',
-    permissions: '285223958',
+    permissions: '285223990',
     guild_id: id,
     disable_guild_select: 'true'
   })
@@ -699,7 +722,8 @@ const extraEnabled = reactive({
   trivia: false,
   connect4: false,
   hangman: false,
-  poker: false
+  poker: false,
+  backupCount: 0
 })
 
 // Games category — one shared /games settings row drives all five cards.
@@ -716,7 +740,7 @@ async function fetchExtraStatus() {
   const id = guildId.value
   if (!id) return
   const endpoints = ['autorole', 'logs', 'moderation', 'leveling']
-  const [autorole, logs, moderation, leveling, rr, cmds, social, stats, tempvoice, starboard, suggestions, birthday, scheduled, antiraid, verification, rolemenus, tickets, giveaways, counting, polls, invitetracking, applications, economy, games] = await Promise.all([
+  const [autorole, logs, moderation, leveling, rr, cmds, social, stats, tempvoice, starboard, suggestions, birthday, scheduled, antiraid, verification, rolemenus, tickets, giveaways, counting, polls, invitetracking, applications, economy, games, backups] = await Promise.all([
     api.get(`/guilds/${id}/settings/autorole`).then(r => r.data).catch(() => null),
     api.get(`/guilds/${id}/settings/logs`).then(r => r.data).catch(() => null),
     api.get(`/guilds/${id}/settings/moderation`).then(r => r.data).catch(() => null),
@@ -740,7 +764,8 @@ async function fetchExtraStatus() {
     api.get(`/guilds/${id}/invitetracking`).then(r => r.data).catch(() => null),
     api.get(`/guilds/${id}/applications/forms`).then(r => r.data).catch(() => null),
     api.get(`/guilds/${id}/economy`).then(r => r.data).catch(() => null),
-    api.get(`/guilds/${id}/games`).then(r => r.data).catch(() => null)
+    api.get(`/guilds/${id}/games`).then(r => r.data).catch(() => null),
+    api.get(`/guilds/${id}/backups`).then(r => r.data).catch(() => null)
   ])
   void endpoints
   extraEnabled.autorole = !!(autorole?.success && autorole.settings?.enabled)
@@ -777,6 +802,7 @@ async function fetchExtraStatus() {
   extraEnabled.connect4 = !!gs.connect4_enabled
   extraEnabled.hangman = !!gs.hangman_enabled
   extraEnabled.poker = !!gs.poker_enabled
+  extraEnabled.backupCount = (backups?.success && Array.isArray(backups.snapshots)) ? backups.snapshots.length : 0
 }
 
 onMounted(fetchExtraStatus)
@@ -954,6 +980,7 @@ watch(() => guildId.value, fetchExtraStatus)
 .config-card__icon--applications { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
 .config-card__icon--economy { background: linear-gradient(135deg, #facc15, #f59e0b); }
 .config-card__icon--games { background: linear-gradient(135deg, #ec4899, #8b5cf6); }
+.config-card__icon--backup { background: linear-gradient(135deg, #14b8a6, #22d3ee); }
 
 .config-card__title {
   font-size: 1.1rem;

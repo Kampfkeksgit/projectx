@@ -222,6 +222,11 @@ async def setup_hook():
             print(f'✅​ Game cog loaded: {_game}')
         except Exception as e:
             print(f'❌ Failed to load game cog {_game}: {e}')
+    try:
+        await bot.load_extension('cogs.server_backup')
+        print('✅​ Server-Backup cog loaded')
+    except Exception as e:
+        print(f'❌ Failed to load Server-Backup cog: {e}')
 
     # Sync application (slash) commands. setup_hook runs once, so no guard needed.
     try:

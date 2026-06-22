@@ -51,7 +51,7 @@ Doku-Index: [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md)
 ```
 projectx/
 ├── bot/                        # Python Discord-Bot
-│   ├── main.py                 # Entry-Point, lädt 33 Cogs in setup_hook (läuft 1× beim Start — NICHT in on_ready, das bei jedem Reconnect feuert → sonst „Extension already loaded")
+│   ├── main.py                 # Entry-Point, lädt 34 Cogs in setup_hook (läuft 1× beim Start — NICHT in on_ready, das bei jedem Reconnect feuert → sonst „Extension already loaded")
 │   │                           # Danach in setup_hook: bot.tree.sync() für Slash-Commands. on_ready loggt nur noch die Verbindung.
 │   │                           # command_prefix = async _resolve_prefix (per-Guild via command_config, Cache, Mention immer aktiv)
 │   │                           # Globale Gates: @bot.check (Prefix) + bot.tree.interaction_check (Slash) sperren deaktivierte Befehle
@@ -148,6 +148,14 @@ projectx/
 │                               # D/SB/BB, aktiver Spieler hervorgehoben, Showdown enthüllt Hole-Cards) mit wählbarem Filz-Design
 │                               # (THEMES: classic/midnight/crimson/charcoal/royal, aus poker_table_theme); Text-Fallback ohne Pillow.
 │                               # Chip-Leader bei Tisch-Ende → /games/score. custom_id "pk:<action>:<tid>".
+│       └── server_backup.py    # Server-Backup & Restore (Pro): @tasks.loop(20s) pollt GET /api/bot/backup/jobs/due,
+│                               # claimt Job (status=running), führt aus, meldet done/failed zurück.
+│                               # snapshot: serialisiert Rollen + Channels (Topic/NSFW/Slowmode/Bitrate/Limit + Permission-
+│                               # Overwrites als allow/deny-Bitfields) + Server-Style → POST /api/bot/guilds/:id/backups.
+│                               # restore: Rollen-Mapping old→neu (Hierarchie-Guard < Bot-Top-Rolle, @everyone gemappt),
+│                               # Kategorien dann Channels, Overwrites umgemappt; mode=missing legt nur Fehlendes an,
+│                               # mode=mirror gleicht zusätzlich an + löscht Channels die NICHT im Snapshot sind;
+│                               # Server-Name/-Icon nur mit MANAGE_GUILD. asyncio.sleep zwischen Creates (Rate-Limit).
 ├── backend/                    # Node.js / Express API
 │   ├── server.js               # App-Init, CORS+cookies, Migration-Bootstrap, Route-Mounts, Warnings
 │   ├── db.js                   # SQLite-Connection + Query-Helper (inkl. updateUserTokens,
@@ -190,6 +198,7 @@ projectx/
 │   │   ├── applications.js     # /api/guilds/:id/applications/forms (CRUD) + /submissions (cookie) — Bewerbungen (Pro)
 │   │   ├── economy.js          # /api/guilds/:id/economy (settings GET/PUT) + /shop (CRUD) + /leaderboard (cookie) — Wirtschaft (Pro)
 │   │   ├── games.js           # /api/guilds/:id/games (shared settings GET/PUT, inkl. poker_table_theme) + /leaderboard?game= (cookie) — Games-Kategorie (Basic)
+│   │   ├── backup.js          # /api/guilds/:id/backups (GET Liste+aktive Jobs, GET /:id voller Snapshot für Vorschau, POST Snapshot-Job, POST /:id/restore {mode}, DELETE /:id, cookie) — Server-Backup (Pro)
 │   │   ├── public.js           # /api/public/stats + /api/public/plans (KEIN Auth — Landing-Page Stats + Tarif-Katalog)
 │   │   ├── premium.js          # /api/guilds/:id/premium (GET, cookie) — Tier + Modul-Unlock-Map fürs Dashboard
 │   │   ├── admin.js            # /api/admin/{users,guilds} (GET list + POST .../block[until] + POST .../premium, requireSession+requireOwner)
@@ -293,7 +302,7 @@ projectx/
 │           ├── Landing.vue          # /  (frei zugänglich, auch für authed User — Home-Button im /dashboard)
 │           ├── Servers.vue          # /dashboard  (Guild-Auswahl, requiresAuth) — mit Home- + Refresh-Button
 │           ├── DashboardLayout.vue  # Wrapper für /dashboard/:guild_id/* mit Sidebar
-│           ├── Overview.vue         # /dashboard/:guild_id (Übersicht — 32 Modul-Cards mit Live-Status)
+│           ├── Overview.vue         # /dashboard/:guild_id (Übersicht — 33 Modul-Cards mit Live-Status)
 │           ├── Welcome.vue          # /dashboard/:guild_id/welcome (Config + Live-Preview)
 │           ├── Leave.vue            # /dashboard/:guild_id/leave
 │           ├── AutoRole.vue         # /dashboard/:guild_id/autorole (Toggle + Role-Chips + Apply-to-Bots)
@@ -323,6 +332,9 @@ projectx/
 │           ├── Economy.vue          # /dashboard/:guild_id/economy (Settings + Shop-CRUD + Balance-Leaderboard)
 │           ├── TicTacToe.vue / RockPaperScissors.vue / Trivia.vue / ConnectFour.vue / Hangman.vue / Poker.vue
 │           │                        # Games-Kategorie: je Toggle + geteilter Spiele-Channel + Spiel-Bestenliste (alle nutzen /games)
+│           ├── Backup.vue           # /dashboard/:guild_id/backup (Pro): Snapshot-jetzt-Button + Liste (Name/Datum/Channel-/Rollen-Anzahl)
+│           │                        # + Vorschau-Modal (Server/Kanäle-Baum/Rollen mit Farben, lädt GET /:id) + Restore-Modal (missing|mirror)
+│           │                        # + Löschen-Confirm; pollt aktive Jobs alle 4s bis fertig
 │           ├── Premium.vue         # /dashboard/:guild_id/premium (Tarif-Übersicht Free/Basic/Pro + aktueller Tier + Upgrade-CTA)
 │           ├── Admin.vue           # /admin (OWNER-only — Tabs Overview/Users/Guilds/Audit/System; Router-Guard requiresOwner)
 │           │                       # Overview (Metrik-Karten + Premium-läuft-ab + Modul-Adoption), Users/Guilds (Sperren mit Temp-Ban-Dauer,
@@ -458,7 +470,7 @@ Portainer: als **Stack** aus dem Git-Repo deployen, Env-Vars im Stack setzen (si
 - `DISCORD_CLIENT_SECRET`
 - `BACKEND_URL` — z. B. `http://localhost:3000`
 
-> ⚠️ **Presence-Intent (kein Env, sondern Portal-Toggle):** Das `stats`-Cog zählt Online/Offline über `member.status` — dafür ist das **privilegierte Presence-Intent** nötig. In [main.py](bot/main.py) ist `intents.presences = True` gesetzt; zusätzlich muss es im **Discord Developer Portal** (Bot → Privileged Gateway Intents → Presence Intent) aktiviert werden, sonst zählt der Bot alle Member als offline. Auto-Create von Stats-Channels braucht außerdem `MANAGE_CHANNELS`, Temp-Voice zusätzlich `MOVE_MEMBERS` — die Invite-Bitmask wurde auf `285223958` erhöht (= `268446742 | MOVE_MEMBERS`).
+> ⚠️ **Presence-Intent (kein Env, sondern Portal-Toggle):** Das `stats`-Cog zählt Online/Offline über `member.status` — dafür ist das **privilegierte Presence-Intent** nötig. In [main.py](bot/main.py) ist `intents.presences = True` gesetzt; zusätzlich muss es im **Discord Developer Portal** (Bot → Privileged Gateway Intents → Presence Intent) aktiviert werden, sonst zählt der Bot alle Member als offline. Auto-Create von Stats-Channels braucht außerdem `MANAGE_CHANNELS`, Temp-Voice zusätzlich `MOVE_MEMBERS`, Server-Backup/Restore zusätzlich `MANAGE_ROLES` (bereits enthalten) + `MANAGE_GUILD` (Server-Name/-Icon) — die Invite-Bitmask wurde auf `285223990` erhöht (= `268446742 | MOVE_MEMBERS | MANAGE_GUILD`).
 - `BOT_API_KEY` — **muss identisch zu `backend/.env`** sein; wird als `X-Bot-Token`-Header an `/api/bot/*` gesendet. Generierung: `python -c "import secrets; print(secrets.token_urlsafe(48))"`.
 - `DATABASE_URL` — Pfad zur SQLite-DB (i. d. R. nicht direkt genutzt; Bot liest via Backend)
 - **Social-Notifications (alle optional — `social_notify`-Cog skippt Plattformen ohne Creds, crasht nie):**
@@ -624,7 +636,7 @@ Mount-Points aus [backend/server.js](backend/server.js):
 
 **Premium / Tiers** (Cookie required) — Modul-Gating Free/Basic/Pro (`MODULE_TIERS` in [db.js](backend/db.js) ist Single Source).
 - `GET /api/guilds/:id/premium` → `{ success, tier, source, until, module_tiers: { key: tier }, modules: { key: bool } }`. Liefert dem Dashboard den effektiven Tier (abgelaufenes Premium → `free`) + die Unlock-Map pro Modul-Key (= Dashboard-Route-Segment).
-- **Enforcement:** Cookie-Writes der Premium-Modul-Router laufen durch `requirePremiumModule(key)` ([middleware/premium.js](backend/middleware/premium.js)) → GET frei, PUT/POST/DELETE → **403 `{ error: 'premium_required', module, required_tier, current_tier }`** wenn der Tier nicht reicht (Leveling gated im eigenen Router, da bare-prefix-Mount). Guild-übergreifende Loop-Cog-Queries (social/stats/scheduled/birthday/rolemenus/giveaways) filtern via `tierFilterSql(minTier)` serverseitig; per-Guild Bot-GETs (leveling-xp/tempvoice/starboard/antiraid/tickets/invitetracking/applications/economy) liefern eine `disabled`-Shape über den zentralen `PREMIUM_BOT_GATES`-Guard in [bot.js](backend/routes/bot.js). **Frei:** welcome/leave/autorole/logs/moderation/reaction-roles/verification/suggestions/custom-commands/counting/polls. **Basic:** leveling/starboard/tempvoice/birthday/rolemenus/antiraid/invitetracking + Games-Kategorie (games/tictactoe/rps/trivia/connect4/hangman/poker — geteilte `/games`-Settings, Gate-Key `games`). **Pro:** social/stats/tickets/giveaways/scheduled/applications/economy.
+- **Enforcement:** Cookie-Writes der Premium-Modul-Router laufen durch `requirePremiumModule(key)` ([middleware/premium.js](backend/middleware/premium.js)) → GET frei, PUT/POST/DELETE → **403 `{ error: 'premium_required', module, required_tier, current_tier }`** wenn der Tier nicht reicht (Leveling gated im eigenen Router, da bare-prefix-Mount). Guild-übergreifende Loop-Cog-Queries (social/stats/scheduled/birthday/rolemenus/giveaways) filtern via `tierFilterSql(minTier)` serverseitig; per-Guild Bot-GETs (leveling-xp/tempvoice/starboard/antiraid/tickets/invitetracking/applications/economy) liefern eine `disabled`-Shape über den zentralen `PREMIUM_BOT_GATES`-Guard in [bot.js](backend/routes/bot.js). **Frei:** welcome/leave/autorole/logs/moderation/reaction-roles/verification/suggestions/custom-commands/counting/polls. **Basic:** leveling/starboard/tempvoice/birthday/rolemenus/antiraid/invitetracking + Games-Kategorie (games/tictactoe/rps/trivia/connect4/hangman/poker — geteilte `/games`-Settings, Gate-Key `games`). **Pro:** social/stats/tickets/giveaways/scheduled/applications/economy/backup. **Backup** hat keinen Bot-Settings-GET → kein `PREMIUM_BOT_GATES`-Eintrag; stattdessen filtert `getDueBackupJobs()` serverseitig via `tierFilterSql('pro')`, sodass herabgestufte Guilds keine Snapshot-/Restore-Jobs mehr ausgeführt bekommen.
 
 > **Enforcement gesperrter Entities:** Gesperrte **User** werden von `requireSession` (403 `{ blocked: true }`), `/auth/me` (403 + Cookie-Clear) und dem OAuth-Callback (403, kein Cookie) abgewiesen — der Owner ist immer ausgenommen. Gesperrte **Guilds** bleiben im Server-Picker sichtbar (`getUserManageableGuilds` liefert das `blocked`-Flag mit), werden dort aber rot umrandet + nicht klickbar gerendert ([Servers.vue](frontend/src/pages/Servers.vue)); `requireGuildAccess` liefert 403, die Bot-Endpoints unter `/api/bot/guilds/:id/*` liefern 403 (Bot wird dort inert), und alle guild-übergreifenden Loop-Cog-Queries (social/stats/tempvoice/birthday/scheduled/rolemenus/giveaways) filtern `blocked = 1` per `NOT IN (SELECT id FROM guilds WHERE blocked = 1)`.
 
@@ -728,6 +740,11 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - Giveaways: `POST .../giveaways` body `{ channel_id, prize, winners_count, ends_at }` → `{ id }`; `PUT .../giveaways/:gid/message`; `POST .../giveaways/:gid/entries` body `{ user_id }`; `GET .../giveaways/:gid` → `{ giveaway }` (Reroll); `GET .../giveaways/:gid/entries` → `{ user_ids }`; `GET /api/bot/giveaways/due` → `{ giveaways }`; `PUT /api/bot/giveaways/:gid/ended`.
 - Role-Menus: `GET /api/bot/guilds/:id/rolemenus/by-message/:message_id` → `{ menu }` (für exklusive Select-Auswertung).
 
+**Server-Backup & Restore (v32, Pro)** — async Job-Queue (Bot pollt, Dashboard kann nicht pushen).
+- Cookie (`requireSession` + `requireGuildAccess`, Premium-Gate `backup`): `GET /api/guilds/:id/backups` → `{ success, snapshots: [{ id, name, guild_name, guild_icon_url, channels_count, roles_count, created_at }], jobs: [{ id, type, status, backup_id, mode, message, created_at, updated_at }] }`; `GET /api/guilds/:id/backups/:backup_id` → `{ success, snapshot }` (voller Snapshot **inkl. `data`-Blob** für die Dashboard-Vorschau vor dem Restore, 404 wenn fehlt); `POST /api/guilds/:id/backups` → legt Snapshot-Job an, `{ success, job }` (Audit `BACKUP_SNAPSHOT_REQUEST`); `POST /api/guilds/:id/backups/:backup_id/restore` body `{ mode ∈ {missing|mirror} }` → Restore-Job, `{ success, job }`, 404 wenn Snapshot fehlt (Audit `BACKUP_RESTORE_REQUEST`); `DELETE /api/guilds/:id/backups/:backup_id` → `{ success }`, 404 (Audit `BACKUP_DELETE`).
+- Bot (`X-Bot-Token`): `GET /api/bot/backup/jobs/due` → `{ jobs }` (alle pending Jobs, restore-Jobs inkl. eingebetteter Snapshot-`data`; gefiltert via `tierFilterSql('pro')` + `blocked`); `PUT /api/bot/backup/jobs/:job_id` body `{ status, backup_id?, message? }` → `{ success }`; `POST /api/bot/guilds/:guild_id/backups` body `{ name, guild_name, guild_icon_url, data }` → `{ id }` (Bot speichert erstellten Snapshot; Retention max 15/Guild via `createBackup`).
+- DB-Helfer in [db.js](backend/db.js): `createBackup`/`getBackups`/`getBackup`/`deleteBackup`, `createBackupJob`/`getActiveBackupJobs`/`getDueBackupJobs`/`updateBackupJob`; Konstanten `BACKUP_JOB_TYPES`/`BACKUP_JOB_STATUSES`/`RESTORE_MODES`/`BACKUP_MAX_PER_GUILD`. Snapshot-`data`-Shape: `{ server:{name,icon_url,verification_level}, roles:[{id,name,color,position,hoist,mentionable,permissions,managed,is_default}], channels:[{id,name,type,parent_id,position,topic,nsfw,slowmode,bitrate,user_limit,overwrites:[{target_id,target_type,allow,deny}]}] }`.
+
 > ⚠️ **Feld-Konvention:** alle Settings-Keys sind `snake_case`. Wenn das Backend hier auf `camelCase` umstellen würde, müsste der Bot SYNCHRON angepasst werden.
 
 ---
@@ -737,9 +754,9 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - Engine: **SQLite3** (Datei via `DATABASE_URL`, default `./data/bot.db`)
 - Connection: [backend/db.js](backend/db.js)
 - Migrations: [backend/migrations.js](backend/migrations.js)
-  - **Aktuelle Schema-Version: `31`**
+  - **Aktuelle Schema-Version: `32`**
   - `CURRENT_SCHEMA_VERSION` Konstante steuert Upgrades.
-  - `applyMigrations(from, to)` mappt Versionsnummern → Migration-Funktionen (`migrationV1`, …, `migrationV31`). v23–v31 nutzen den `runSchemaBatch(version, statements)`-Helper.
+  - `applyMigrations(from, to)` mappt Versionsnummern → Migration-Funktionen (`migrationV1`, …, `migrationV32`). v23–v32 nutzen den `runSchemaBatch(version, statements)`-Helper.
   - Versionstabelle: `schema_version (version PK, applied_at)`.
   - `migrationV2` fügt `users.token_expires_at INTEGER` hinzu (idempotent).
   - `migrationV3` legt `guild_autorole_settings`, `guild_log_settings`, `guild_moderation_settings` an (`CREATE TABLE IF NOT EXISTS` — idempotent; werden parallel auch im `initializeDatabase()`-Pfad erzeugt, damit Fresh-DBs auch ohne Migrations-Run funktionieren).
@@ -773,6 +790,7 @@ Mount-Points aus [backend/server.js](backend/server.js):
   - `migrationV29` (Poker, Games-Kategorie): idempotenter ALTER `guild_games_settings.poker_enabled` (6. Spiel der Games-Kategorie, teilt sich `/games`-Settings + `guild_game_scores`). Mirror + defensiver ALTER in `initializeDatabase()`. `GAME_KEYS` in [db.js](backend/db.js) um `poker` erweitert.
   - `migrationV30` (Poker-Tisch-Design): idempotenter ALTER `guild_games_settings.poker_table_theme TEXT DEFAULT 'classic'` (per-Guild Filz-Design fürs gerenderte Tisch-Bild). Mirror + defensiver ALTER in `initializeDatabase()`. `POKER_THEMES` (`classic|midnight|crimson|charcoal|royal`) in [db.js](backend/db.js) ist Single Source (vom Backend validiert, vom Bot zum Rendern + von der Dashboard-Auswahl gespiegelt); `GAMES_DEFAULTS`/`shapeGames`/`upsertGamesSettings` um `poker_table_theme` erweitert.
   - `migrationV31` (Games-Sprache): idempotenter ALTER `guild_games_settings.games_language TEXT DEFAULT 'en'` (per-Guild Sprache für **alle** In-Game-Texte der Games-Kategorie). Mirror + defensiver ALTER in `initializeDatabase()`. `GAME_LANGUAGES` (`en|de|tr|ru|pl`) in [db.js](backend/db.js) ist Single Source (Backend-Validierung in `shapeGames`/`upsertGamesSettings`, vom Bot via [utils/game_i18n.py](bot/utils/game_i18n.py) zum Übersetzen + von der Dashboard-Auswahl gespiegelt); `GAMES_DEFAULTS`/`shapeGames`/`upsertGamesSettings` um `games_language` erweitert.
+  - `migrationV32` (Server-Backup & Restore, Pro): legt 2 Tabellen an (idempotent + Mirror in `initializeDatabase()`): `guild_backups` (`id` UUID, FK CASCADE, `name`/`guild_name`/`guild_icon_url`/`channels_count`/`roles_count`/`data` JSON-Blob/`created_at`, `idx_backups_guild`) — gespeicherte Server-Snapshots; `guild_backup_jobs` (`id` UUID, FK CASCADE, `type ∈ {snapshot|restore}`, `status ∈ {pending|running|done|failed}`, `backup_id`, `mode ∈ {missing|mirror}`, `message`, `created_at`/`updated_at`, `idx_backup_jobs_status`) — asynchrone Job-Queue (Dashboard legt Job an, Bot pollt fällige, führt aus, meldet Status zurück; der Bot kann nicht gepusht werden).
   - `migrationV18` (Ticket-Überarbeitung, idempotente ALTERs + neue Tabelle + Mirror): `guild_ticket_settings` +10 Spalten (`panel_type ∈ {dropdown|buttons}`, `panel_embed`/`welcome_embed` JSON, `ping_role_id`, `naming_template`, `claim_enabled`, `close_confirm`, `rating_enabled`, `rating_mode ∈ {channel|dm|both}`, `log_channel_id`); `guild_tickets` +8 Spalten (`ticket_category_id`, `number`, `claimed_by`, `rating`, `rating_comment`, `closed_by`, `closed_at`, `extra_user_ids` JSON); neue Tabelle `guild_ticket_categories` (`id` UUID, `idx_ticket_categories_guild`, FK CASCADE) — Ticket-Typen mit Label/Emoji/Desc + Kategorie-/Support-Rollen-/Ping-Rollen-Override, Welcome-Text, `button_style`, Position, Enabled.
 
 **Kern-Tabellen** (Details: [backend/DATABASE_SCHEMA.md](backend/DATABASE_SCHEMA.md), [backend/DATABASE_FUNCTIONS.md](backend/DATABASE_FUNCTIONS.md))
@@ -820,6 +838,7 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - `guild_application_forms` (`questions` JSON ≤5, `review_channel_id`, `accepted_role_id`) + `guild_applications` (`answers` JSON, `status`, `reviewer_id`) — Bewerbungen (Pro)
 - `guild_economy_settings` + `guild_economy_users` (`balance`, `last_daily`/`last_work`) + `guild_economy_shop` (`price`, optionale `role_id`) — Wirtschaft (Pro)
 - `guild_games_settings` (eine Row, geteilter `games_channel_id` + pro-Spiel-Toggle inkl. `poker_enabled` + `poker_table_theme` Filz-Design + `games_language` In-Game-Sprache) + `guild_game_scores` (`(guild_id, user_id, game)`, `wins`/`plays`) — Games-Kategorie (Basic): Tic-Tac-Toe/RPS/Trivia/Connect-Four/Hangman/Poker
+- `guild_backups` (`id` UUID, `name`, `guild_name`/`guild_icon_url`, `channels_count`/`roles_count`, `data` JSON-Blob mit `{server,roles,channels}`, `created_at`; Retention max 15/Guild) + `guild_backup_jobs` (`id` UUID, `type ∈ {snapshot|restore}`, `status`, `backup_id`, `mode ∈ {missing|mirror}`, `message`, `created_at`/`updated_at`) — Server-Backup & Restore (Pro)
 - `schema_version` — Migrations-Tracking
 
 **Wichtige DB-Helper** in [backend/db.js](backend/db.js):
@@ -980,6 +999,16 @@ Empfehlung aus [README.md](README.md): SQLite → PostgreSQL für Multi-Instance
 
 ## 14. Letzte Aktualisierung
 
+- **Datum:** 2026-06-22
+- **Server-Backup & Restore (Schema v32, Tier Pro):** Neues 33. Modul — speichert manuelle Snapshots der kompletten Server-Struktur und stellt sie wieder her, falls Channels/Rollen gelöscht werden.
+  - **Architektur (Job-Queue):** Snapshot-Inhalt + Channel-/Rollen-Erstellung kann nur der Bot (Live-Guild + Discord-Rechte); das Dashboard kann den Bot nicht pushen. Daher async **Job-Queue** (analog `scheduled`): Dashboard legt Job an → Bot pollt fällige Jobs alle 20s → führt aus → meldet Status zurück.
+  - **Schema:** Migration v32 = 2 Tabellen (`guild_backups` Snapshots mit JSON-`data`-Blob + Retention max 15/Guild, `guild_backup_jobs` Queue), idempotent + Mirror in `initializeDatabase()`. db.js-Helfer `createBackup`/`getBackups`/`getBackup`/`deleteBackup` + `createBackupJob`/`getActiveBackupJobs`/`getDueBackupJobs`/`updateBackupJob` + Konstanten. `MODULE_TIERS.backup = 'pro'`.
+  - **Backend:** neue Cookie-Route [backup.js](backend/routes/backup.js) (`GET /backups` Liste+Jobs, `POST` Snapshot-Job, `POST /:id/restore {mode}`, `DELETE /:id`; Audit `BACKUP_*`), Pro-Gate-Mount in [server.js](backend/server.js), 3 Bot-Endpoints in [bot.js](backend/routes/bot.js) (`GET /backup/jobs/due`, `PUT /backup/jobs/:id`, `POST /guilds/:id/backups`). `getDueBackupJobs()` filtert via `tierFilterSql('pro')` + `blocked` (kein `PREMIUM_BOT_GATES`-Eintrag nötig).
+  - **Bot:** neues Cog [server_backup.py](bot/cogs/server_backup.py) (34 Cogs gesamt). Snapshot serialisiert Rollen (inkl. `permissions`-Bitfield) + Channels (Topic/NSFW/Slowmode/Bitrate/Limit + Permission-Overwrites als allow/deny) + Server-Style. Restore baut Rollen-Mapping old→neu (Hierarchie-Guard < Bot-Top-Rolle, `@everyone` gemappt, managed übersprungen), legt Kategorien dann Channels an, mappt Overwrites um; `mode=missing` nur Fehlendes, `mode=mirror` gleicht an + löscht Channels die NICHT im Snapshot sind; Server-Name/-Icon nur mit `MANAGE_GUILD`; `asyncio.sleep` gegen Rate-Limits; alles in try/except (Fehler in Job-`message` gesammelt).
+  - **Permissions:** Invite-Bitmask `285223958` → `285223990` (+ `MANAGE_GUILD`; `MANAGE_CHANNELS`/`MANAGE_ROLES` bereits enthalten).
+  - **Frontend:** Seite [Backup.vue](frontend/src/pages/Backup.vue) (Snapshot-jetzt-Button, Liste mit Counts, **Vorschau-Modal** „Ansehen" das via `GET /backups/:id` den vollen Snapshot lädt und Server/Kanäle-Baum nach Kategorien/Rollen mit Farb-Dots zeigt — mit „Restore"-Button direkt im Modal, Restore-Modal mit `missing`/`mirror`-Wahl, Löschen-Confirm, 4s-Job-Polling). Router-Child `backup`, Sidebar-Link (Configuration-Gruppe), Overview-Karte (33), PremiumLock automatisch. i18n-Namespace `backup` (38 Keys inkl. `view`/`details*`/`close`) + `sidebar.linkBackup` + `overview.backup*` in **allen 5 Sprachen** (Key-Parität verifiziert: 1316/Locale, 0 missing/extra).
+  - **Umsetzung mit Sub-Agents:** Schema + db.js-Helfer + API-Vertrag selbst gebaut, dann 3 Sub-Agents parallel (Backend-Routen / Bot-Cog / Frontend+EN/DE) + 3 Übersetzungs-Agents (TR/RU/PL).
+  - Verifiziert: Migration v32 sauber, DB-Smoke (createBackup/Liste/Job-Roundtrip/Retention-15/Tier-Filter/Validation) grün, alle 34 Cogs parsen, Frontend-Build grün, i18n-Parität 1307/Locale. **Hinweis:** Nachrichten-Inhalte/Member-Rollenzuweisungen/Emojis sind nicht Teil des Snapshots (out of scope v1).
 - **Datum:** 2026-06-19
 - **Games-In-Game-Sprache (Schema v31):** Die **gesamte Games-Kategorie** rendert ihre In-Game-Texte jetzt in einer **pro Server wählbaren Sprache** (EN/DE/TR/RU/PL) — eine geteilte Einstellung für alle 6 Spiele (Tic-Tac-Toe/RPS/Trivia/Connect-Four/Hangman/Poker), unabhängig von der Dashboard-UI-Sprache.
   - **Schema:** Migration v31 = idempotenter ALTER `guild_games_settings.games_language TEXT DEFAULT 'en'` (+ Mirror/defensiver ALTER). `GAME_LANGUAGES` (`en|de|tr|ru|pl`) in [db.js](backend/db.js) ist Single Source (Validierung in `shapeGames`/`upsertGamesSettings`; `GAMES_DEFAULTS` erweitert). **Kein neuer Endpoint** — `games_language` fließt durch `/games` (Cookie GET/PUT, Partial-Merge) und `/api/bot/guilds/:id/settings/games`.

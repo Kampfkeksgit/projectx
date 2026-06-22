@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 31;
+const CURRENT_SCHEMA_VERSION = 32;
 
 /**
  * Initialize schema version tracking
@@ -90,7 +90,8 @@ async function applyMigrations(fromVersion, toVersion) {
     28: migrationV28,
     29: migrationV29,
     30: migrationV30,
-    31: migrationV31
+    31: migrationV31,
+    32: migrationV32
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -1787,6 +1788,47 @@ function migrationV30() {
 function migrationV31() {
   return runSchemaBatch(31, [
     "ALTER TABLE guild_games_settings ADD COLUMN games_language TEXT DEFAULT 'en'"
+  ]);
+}
+
+/**
+ * Migration V32: Server Backup & Restore (Pro).
+ *   - guild_backups: stored snapshots of the full server structure (roles,
+ *     categories, channels incl. permission overwrites + server style) as a JSON
+ *     blob, plus meta + counts for the dashboard list.
+ *   - guild_backup_jobs: async work queue. The dashboard enqueues snapshot/restore
+ *     jobs, the bot polls due jobs, runs them and reports status back (the bot
+ *     can't be pushed to, so on-demand snapshot/restore goes through this queue).
+ * Idempotent; mirrored in initializeDatabase().
+ */
+function migrationV32() {
+  return runSchemaBatch(32, [
+    `CREATE TABLE IF NOT EXISTS guild_backups (
+      id             TEXT PRIMARY KEY,
+      guild_id       TEXT NOT NULL,
+      name           TEXT,
+      guild_name     TEXT,
+      guild_icon_url TEXT,
+      channels_count INTEGER DEFAULT 0,
+      roles_count    INTEGER DEFAULT 0,
+      data           TEXT,
+      created_at     INTEGER DEFAULT 0,
+      FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_backups_guild ON guild_backups(guild_id)',
+    `CREATE TABLE IF NOT EXISTS guild_backup_jobs (
+      id          TEXT PRIMARY KEY,
+      guild_id    TEXT NOT NULL,
+      type        TEXT NOT NULL,
+      status      TEXT NOT NULL DEFAULT 'pending',
+      backup_id   TEXT,
+      mode        TEXT,
+      message     TEXT,
+      created_at  INTEGER DEFAULT 0,
+      updated_at  INTEGER DEFAULT 0,
+      FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_backup_jobs_status ON guild_backup_jobs(status)'
   ]);
 }
 

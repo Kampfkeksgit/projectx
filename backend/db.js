@@ -1178,6 +1178,38 @@ function initializeDatabase() {
     `, (err) => { if (err) console.error('Error creating guild_game_scores table:', err); });
     db.run('CREATE INDEX IF NOT EXISTS idx_game_scores_lb ON guild_game_scores(guild_id, game, wins DESC)', () => {});
 
+    // ----- Server Backup & Restore (v32): snapshots + async job queue -----
+    db.run(`
+      CREATE TABLE IF NOT EXISTS guild_backups (
+        id             TEXT PRIMARY KEY,
+        guild_id       TEXT NOT NULL,
+        name           TEXT,
+        guild_name     TEXT,
+        guild_icon_url TEXT,
+        channels_count INTEGER DEFAULT 0,
+        roles_count    INTEGER DEFAULT 0,
+        data           TEXT,
+        created_at     INTEGER DEFAULT 0,
+        FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+      )
+    `, (err) => { if (err) console.error('Error creating guild_backups table:', err); });
+    db.run('CREATE INDEX IF NOT EXISTS idx_backups_guild ON guild_backups(guild_id)', () => {});
+    db.run(`
+      CREATE TABLE IF NOT EXISTS guild_backup_jobs (
+        id          TEXT PRIMARY KEY,
+        guild_id    TEXT NOT NULL,
+        type        TEXT NOT NULL,
+        status      TEXT NOT NULL DEFAULT 'pending',
+        backup_id   TEXT,
+        mode        TEXT,
+        message     TEXT,
+        created_at  INTEGER DEFAULT 0,
+        updated_at  INTEGER DEFAULT 0,
+        FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+      )
+    `, (err) => { if (err) console.error('Error creating guild_backup_jobs table:', err); });
+    db.run('CREATE INDEX IF NOT EXISTS idx_backup_jobs_status ON guild_backup_jobs(status)', () => {});
+
     // Create audit_log table
     db.run(`
       CREATE TABLE IF NOT EXISTS audit_log (
@@ -1255,7 +1287,7 @@ export const MODULE_TIERS = {
   invitetracking: 'basic',
   games: 'basic', tictactoe: 'basic', rps: 'basic', trivia: 'basic', connect4: 'basic', hangman: 'basic', poker: 'basic',
   social: 'pro', stats: 'pro', tickets: 'pro', giveaways: 'pro', scheduled: 'pro',
-  applications: 'pro', economy: 'pro'
+  applications: 'pro', economy: 'pro', backup: 'pro'
 };
 
 /** Marketing/pricing catalog surfaced on the public landing page. */
@@ -6918,6 +6950,199 @@ export const MODULE_DEFAULTS = {
   economy: ECONOMY_DEFAULTS,
   games: GAMES_DEFAULTS
 };
+
+// ============================================================
+// Server Backup & Restore (v32) — snapshots + async job queue
+// ============================================================
+
+export const BACKUP_JOB_TYPES = ['snapshot', 'restore'];
+export const BACKUP_JOB_STATUSES = ['pending', 'running', 'done', 'failed'];
+export const RESTORE_MODES = ['missing', 'mirror'];
+export const BACKUP_MAX_PER_GUILD = 15;
+
+function backupNowSeconds() { return Math.floor(Date.now() / 1000); }
+
+/** Count channels/roles inside a snapshot data blob (best-effort). */
+function backupCounts(data) {
+  let channels = 0, roles = 0;
+  try {
+    const obj = typeof data === 'string' ? JSON.parse(data) : (data || {});
+    if (Array.isArray(obj.channels)) channels = obj.channels.length;
+    if (Array.isArray(obj.roles)) roles = obj.roles.length;
+  } catch { /* ignore malformed */ }
+  return { channels, roles };
+}
+
+/** Snapshot row → dashboard list shape (no data blob). */
+function shapeBackupMeta(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name || '',
+    guild_name: row.guild_name || '',
+    guild_icon_url: row.guild_icon_url || '',
+    channels_count: row.channels_count || 0,
+    roles_count: row.roles_count || 0,
+    created_at: row.created_at || 0
+  };
+}
+
+function shapeBackupJob(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    type: row.type,
+    status: row.status,
+    backup_id: row.backup_id || null,
+    mode: row.mode || null,
+    message: row.message || null,
+    created_at: row.created_at || 0,
+    updated_at: row.updated_at || 0
+  };
+}
+
+/** Bot: store a snapshot the bot just captured. Trims to BACKUP_MAX_PER_GUILD. */
+export function createBackup(guildId, { name, guild_name, guild_icon_url, data } = {}) {
+  return runInTransaction(async () => {
+    const id = randomUUID();
+    const now = backupNowSeconds();
+    const dataStr = typeof data === 'string' ? data : JSON.stringify(data || {});
+    const { channels, roles } = backupCounts(dataStr);
+    const cleanName = (name && String(name).trim()) ? String(name).trim().slice(0, 120) : `Snapshot ${new Date(now * 1000).toISOString().slice(0, 16).replace('T', ' ')}`;
+    await runStmt(
+      `INSERT INTO guild_backups (id, guild_id, name, guild_name, guild_icon_url, channels_count, roles_count, data, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, guildId, cleanName, guild_name || null, guild_icon_url || null, channels, roles, dataStr, now]
+    );
+    // Retention: keep only the newest BACKUP_MAX_PER_GUILD snapshots.
+    await runStmt(
+      `DELETE FROM guild_backups WHERE guild_id = ? AND id NOT IN (
+         SELECT id FROM guild_backups WHERE guild_id = ? ORDER BY created_at DESC, id DESC LIMIT ?
+       )`,
+      [guildId, guildId, BACKUP_MAX_PER_GUILD]
+    );
+    return shapeBackupMeta(await dbGet('SELECT * FROM guild_backups WHERE id = ?', [id]));
+  });
+}
+
+/** Dashboard: snapshot metadata list (no data blob). */
+export function getBackups(guildId) {
+  return new Promise((resolve, reject) => {
+    db.all(
+      'SELECT id, guild_id, name, guild_name, guild_icon_url, channels_count, roles_count, created_at FROM guild_backups WHERE guild_id = ? ORDER BY created_at DESC, id DESC',
+      [guildId],
+      (err, rows) => { if (err) reject(err); else resolve((rows || []).map(shapeBackupMeta)); }
+    );
+  });
+}
+
+/** Full snapshot incl. parsed data blob. */
+export function getBackup(guildId, backupId) {
+  return new Promise((resolve, reject) => {
+    db.get('SELECT * FROM guild_backups WHERE guild_id = ? AND id = ?', [guildId, backupId], (err, row) => {
+      if (err) return reject(err);
+      if (!row) return resolve(null);
+      let data = {};
+      try { data = JSON.parse(row.data || '{}'); } catch { data = {}; }
+      resolve({ ...shapeBackupMeta(row), data });
+    });
+  });
+}
+
+export function deleteBackup(guildId, backupId) {
+  return new Promise((resolve, reject) => {
+    db.run('DELETE FROM guild_backups WHERE guild_id = ? AND id = ?', [guildId, backupId], function (err) {
+      if (err) reject(err);
+      else resolve(this.changes);
+    });
+  });
+}
+
+/** Dashboard: enqueue a snapshot/restore job. */
+export function createBackupJob(guildId, { type, backup_id = null, mode = null } = {}) {
+  if (!BACKUP_JOB_TYPES.includes(type)) {
+    return Promise.reject(Object.assign(new Error('invalid job type'), { code: 'VALIDATION' }));
+  }
+  const safeMode = type === 'restore' ? (RESTORE_MODES.includes(mode) ? mode : 'missing') : null;
+  return new Promise((resolve, reject) => {
+    const id = randomUUID();
+    const now = backupNowSeconds();
+    db.run(
+      `INSERT INTO guild_backup_jobs (id, guild_id, type, status, backup_id, mode, created_at, updated_at)
+       VALUES (?, ?, ?, 'pending', ?, ?, ?, ?)`,
+      [id, guildId, type, backup_id, safeMode, now, now],
+      function (err) {
+        if (err) return reject(err);
+        db.get('SELECT * FROM guild_backup_jobs WHERE id = ?', [id], (gErr, row) => {
+          if (gErr) reject(gErr); else resolve(shapeBackupJob(row));
+        });
+      }
+    );
+  });
+}
+
+/** Dashboard: jobs still pending/running for this guild (progress polling). */
+export function getActiveBackupJobs(guildId) {
+  return new Promise((resolve, reject) => {
+    db.all(
+      "SELECT * FROM guild_backup_jobs WHERE guild_id = ? AND status IN ('pending', 'running') ORDER BY created_at ASC",
+      [guildId],
+      (err, rows) => { if (err) reject(err); else resolve((rows || []).map(shapeBackupJob)); }
+    );
+  });
+}
+
+/**
+ * Bot: pending jobs across all guilds (skips blocked guilds + non-pro tiers, so a
+ * downgrade/lapsed-Premium guild stops getting snapshot/restore work). Restore
+ * jobs embed the source snapshot's parsed data so the bot needs only one call.
+ */
+export function getDueBackupJobs() {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `SELECT j.*, b.data AS backup_data, b.guild_name AS backup_guild_name
+         FROM guild_backup_jobs j
+         LEFT JOIN guild_backups b ON b.id = j.backup_id
+        WHERE j.status = 'pending'
+          AND j.guild_id NOT IN (SELECT id FROM guilds WHERE blocked = 1)
+          AND ${tierFilterSql('pro', 'j.guild_id')}
+        ORDER BY j.created_at ASC`,
+      [],
+      (err, rows) => {
+        if (err) return reject(err);
+        const jobs = (rows || []).map((row) => {
+          const job = shapeBackupJob(row);
+          job.guild_id = row.guild_id;
+          if (job.type === 'restore') {
+            let data = null;
+            try { data = row.backup_data ? JSON.parse(row.backup_data) : null; } catch { data = null; }
+            job.data = data;
+          }
+          return job;
+        });
+        resolve(jobs);
+      }
+    );
+  });
+}
+
+/** Bot: report job progress/result. */
+export function updateBackupJob(jobId, { status, backup_id, message } = {}) {
+  return new Promise((resolve, reject) => {
+    db.get('SELECT * FROM guild_backup_jobs WHERE id = ?', [jobId], (gErr, row) => {
+      if (gErr) return reject(gErr);
+      if (!row) return resolve(0);
+      const nextStatus = BACKUP_JOB_STATUSES.includes(status) ? status : row.status;
+      const nextBackup = backup_id !== undefined ? backup_id : row.backup_id;
+      const nextMessage = message !== undefined ? (message == null ? null : String(message).slice(0, 2000)) : row.message;
+      db.run(
+        'UPDATE guild_backup_jobs SET status = ?, backup_id = ?, message = ?, updated_at = ? WHERE id = ?',
+        [nextStatus, nextBackup, nextMessage, backupNowSeconds(), jobId],
+        function (err) { if (err) reject(err); else resolve(this.changes); }
+      );
+    });
+  });
+}
 
 /**
  * Close database connection
