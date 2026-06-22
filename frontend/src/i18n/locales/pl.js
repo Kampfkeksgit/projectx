@@ -1211,7 +1211,12 @@ export default {
     templateEmpty: 'Żaden z Twoich innych serwerów nie ma jeszcze migawki. Najpierw utwórz ją tam.',
     templateApply: 'Zastosuj',
     templateQueued: 'Zastosowanie szablonu w kolejce',
-    templateError: 'Nie udało się zastosować szablonu'
+    templateError: 'Nie udało się zastosować szablonu',
+    partsLabel: 'Co zastosować',
+    partRoles: 'Role',
+    partChannels: 'Kanały',
+    partIcon: 'Ikona serwera',
+    partName: 'Nazwa serwera'
   },
   scheduled: {
     eyebrow: 'Konfiguracja',

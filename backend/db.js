@@ -1209,6 +1209,9 @@ function initializeDatabase() {
       )
     `, (err) => { if (err) console.error('Error creating guild_backup_jobs table:', err); });
     db.run('CREATE INDEX IF NOT EXISTS idx_backup_jobs_status ON guild_backup_jobs(status)', () => {});
+    db.run('ALTER TABLE guild_backup_jobs ADD COLUMN parts TEXT', (err) => {
+      if (err && !/duplicate column name/i.test(err.message)) console.error('Warning: guild_backup_jobs.parts:', err.message);
+    });
 
     // Create audit_log table
     db.run(`
@@ -6958,9 +6961,36 @@ export const MODULE_DEFAULTS = {
 export const BACKUP_JOB_TYPES = ['snapshot', 'restore'];
 export const BACKUP_JOB_STATUSES = ['pending', 'running', 'done', 'failed'];
 export const RESTORE_MODES = ['missing', 'mirror'];
+export const RESTORE_PARTS = ['roles', 'channels', 'server_name', 'server_icon'];
 export const BACKUP_MAX_PER_GUILD = 15;
 
 function backupNowSeconds() { return Math.floor(Date.now() / 1000); }
+
+/**
+ * Normalize a restore "parts" selection (which pieces to restore). Accepts a
+ * partial object of booleans; returns `{roles,channels,server_name,server_icon}`.
+ * Missing/empty input → all true (full restore, backward compatible).
+ */
+function sanitizeBackupParts(parts) {
+  if (!parts || typeof parts !== 'object') return null; // null = all parts
+  const out = {};
+  let anyTrue = false;
+  for (const key of RESTORE_PARTS) {
+    out[key] = !!parts[key];
+    if (out[key]) anyTrue = true;
+  }
+  if (!anyTrue) return null; // nothing selected → treat as full restore
+  return out;
+}
+
+/** Parse the stored parts JSON; null/invalid → null (= all parts). */
+function parseBackupParts(raw) {
+  if (!raw) return null;
+  try {
+    const obj = JSON.parse(raw);
+    return sanitizeBackupParts(obj);
+  } catch { return null; }
+}
 
 /** Count channels/roles inside a snapshot data blob (best-effort). */
 function backupCounts(data) {
@@ -6995,6 +7025,7 @@ function shapeBackupJob(row) {
     status: row.status,
     backup_id: row.backup_id || null,
     mode: row.mode || null,
+    parts: parseBackupParts(row.parts),
     message: row.message || null,
     created_at: row.created_at || 0,
     updated_at: row.updated_at || 0
@@ -7059,18 +7090,19 @@ export function deleteBackup(guildId, backupId) {
 }
 
 /** Dashboard: enqueue a snapshot/restore job. */
-export function createBackupJob(guildId, { type, backup_id = null, mode = null } = {}) {
+export function createBackupJob(guildId, { type, backup_id = null, mode = null, parts = null } = {}) {
   if (!BACKUP_JOB_TYPES.includes(type)) {
     return Promise.reject(Object.assign(new Error('invalid job type'), { code: 'VALIDATION' }));
   }
   const safeMode = type === 'restore' ? (RESTORE_MODES.includes(mode) ? mode : 'missing') : null;
+  const safeParts = type === 'restore' ? sanitizeBackupParts(parts) : null;
   return new Promise((resolve, reject) => {
     const id = randomUUID();
     const now = backupNowSeconds();
     db.run(
-      `INSERT INTO guild_backup_jobs (id, guild_id, type, status, backup_id, mode, created_at, updated_at)
-       VALUES (?, ?, ?, 'pending', ?, ?, ?, ?)`,
-      [id, guildId, type, backup_id, safeMode, now, now],
+      `INSERT INTO guild_backup_jobs (id, guild_id, type, status, backup_id, mode, parts, created_at, updated_at)
+       VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?)`,
+      [id, guildId, type, backup_id, safeMode, safeParts ? JSON.stringify(safeParts) : null, now, now],
       function (err) {
         if (err) return reject(err);
         db.get('SELECT * FROM guild_backup_jobs WHERE id = ?', [id], (gErr, row) => {

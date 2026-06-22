@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 32;
+const CURRENT_SCHEMA_VERSION = 33;
 
 /**
  * Initialize schema version tracking
@@ -91,7 +91,8 @@ async function applyMigrations(fromVersion, toVersion) {
     29: migrationV29,
     30: migrationV30,
     31: migrationV31,
-    32: migrationV32
+    32: migrationV32,
+    33: migrationV33
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -1829,6 +1830,18 @@ function migrationV32() {
       FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
     )`,
     'CREATE INDEX IF NOT EXISTS idx_backup_jobs_status ON guild_backup_jobs(status)'
+  ]);
+}
+
+/**
+ * Migration V33: per-restore-job scope selection for Server-Backup.
+ *   - guild_backup_jobs.parts: JSON `{roles,channels,server_name,server_icon}` —
+ *     lets a restore/apply-template job restore only selected parts. NULL = all
+ *     parts (backward compatible). Idempotent ALTER; mirrored in initializeDatabase().
+ */
+function migrationV33() {
+  return runSchemaBatch(33, [
+    'ALTER TABLE guild_backup_jobs ADD COLUMN parts TEXT'
   ]);
 }
 

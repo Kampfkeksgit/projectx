@@ -162,9 +162,17 @@
               </button>
             </div>
 
+            <div class="parts-group">
+              <div class="parts-group__label">{{ t('backup.partsLabel') }}</div>
+              <label class="parts-check"><input type="checkbox" v-model="parts.roles" /><span>{{ t('backup.partRoles') }}</span></label>
+              <label class="parts-check"><input type="checkbox" v-model="parts.channels" /><span>{{ t('backup.partChannels') }}</span></label>
+              <label class="parts-check"><input type="checkbox" v-model="parts.server_icon" /><span>{{ t('backup.partIcon') }}</span></label>
+              <label class="parts-check"><input type="checkbox" v-model="parts.server_name" /><span>{{ t('backup.partName') }}</span></label>
+            </div>
+
             <div class="modal__actions">
               <AppButton variant="ghost" @click="restoreTarget = null">{{ t('backup.cancel') }}</AppButton>
-              <AppButton :variant="restoreMode === 'mirror' ? 'danger' : 'primary'" :loading="restoreSubmitting" @click="confirmRestore">
+              <AppButton :variant="restoreMode === 'mirror' ? 'danger' : 'primary'" :disabled="noPartsSelected" :loading="restoreSubmitting" @click="confirmRestore">
                 {{ t('backup.restore') }}
               </AppButton>
             </div>
@@ -235,13 +243,21 @@
                   </span>
                 </button>
               </div>
+
+              <div v-if="templateBackupId" class="parts-group">
+                <div class="parts-group__label">{{ t('backup.partsLabel') }}</div>
+                <label class="parts-check"><input type="checkbox" v-model="parts.roles" /><span>{{ t('backup.partRoles') }}</span></label>
+                <label class="parts-check"><input type="checkbox" v-model="parts.channels" /><span>{{ t('backup.partChannels') }}</span></label>
+                <label class="parts-check"><input type="checkbox" v-model="parts.server_icon" /><span>{{ t('backup.partIcon') }}</span></label>
+                <label class="parts-check"><input type="checkbox" v-model="parts.server_name" /><span>{{ t('backup.partName') }}</span></label>
+              </div>
             </div>
 
             <div class="modal__actions">
               <AppButton variant="ghost" @click="closeTemplate">{{ t('backup.cancel') }}</AppButton>
               <AppButton
                 :variant="templateMode === 'mirror' ? 'danger' : 'primary'"
-                :disabled="!templateBackupId || anyJobActive"
+                :disabled="!templateBackupId || anyJobActive || noPartsSelected"
                 :loading="templateSubmitting"
                 @click="applyTemplate"
               >{{ t('backup.templateApply') }}</AppButton>
@@ -282,6 +298,17 @@ const detailError = ref(false)
 const restoreTarget = ref(null)
 const restoreMode = ref('missing')
 const restoreSubmitting = ref(false)
+
+// Which pieces to apply (shared by restore + apply-template; only one modal open
+// at a time). All on by default = full restore.
+const parts = reactive({ roles: true, channels: true, server_name: true, server_icon: true })
+const noPartsSelected = computed(() => !parts.roles && !parts.channels && !parts.server_name && !parts.server_icon)
+function resetParts() {
+  parts.roles = true
+  parts.channels = true
+  parts.server_name = true
+  parts.server_icon = true
+}
 
 const deleteTarget = ref(null)
 const deleteSubmitting = ref(false)
@@ -463,16 +490,17 @@ async function createSnapshot() {
 
 function openRestore(snap) {
   restoreMode.value = 'missing'
+  resetParts()
   restoreTarget.value = snap
 }
 
 async function confirmRestore() {
   const snap = restoreTarget.value
-  if (!snap) return
+  if (!snap || noPartsSelected.value) return
   restoreSubmitting.value = true
   restoringIds.add(snap.id)
   try {
-    const { data } = await api.post(`/guilds/${guildId.value}/backups/${snap.id}/restore`, { mode: restoreMode.value })
+    const { data } = await api.post(`/guilds/${guildId.value}/backups/${snap.id}/restore`, { mode: restoreMode.value, parts: { ...parts } })
     if (data?.success && data.job) jobs.value = [data.job, ...jobs.value]
     restoreTarget.value = null
     toast.success(t('backup.restoreQueued'))
@@ -492,6 +520,7 @@ async function openTemplate() {
   templateSourceId.value = ''
   templateBackupId.value = ''
   templateMode.value = 'missing'
+  resetParts()
   templateLoading.value = true
   try {
     const { data } = await api.get(`/guilds/${guildId.value}/backups/templates`)
@@ -509,13 +538,14 @@ function closeTemplate() {
 }
 
 async function applyTemplate() {
-  if (!templateSourceId.value || !templateBackupId.value) return
+  if (!templateSourceId.value || !templateBackupId.value || noPartsSelected.value) return
   templateSubmitting.value = true
   try {
     const { data } = await api.post(`/guilds/${guildId.value}/backups/apply-template`, {
       source_guild_id: templateSourceId.value,
       backup_id: templateBackupId.value,
-      mode: templateMode.value
+      mode: templateMode.value,
+      parts: { ...parts }
     })
     if (data?.success && data.job) jobs.value = [data.job, ...jobs.value]
     closeTemplate()
@@ -591,6 +621,11 @@ async function confirmDelete() {
 .mode-card__text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .mode-card__title { font-weight: 600; font-size: 0.92rem; }
 .mode-card__hint { font-size: 0.8rem; color: var(--color-text-muted); line-height: 1.45; }
+
+.parts-group { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; margin-top: var(--space-4); padding: var(--space-3) var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-bg); }
+.parts-group__label { flex-basis: 100%; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-soft); }
+.parts-check { display: inline-flex; align-items: center; gap: 6px; font-size: 0.88rem; cursor: pointer; }
+.parts-check input { width: 16px; height: 16px; accent-color: var(--color-primary); cursor: pointer; }
 
 /* Modal */
 .modal-overlay { position: fixed; inset: 0; z-index: 8000; background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; padding: var(--space-4); }

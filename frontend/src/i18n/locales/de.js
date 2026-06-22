@@ -1253,7 +1253,12 @@ export default {
     templateEmpty: 'Keiner deiner anderen Server hat bisher einen Snapshot. Erstelle dort zuerst einen.',
     templateApply: 'Anwenden',
     templateQueued: 'Vorlagen-Anwendung eingereiht',
-    templateError: 'Vorlage konnte nicht angewendet werden'
+    templateError: 'Vorlage konnte nicht angewendet werden',
+    partsLabel: 'Was anwenden',
+    partRoles: 'Rollen',
+    partChannels: 'Kanäle',
+    partIcon: 'Server-Icon',
+    partName: 'Servername'
   },
   scheduled: {
     eyebrow: 'Konfiguration',

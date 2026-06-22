@@ -6,9 +6,10 @@ live guild.
 
 Backend contract (X-Bot-Token auth):
   GET  /api/bot/backup/jobs/due
-       → { jobs: [ { id, guild_id, type, status, backup_id, mode, message, data? } ] }
-       For type=='restore', `data` is the snapshot object. For type=='snapshot',
-       no data is sent.
+       → { jobs: [ { id, guild_id, type, status, backup_id, mode, parts?, message, data? } ] }
+       For type=='restore', `data` is the snapshot object and `parts` (optional)
+       selects which pieces to restore: {roles, channels, server_name, server_icon}
+       (absent/null = restore everything). For type=='snapshot', no data is sent.
   PUT  /api/bot/backup/jobs/{job_id}   body { status, backup_id?, message? }
        status ∈ pending|running|done|failed
   POST /api/bot/guilds/{guild_id}/backups   body { name, guild_name, guild_icon_url, data }
@@ -269,26 +270,47 @@ class ServerBackup(commands.Cog):
             raise Exception("Snapshot data missing")
 
         mode = job.get("mode") or "missing"
+
+        # `parts` selects which pieces to restore. None/absent → restore all
+        # (backward compatible). Keys: roles, channels, server_name, server_icon.
+        parts = job.get("parts")
+        if isinstance(parts, dict):
+            do_roles = bool(parts.get("roles"))
+            do_channels = bool(parts.get("channels"))
+            do_name = bool(parts.get("server_name"))
+            do_icon = bool(parts.get("server_icon"))
+        else:
+            do_roles = do_channels = do_name = do_icon = True
+
         notes = []
 
-        # 1) Roles → build old_id -> live discord.Role map.
-        role_map = await self._restore_roles(guild, data.get("roles") or [], notes)
+        # 1) Roles → build old_id -> live discord.Role map. We always build the
+        #    map (so channel overwrites can reference existing roles by name), but
+        #    only CREATE missing roles when the user selected the roles part.
+        role_map = await self._restore_roles(guild, data.get("roles") or [], notes, create=do_roles)
 
         # 2) Categories first (so channels can attach), then non-category channels.
-        await self._restore_channels(guild, data.get("channels") or [], role_map, mode, notes)
+        if do_channels:
+            await self._restore_channels(guild, data.get("channels") or [], role_map, mode, notes)
 
-        # 3) Server style (name + icon).
-        await self._restore_server_style(guild, data.get("server") or {}, notes)
+        # 3) Server style (name + icon), each independently selectable.
+        await self._restore_server_style(guild, data.get("server") or {}, notes, do_name, do_icon)
 
         if not notes:
             notes.append("Restore complete (no changes needed).")
         return _safe_msg(" | ".join(notes))
 
-    async def _restore_roles(self, guild, snapshot_roles, notes):
-        """Returns old_role_id(str) -> discord.Role. Creates missing roles below
-        the bot's top role; maps existing ones by exact name."""
+    async def _restore_roles(self, guild, snapshot_roles, notes, create=True):
+        """Returns old_role_id(str) -> discord.Role. Maps existing roles by exact
+        name; when create=True also creates the missing ones.
+
+        NOTE: We do NOT skip roles by comparing the snapshot position to the bot's
+        top role — those positions come from a DIFFERENT server when applying a
+        template and are meaningless here. Discord places every newly created role
+        just above @everyone (the bot only needs the Manage Roles permission), so
+        create_role never violates the hierarchy. If the permission is missing it
+        raises Forbidden, which we report."""
         role_map = {}
-        my_top = guild.me.top_role.position
 
         # Existing live roles by name (non-managed, usable as targets).
         live_by_name = {}
@@ -296,7 +318,7 @@ class ServerBackup(commands.Cog):
             if not r.managed and not r.is_default():
                 live_by_name.setdefault(r.name, r)
 
-        created = 0
+        to_create = []
         for sr in snapshot_roles:
             old_id = str(sr.get("id"))
             if sr.get("is_default"):
@@ -305,11 +327,12 @@ class ServerBackup(commands.Cog):
                 continue
 
             if sr.get("managed"):
-                # Managed (integration/bot) roles can't be created — skip mapping.
+                # Managed (integration/bot) roles can't be created — map if a live
+                # one exists by name, otherwise skip.
                 existing = live_by_name.get(sr.get("name"))
                 if existing is not None:
                     role_map[old_id] = existing
-                else:
+                elif create:
                     notes.append(f"Skipped managed role '{sr.get('name')}' (cannot recreate)")
                 continue
 
@@ -318,11 +341,19 @@ class ServerBackup(commands.Cog):
                 role_map[old_id] = existing
                 continue
 
-            # The bot can only manage roles strictly below its own top role.
-            if int(sr.get("position", 0) or 0) >= my_top:
-                notes.append(f"Skipped role '{sr.get('name')}' (above bot's top role)")
-                continue
+            if create:
+                to_create.append(sr)
 
+        if not create:
+            return role_map
+
+        # Create missing roles, highest snapshot position first: each new role
+        # lands just above @everyone, so creating top-down yields roughly the
+        # original ordering (highest roles end up highest).
+        to_create.sort(key=lambda s: int(s.get("position", 0) or 0), reverse=True)
+        created = 0
+        for sr in to_create:
+            old_id = str(sr.get("id"))
             try:
                 perms = discord.Permissions(int(sr.get("permissions", 0) or 0))
             except Exception:
@@ -533,34 +564,38 @@ class ServerBackup(commands.Cog):
         except Exception as exc:
             notes.append(f"Could not edit '{c.get('name')}': {str(exc)[:60]}")
 
-    async def _restore_server_style(self, guild, server, notes):
+    async def _restore_server_style(self, guild, server, notes, do_name=True, do_icon=True):
+        if not do_name and not do_icon:
+            return
         if not guild.me.guild_permissions.manage_guild:
             notes.append("Server style not restored (missing Manage Server permission)")
             return
 
         # Name.
-        new_name = server.get("name")
-        if new_name and new_name != guild.name:
-            try:
-                await guild.edit(name=new_name, reason="Backup restore")
-            except Exception as exc:
-                notes.append(f"Could not set server name: {str(exc)[:60]}")
+        if do_name:
+            new_name = server.get("name")
+            if new_name and new_name != guild.name:
+                try:
+                    await guild.edit(name=new_name, reason="Backup restore")
+                except Exception as exc:
+                    notes.append(f"Could not set server name: {str(exc)[:60]}")
 
         # Icon — optional, best effort (fetch bytes then set).
-        icon_url = server.get("icon_url")
-        if icon_url:
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(icon_url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                        if resp.status == 200:
-                            icon_bytes = await resp.read()
-                            await guild.edit(icon=icon_bytes, reason="Backup restore")
-                        else:
-                            notes.append("icon not restored (download failed)")
-            except Exception as exc:
-                notes.append(f"icon not restored ({str(exc)[:50]})")
-        else:
-            notes.append("icon not restored (none in snapshot)")
+        if do_icon:
+            icon_url = server.get("icon_url")
+            if icon_url:
+                try:
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(icon_url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                            if resp.status == 200:
+                                icon_bytes = await resp.read()
+                                await guild.edit(icon=icon_bytes, reason="Backup restore")
+                            else:
+                                notes.append("icon not restored (download failed)")
+                except Exception as exc:
+                    notes.append(f"icon not restored ({str(exc)[:50]})")
+            else:
+                notes.append("icon not restored (none in snapshot)")
 
 
 async def setup(bot):

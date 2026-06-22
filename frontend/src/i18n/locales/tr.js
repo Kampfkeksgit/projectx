@@ -1211,7 +1211,12 @@ export default {
     templateEmpty: 'Diğer sunucularının hiçbirinde henüz anlık görüntü yok. Önce orada bir tane oluştur.',
     templateApply: 'Uygula',
     templateQueued: 'Şablon uygulaması sıraya alındı',
-    templateError: 'Şablon uygulanamadı'
+    templateError: 'Şablon uygulanamadı',
+    partsLabel: 'Ne uygulanacak',
+    partRoles: 'Roller',
+    partChannels: 'Kanallar',
+    partIcon: 'Sunucu simgesi',
+    partName: 'Sunucu adı'
   },
   scheduled: {
     eyebrow: 'Yapılandırma',
