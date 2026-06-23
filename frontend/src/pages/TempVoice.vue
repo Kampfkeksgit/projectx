@@ -39,6 +39,30 @@
         <input id="tv-limit" v-model.number="form.user_limit" class="input input--narrow" type="number" min="0" max="99" />
       </div>
 
+      <div class="row row--toggle">
+        <div>
+          <div class="row__label">{{ t('tempvoice.panelLabel') }}</div>
+          <div class="row__hint">{{ t('tempvoice.panelHint') }}</div>
+        </div>
+        <AppToggle v-model="form.panel_enabled" />
+      </div>
+
+      <div v-if="form.panel_enabled" class="row">
+        <label class="row__label" for="tv-dest">{{ t('tempvoice.panelDestLabel') }}</label>
+        <div class="row__hint">{{ t('tempvoice.panelDestHint') }}</div>
+        <select id="tv-dest" v-model="form.panel_destination" class="input">
+          <option value="voice">{{ t('tempvoice.panelDestVoice') }}</option>
+          <option value="dm">{{ t('tempvoice.panelDestDm') }}</option>
+          <option value="channel">{{ t('tempvoice.panelDestChannel') }}</option>
+        </select>
+      </div>
+
+      <div v-if="form.panel_enabled && form.panel_destination === 'channel'" class="row">
+        <label class="row__label">{{ t('tempvoice.panelChannelLabel') }}</label>
+        <div class="row__hint">{{ t('tempvoice.panelChannelHint') }}</div>
+        <ChannelSelector v-model="form.panel_channel_id" :guild-id="guildId" :types="['text', 'announcement']" />
+      </div>
+
       <div class="form-card__note">{{ t('tempvoice.permNote') }}</div>
 
       <div class="form-card__actions">
@@ -63,7 +87,7 @@ const toast = useToast()
 const { t } = useI18n()
 const guildId = computed(() => route.params.guild_id)
 
-const form = reactive({ enabled: false, hub_channel_id: '', category_id: '', name_template: '🔊 {user}', user_limit: 0 })
+const form = reactive({ enabled: false, hub_channel_id: '', category_id: '', name_template: '🔊 {user}', user_limit: 0, panel_enabled: false, panel_destination: 'voice', panel_channel_id: '' })
 const saving = ref(false)
 let initial = JSON.stringify(form)
 const dirty = computed(() => JSON.stringify(form) !== initial)
@@ -79,6 +103,9 @@ async function load() {
       form.category_id = s.category_id || ''
       form.name_template = s.name_template || '🔊 {user}'
       form.user_limit = s.user_limit || 0
+      form.panel_enabled = !!s.panel_enabled
+      form.panel_destination = s.panel_destination || 'voice'
+      form.panel_channel_id = s.panel_channel_id || ''
       initial = JSON.stringify(form)
     }
   } catch (err) {
@@ -97,7 +124,10 @@ async function save() {
       hub_channel_id: form.hub_channel_id || null,
       category_id: form.category_id || null,
       name_template: form.name_template || '🔊 {user}',
-      user_limit: form.user_limit || 0
+      user_limit: form.user_limit || 0,
+      panel_enabled: !!form.panel_enabled,
+      panel_destination: form.panel_destination || 'voice',
+      panel_channel_id: form.panel_channel_id || null
     })
     if (data?.success && data.settings) {
       Object.assign(form, {
@@ -105,7 +135,10 @@ async function save() {
         hub_channel_id: data.settings.hub_channel_id || '',
         category_id: data.settings.category_id || '',
         name_template: data.settings.name_template || '🔊 {user}',
-        user_limit: data.settings.user_limit || 0
+        user_limit: data.settings.user_limit || 0,
+        panel_enabled: !!data.settings.panel_enabled,
+        panel_destination: data.settings.panel_destination || 'voice',
+        panel_channel_id: data.settings.panel_channel_id || ''
       })
       initial = JSON.stringify(form)
     }

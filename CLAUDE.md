@@ -96,6 +96,10 @@ projectx/
 │       ├── tempvoice.py        # on_voice_state_update: Join in Hub-Channel → erstellt temp Voice-Channel
 │       │                       # (in Kategorie, user_limit), moved Member rein, löscht bei leer. on_ready-Cleanup.
 │       │                       # Settings-Cache (5min TTL). Tracking via /api/bot/.../tempvoice/channels.
+│       │                       # Steuerungspanel (panel_enabled): postet beim Erstellen ein Button-Panel (lock/unlock/
+│       │                       # hide/show/limit/rename/invite/kick/claim) via on_interaction (custom_id tv:<action>:<cid>,
+│       │                       # restart-fest); Ziel voice|dm|channel. In-Memory Owner-Map; Owner-Transfer wenn Owner geht
+│       │                       # (bei dm-Ziel bekommt der neue Owner das Panel). Nur Owner darf, Claim wenn Owner weg.
 │       ├── starboard.py        # on_raw_reaction_add/remove: zählt Stern-Emoji, ab threshold Repost ins
 │       │                       # star_channel (Embed + Jump), hält count aktuell, entfernt bei Unterschreitung.
 │       │                       # Entry-State via /api/bot/.../starboard/entries/:message_id.
@@ -317,7 +321,7 @@ projectx/
 │           │                        # mit An/Aus-Toggles je Befehl + eigene Custom-Commands mit per-Row-Save, 3 Match-Types)
 │           ├── SocialNotifications.vue # /dashboard/:guild_id/social (Liste + Inline-Editor; YouTube/Twitch/Kick)
 │           ├── Stats.vue            # /dashboard/:guild_id/stats (Modul-Settings + Counter-Liste + Verlaufs-Graphen)
-│           ├── TempVoice.vue        # /dashboard/:guild_id/tempvoice (Hub/Kategorie/Name/Limit)
+│           ├── TempVoice.vue        # /dashboard/:guild_id/tempvoice (Hub/Kategorie/Name/Limit + Steuerungspanel-Toggle/Ziel voice|dm|channel)
 │           ├── Starboard.vue        # /dashboard/:guild_id/starboard (Channel/Emoji/Threshold/Self-Star)
 │           ├── Suggestions.vue      # /dashboard/:guild_id/suggestions (Channel/Vote-Emojis)
 │           ├── Birthday.vue         # /dashboard/:guild_id/birthday (Settings + gespeicherte Geburtstage)
@@ -760,9 +764,9 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - Engine: **SQLite3** (Datei via `DATABASE_URL`, default `./data/bot.db`)
 - Connection: [backend/db.js](backend/db.js)
 - Migrations: [backend/migrations.js](backend/migrations.js)
-  - **Aktuelle Schema-Version: `34`**
+  - **Aktuelle Schema-Version: `35`**
   - `CURRENT_SCHEMA_VERSION` Konstante steuert Upgrades.
-  - `applyMigrations(from, to)` mappt Versionsnummern → Migration-Funktionen (`migrationV1`, …, `migrationV34`). v23–v34 nutzen den `runSchemaBatch(version, statements)`-Helper.
+  - `applyMigrations(from, to)` mappt Versionsnummern → Migration-Funktionen (`migrationV1`, …, `migrationV35`). v23–v35 nutzen den `runSchemaBatch(version, statements)`-Helper.
   - Versionstabelle: `schema_version (version PK, applied_at)`.
   - `migrationV2` fügt `users.token_expires_at INTEGER` hinzu (idempotent).
   - `migrationV3` legt `guild_autorole_settings`, `guild_log_settings`, `guild_moderation_settings` an (`CREATE TABLE IF NOT EXISTS` — idempotent; werden parallel auch im `initializeDatabase()`-Pfad erzeugt, damit Fresh-DBs auch ohne Migrations-Run funktionieren).
@@ -799,6 +803,7 @@ Mount-Points aus [backend/server.js](backend/server.js):
   - `migrationV32` (Server-Backup & Restore, Pro): legt 2 Tabellen an (idempotent + Mirror in `initializeDatabase()`): `guild_backups` (`id` UUID, FK CASCADE, `name`/`guild_name`/`guild_icon_url`/`channels_count`/`roles_count`/`data` JSON-Blob/`created_at`, `idx_backups_guild`) — gespeicherte Server-Snapshots; `guild_backup_jobs` (`id` UUID, FK CASCADE, `type ∈ {snapshot|restore}`, `status ∈ {pending|running|done|failed}`, `backup_id`, `mode ∈ {missing|mirror}`, `message`, `created_at`/`updated_at`, `idx_backup_jobs_status`) — asynchrone Job-Queue (Dashboard legt Job an, Bot pollt fällige, führt aus, meldet Status zurück; der Bot kann nicht gepusht werden).
   - `migrationV33` (Backup-Teil-Auswahl): idempotenter ALTER `guild_backup_jobs.parts TEXT` (JSON `{roles,channels,server_name,server_icon}` — Restore/Apply-Template wendet nur die gewählten Teile an; NULL = alle Teile, abwärtskompatibel). Mirror + defensiver ALTER in `initializeDatabase()`. `RESTORE_PARTS` in [db.js](backend/db.js) ist Single Source.
   - `migrationV34` (Template-Marketplace): legt `marketplace_templates` an (`id` UUID, `owner_user_id`, `source_guild_id`, `name`/`description`/`category`, `guild_name`/`guild_icon_url`, `channels_count`/`roles_count`, `data` JSON-Blob, `status ∈ {approved|pending|rejected}` default `approved`, `uses`, `created_at`, `idx_marketplace_status`) — vom System-Owner veröffentlichte Server-Vorlagen, die jede Pro-Guild anwenden kann. Idempotent + Mirror. `getDueBackupJobs()` joint die Daten jetzt via `COALESCE(guild_backups.data, marketplace_templates.data)` über `backup_id` (der Job-`backup_id` kann auf beide Tabellen zeigen).
+  - `migrationV35` (Temp-Voice-Steuerungspanel): 3 idempotente ALTERs auf `guild_tempvoice_settings` — `panel_enabled` (interaktives Panel beim Channel-Erstellen), `panel_destination ∈ {voice|dm|channel}` (Default `voice`), `panel_channel_id` (für `channel`-Ziel). Mirror + defensive ALTERs in `initializeDatabase()`. `TEMPVOICE_PANEL_DESTINATIONS` in [db.js](backend/db.js) ist Single Source; `TEMPVOICE_DEFAULTS`/`getTempVoiceSettings`/`upsertTempVoiceSettings` erweitert. Kein neuer Endpoint — die Felder fließen durch `/tempvoice` (Cookie) und `/api/bot/guilds/:id/settings/tempvoice`.
   - `migrationV18` (Ticket-Überarbeitung, idempotente ALTERs + neue Tabelle + Mirror): `guild_ticket_settings` +10 Spalten (`panel_type ∈ {dropdown|buttons}`, `panel_embed`/`welcome_embed` JSON, `ping_role_id`, `naming_template`, `claim_enabled`, `close_confirm`, `rating_enabled`, `rating_mode ∈ {channel|dm|both}`, `log_channel_id`); `guild_tickets` +8 Spalten (`ticket_category_id`, `number`, `claimed_by`, `rating`, `rating_comment`, `closed_by`, `closed_at`, `extra_user_ids` JSON); neue Tabelle `guild_ticket_categories` (`id` UUID, `idx_ticket_categories_guild`, FK CASCADE) — Ticket-Typen mit Label/Emoji/Desc + Kategorie-/Support-Rollen-/Ping-Rollen-Override, Welcome-Text, `button_style`, Position, Enabled.
 
 **Kern-Tabellen** (Details: [backend/DATABASE_SCHEMA.md](backend/DATABASE_SCHEMA.md), [backend/DATABASE_FUNCTIONS.md](backend/DATABASE_FUNCTIONS.md))
@@ -1009,6 +1014,11 @@ Empfehlung aus [README.md](README.md): SQLite → PostgreSQL für Multi-Instance
 ## 14. Letzte Aktualisierung
 
 - **Datum:** 2026-06-23
+- **Temp-Voice-Steuerungspanel (Schema v35):** Beim Erstellen eines Temp-Voice-Channels postet der Bot jetzt optional ein **interaktives Steuerungspanel** mit Buttons: **Lock/Unlock, Hide/Show, Limit, Rename, Invite, Kick, Claim**. Im Dashboard wählbar, **ob** das Panel gesendet wird und **wohin**: in den Sprachchannel-Chat, per **DM an den Owner** (inkl. neuem Owner nach Owner-Wechsel) oder in einen **separaten Channel**.
+  - **Schema:** Migration v35 = 3 idempotente ALTERs (`panel_enabled`/`panel_destination ∈ {voice|dm|channel}`/`panel_channel_id`; Mirror + defensive ALTERs). `TEMPVOICE_PANEL_DESTINATIONS` + erweiterte `TEMPVOICE_DEFAULTS`/`get|upsertTempVoiceSettings` in [db.js](backend/db.js). **Kein neuer Endpoint** — Felder fließen durch `/tempvoice` und `/api/bot/guilds/:id/settings/tempvoice`.
+  - **Bot** ([tempvoice.py](bot/cogs/tempvoice.py)): `build_panel_view`/`build_panel_embed`, Versand je nach Ziel, `on_interaction`-Dispatcher (`tv:<action>:<cid>`, restart-fest), `LimitModal`/`RenameModal`, ephemerale `UserSelect`-Views für Invite/Kick, In-Memory-Owner-Map (`_owners`, on_ready aus DB geladen), Owner-Transfer bei Verlassen (DM-Ziel → Panel an neuen Owner). Owner-only Gate, Claim wenn Owner abwesend. Perms: Manage Channels + Move Members (bereits in Invite-Bitmask).
+  - **Frontend** ([TempVoice.vue](frontend/src/pages/TempVoice.vue)): Panel-Toggle + Ziel-Dropdown + ChannelSelector (bei Ziel „separater Channel"). i18n: 9 neue `tempvoice.panel*`-Keys in allen 5 Sprachen (Key-Parität 1359/Locale).
+  - Verifiziert: Migration v35 sauber, DB-Smoke (Defaults/dm/channel/Invalid→voice) grün, Bot parst, Frontend-Build grün, i18n-Parität 1359/Locale.
 - **Template-Marketplace (Schema v34):** Erweiterung des Backup-Moduls — der **System-Owner** kann Server-Snapshots als öffentliche **Marketplace-Vorlagen** veröffentlichen; **jede Pro-Guild** kann sie anwenden. Beim „Vorlage anwenden" zeigt das Modal jetzt einen Umschalter **„Meine Server"** (eigene Snapshots) ↔ **„Marketplace"** (veröffentlichte Vorlagen).
   - **Entscheidungen:** nur Owner veröffentlicht (owner-kuratiert), Anwenden ist Pro.
   - **Schema:** Migration v34 = Tabelle `marketplace_templates` (eigener `data`-Blob, `status`, `uses`; idempotent + Mirror). `getDueBackupJobs()` resolved Restore-Daten jetzt via `COALESCE(guild_backups.data, marketplace_templates.data)` — ein Restore-Job-`backup_id` kann auf beide Tabellen zeigen, daher **kein Bot-Change**.

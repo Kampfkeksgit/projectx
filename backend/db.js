@@ -663,6 +663,15 @@ function initializeDatabase() {
       if (err) console.error('Error creating guild_tempvoice_settings table:', err);
       else console.log('✓ Guild tempvoice settings table initialized');
     });
+    db.run('ALTER TABLE guild_tempvoice_settings ADD COLUMN panel_enabled BOOLEAN DEFAULT 0', (err) => {
+      if (err && !/duplicate column name/i.test(err.message)) console.error('Warning: guild_tempvoice_settings.panel_enabled:', err.message);
+    });
+    db.run("ALTER TABLE guild_tempvoice_settings ADD COLUMN panel_destination TEXT DEFAULT 'voice'", (err) => {
+      if (err && !/duplicate column name/i.test(err.message)) console.error('Warning: guild_tempvoice_settings.panel_destination:', err.message);
+    });
+    db.run('ALTER TABLE guild_tempvoice_settings ADD COLUMN panel_channel_id TEXT', (err) => {
+      if (err && !/duplicate column name/i.test(err.message)) console.error('Warning: guild_tempvoice_settings.panel_channel_id:', err.message);
+    });
 
     db.run(`
       CREATE TABLE IF NOT EXISTS guild_tempvoice_channels (
@@ -4851,12 +4860,17 @@ function clampRange(value, min, max, fallback) {
   return n;
 }
 
+export const TEMPVOICE_PANEL_DESTINATIONS = ['voice', 'dm', 'channel'];
+
 export const TEMPVOICE_DEFAULTS = {
   enabled: false,
   hub_channel_id: null,
   category_id: null,
   name_template: '🔊 {user}',
-  user_limit: 0
+  user_limit: 0,
+  panel_enabled: false,
+  panel_destination: 'voice',
+  panel_channel_id: null
 };
 
 export function getTempVoiceSettings(guildId) {
@@ -4869,7 +4883,10 @@ export function getTempVoiceSettings(guildId) {
         hub_channel_id: row.hub_channel_id ?? null,
         category_id: row.category_id ?? null,
         name_template: row.name_template ?? TEMPVOICE_DEFAULTS.name_template,
-        user_limit: clampRange(row.user_limit, 0, 99, 0)
+        user_limit: clampRange(row.user_limit, 0, 99, 0),
+        panel_enabled: !!row.panel_enabled,
+        panel_destination: TEMPVOICE_PANEL_DESTINATIONS.includes(row.panel_destination) ? row.panel_destination : 'voice',
+        panel_channel_id: row.panel_channel_id ?? null
       });
     });
   });
@@ -4882,17 +4899,23 @@ export function upsertTempVoiceSettings(guildId, settings) {
     const category = isSnowflake(settings.category_id) ? settings.category_id : null;
     const nameTemplate = truncate(settings.name_template || TEMPVOICE_DEFAULTS.name_template, 100);
     const userLimit = clampRange(settings.user_limit, 0, 99, 0);
+    const panelEnabled = settings.panel_enabled ? 1 : 0;
+    const panelDest = TEMPVOICE_PANEL_DESTINATIONS.includes(settings.panel_destination) ? settings.panel_destination : 'voice';
+    const panelChannel = isSnowflake(settings.panel_channel_id) ? settings.panel_channel_id : null;
     db.run(
-      `INSERT INTO guild_tempvoice_settings (guild_id, enabled, hub_channel_id, category_id, name_template, user_limit)
-       VALUES (?, ?, ?, ?, ?, ?)
+      `INSERT INTO guild_tempvoice_settings (guild_id, enabled, hub_channel_id, category_id, name_template, user_limit, panel_enabled, panel_destination, panel_channel_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(guild_id) DO UPDATE SET
          enabled = excluded.enabled,
          hub_channel_id = excluded.hub_channel_id,
          category_id = excluded.category_id,
          name_template = excluded.name_template,
          user_limit = excluded.user_limit,
+         panel_enabled = excluded.panel_enabled,
+         panel_destination = excluded.panel_destination,
+         panel_channel_id = excluded.panel_channel_id,
          updated_at = CURRENT_TIMESTAMP`,
-      [guildId, enabled, hub, category, nameTemplate, userLimit],
+      [guildId, enabled, hub, category, nameTemplate, userLimit, panelEnabled, panelDest, panelChannel],
       function (err) {
         if (err) reject(err);
         else resolve(this.changes);
