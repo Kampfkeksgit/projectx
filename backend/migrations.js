@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 34;
+const CURRENT_SCHEMA_VERSION = 35;
 
 /**
  * Initialize schema version tracking
@@ -93,7 +93,8 @@ async function applyMigrations(fromVersion, toVersion) {
     31: migrationV31,
     32: migrationV32,
     33: migrationV33,
-    34: migrationV34
+    34: migrationV34,
+    35: migrationV35
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -1874,6 +1875,24 @@ function migrationV34() {
       created_at     INTEGER DEFAULT 0
     )`,
     'CREATE INDEX IF NOT EXISTS idx_marketplace_status ON marketplace_templates(status)'
+  ]);
+}
+
+/**
+ * Migration V35: Temp-Voice control panel.
+ *   - guild_tempvoice_settings.panel_enabled: send an interactive control panel
+ *     (lock/unlock/hide/limit/rename/invite/kick/claim) when a temp channel is made.
+ *   - panel_destination ∈ {voice|dm|channel}: where the panel is posted (voice =
+ *     the channel's text chat, dm = the owner incl. the new owner after a transfer,
+ *     channel = a fixed text channel).
+ *   - panel_channel_id: the fixed channel for destination='channel'.
+ * Idempotent ALTERs; mirrored in initializeDatabase().
+ */
+function migrationV35() {
+  return runSchemaBatch(35, [
+    'ALTER TABLE guild_tempvoice_settings ADD COLUMN panel_enabled BOOLEAN DEFAULT 0',
+    "ALTER TABLE guild_tempvoice_settings ADD COLUMN panel_destination TEXT DEFAULT 'voice'",
+    'ALTER TABLE guild_tempvoice_settings ADD COLUMN panel_channel_id TEXT'
   ]);
 }
 
