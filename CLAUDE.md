@@ -297,6 +297,7 @@ projectx/
 │       │   │                       # Toggles/Mention-Role/Template+Embed; eigene Platzhalter-Liste)
 │       │   ├── StatsCounterRow.vue # Inline-Editor-Row für Stats-Counter (Metrik-Typ/Name-Template mit
 │       │   │                       # {count}/Modus existing↔auto-create/Voice|Text/Toggle; ChannelSelector)
+│       │   │                       # Einklappbar (Caret im Header; gespeicherte Counter starten eingeklappt, Drafts offen)
 │       │   ├── StatsChart.vue  # Vanilla-SVG-Liniendiagramm (props: title, points[{ts,...}], lines[{key,label,color}])
 │       │   ├── ScheduledMessageRow.vue # Inline-Editor-Row für geplante Nachrichten (once/interval, datetime-local)
 │       │   ├── RoleMenuRow.vue  # Inline-Editor-Row für Rollen-Menüs (Buttons/Select + Options-Repeater)

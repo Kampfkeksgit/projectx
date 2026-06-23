@@ -977,6 +977,7 @@ export default {
     categoryNameHint: 'The bot creates this category and places auto-created channels in it.',
     moveUp: 'Move up',
     moveDown: 'Move down',
+    toggleDetails: 'Expand / collapse',
     presenceNote: 'Online / Offline counters require the privileged Presence Intent — enable it in the Discord Developer Portal (Bot → Privileged Gateway Intents → Presence Intent). Auto-created channels need the “Manage Channels” permission, so re-invite the bot if needed.',
     settingsSaved: 'Settings saved',
     countersTitle: 'Stats channels',

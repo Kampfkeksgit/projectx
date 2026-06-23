@@ -935,6 +935,7 @@ export default {
     categoryNameHint: 'Bot tworzy tę kategorię i umieszcza w niej automatycznie tworzone kanały.',
     moveUp: 'Przesuń w górę',
     moveDown: 'Przesuń w dół',
+    toggleDetails: 'Rozwiń / zwiń',
     presenceNote: 'Liczniki Online / Offline wymagają uprzywilejowanego Presence Intent — włącz go w portalu deweloperskim Discord (Bot → Privileged Gateway Intents → Presence Intent). Automatycznie tworzone kanały potrzebują uprawnienia „Zarządzanie kanałami”, więc w razie potrzeby zaproś bota ponownie.',
     settingsSaved: 'Ustawienia zapisane',
     countersTitle: 'Kanały statystyk',

@@ -2,6 +2,17 @@
   <div class="form-card st-row" :class="{ 'is-draft': isDraft }">
     <div class="st-row__head">
       <div class="st-row__title">
+        <button
+          type="button"
+          class="st-row__collapse"
+          :class="{ 'is-collapsed': collapsed }"
+          :title="t('stats.toggleDetails')"
+          :aria-label="t('stats.toggleDetails')"
+          :aria-expanded="!collapsed"
+          @click="collapsed = !collapsed"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
         <span v-if="!isDraft" class="st-row__reorder">
           <button
             type="button"
@@ -35,6 +46,7 @@
       </div>
     </div>
 
+    <div v-show="!collapsed" class="st-row__body">
     <div class="st-row__grid">
       <div class="form-row">
         <label class="form-row__label" :for="`type-${rowKey}`">{{ t('stats.typeLabel') }}</label>
@@ -110,6 +122,7 @@
         {{ t('stats.save') }}
       </AppButton>
     </div>
+    </div>
   </div>
 </template>
 
@@ -162,6 +175,9 @@ function hydrate(src) {
 }
 
 const local = reactive(hydrate(props.modelValue))
+
+// Saved counters start collapsed (tidy list); new drafts open for editing.
+const collapsed = ref(!props.isDraft)
 
 function cloneLocal() {
   return { ...local }
@@ -235,6 +251,33 @@ async function insertCount() {
   gap: var(--space-2);
   min-width: 0;
   flex-wrap: wrap;
+}
+
+.st-row__collapse {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  color: var(--color-text-soft);
+  border-radius: var(--radius-sm);
+  transition: color var(--transition), background var(--transition), transform var(--transition);
+}
+
+.st-row__collapse:hover {
+  color: var(--color-primary);
+  background: var(--color-surface-2);
+}
+
+.st-row__collapse.is-collapsed {
+  transform: rotate(-90deg);
+}
+
+.st-row__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
 }
 
 .st-row__reorder {

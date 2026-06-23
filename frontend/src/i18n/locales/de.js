@@ -977,6 +977,7 @@ export default {
     categoryNameHint: 'Der Bot erstellt diese Kategorie und legt auto-erstellte Channels darin ab.',
     moveUp: 'Nach oben',
     moveDown: 'Nach unten',
+    toggleDetails: 'Ein-/ausklappen',
     presenceNote: 'Online-/Offline-Counter brauchen das privilegierte Presence-Intent — aktiviere es im Discord Developer Portal (Bot → Privileged Gateway Intents → Presence Intent). Automatisch erstellte Channels brauchen die Berechtigung „Kanäle verwalten“; lade den Bot ggf. neu ein.',
     settingsSaved: 'Einstellungen gespeichert',
     countersTitle: 'Stats-Channels',
