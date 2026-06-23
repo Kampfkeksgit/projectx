@@ -935,6 +935,7 @@ export default {
     categoryNameHint: 'Bot bu kategoriyi oluşturur ve otomatik oluşturulan kanalları içine yerleştirir.',
     moveUp: 'Yukarı taşı',
     moveDown: 'Aşağı taşı',
+    toggleDetails: 'Genişlet / daralt',
     presenceNote: 'Çevrimiçi / Çevrimdışı sayaçları ayrıcalıklı Presence Intent gerektirir — bunu Discord Geliştirici Portalı\'nda etkinleştirin (Bot → Privileged Gateway Intents → Presence Intent). Otomatik oluşturulan kanallar "Kanalları Yönet" yetkisine ihtiyaç duyar, bu nedenle gerekirse botu yeniden davet edin.',
     settingsSaved: 'Ayarlar kaydedildi',
     countersTitle: 'İstatistik kanalları',

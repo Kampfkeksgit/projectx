@@ -935,6 +935,7 @@ export default {
     categoryNameHint: 'Бот создаёт эту категорию и помещает в неё авто-созданные каналы.',
     moveUp: 'Вверх',
     moveDown: 'Вниз',
+    toggleDetails: 'Развернуть / свернуть',
     presenceNote: 'Счётчики «Онлайн / Офлайн» требуют привилегированного интента Presence — включите его в Discord Developer Portal (Bot → Privileged Gateway Intents → Presence Intent). Авто-созданным каналам нужно право «Управление каналами», поэтому при необходимости переприглашите бота.',
     settingsSaved: 'Настройки сохранены',
     countersTitle: 'Каналы статистики',
