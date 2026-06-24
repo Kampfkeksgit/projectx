@@ -304,7 +304,9 @@ projectx/
 │       │   ├── TicketCategoryRow.vue # Inline-Editor-Row für Ticket-Kategorien (Label/Emoji/Desc/
 │       │   │                       # Kategorie+Support-Rolle+Ping-Rolle-Override/Button-Style/Welcome/Toggle)
 │       │   ├── PremiumLock.vue # Sperrseite für Premium-Module (in DashboardLayout statt router-view gerendert, wenn Tier < Modul)
-│       │   ├── Sidebar.vue     # Dashboard-Sidebar mit 4 Gruppen (Configuration/Moderation/Engagement/Games) + Premium-Link + Lock-Icons
+│       │   ├── Sidebar.vue     # Dashboard-Sidebar mit 6 einklappbaren Gruppen (Configuration/Moderation/Engagement/Community/Games/Server)
+│       │   │                   # + Premium-Link + Lock-Icons; Collapse-Zustand pro Gruppe (key config|moderation|engagement|community|games|server)
+│       │   │                   # in localStorage projectx_sidebar_collapsed; aktive Route-Gruppe wird beim Mount auto-aufgeklappt
 │       │   └── LoadingPage.vue # Animierter Orb
 │       └── pages/
 │           ├── Landing.vue          # /  (frei zugänglich, auch für authed User — Home-Button im /dashboard)
