@@ -27,23 +27,34 @@
     </router-link>
 
     <nav class="sidebar__nav">
-      <template v-for="(group, gi) in groups" :key="group.title + gi">
-        <div class="sidebar__section">{{ group.title }}</div>
-        <router-link
-          v-for="link in group.links"
-          :key="link.to"
-          :to="link.to"
-          class="sidebar__link"
-          :class="{ 'is-active': isActive(link), 'is-locked': isLocked(link) }"
-          @click="$emit('navigate')"
+      <div v-for="group in groups" :key="group.key" class="sidebar__group">
+        <button
+          type="button"
+          class="sidebar__section"
+          :class="{ 'is-collapsed': isCollapsed(group.key) }"
+          :aria-expanded="!isCollapsed(group.key)"
+          @click="toggleGroup(group.key)"
         >
-          <span class="sidebar__icon" v-html="link.icon"></span>
-          <span class="sidebar__link-label">{{ link.label }}</span>
-          <span v-if="isLocked(link)" class="sidebar__lock" :title="t('premiumLock.tooltip')">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          </span>
-        </router-link>
-      </template>
+          <svg class="sidebar__section-caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          <span class="sidebar__section-title">{{ group.title }}</span>
+        </button>
+        <div v-show="!isCollapsed(group.key)" class="sidebar__group-links">
+          <router-link
+            v-for="link in group.links"
+            :key="link.to"
+            :to="link.to"
+            class="sidebar__link"
+            :class="{ 'is-active': isActive(link), 'is-locked': isLocked(link) }"
+            @click="$emit('navigate')"
+          >
+            <span class="sidebar__icon" v-html="link.icon"></span>
+            <span class="sidebar__link-label">{{ link.label }}</span>
+            <span v-if="isLocked(link)" class="sidebar__lock" :title="t('premiumLock.tooltip')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </span>
+          </router-link>
+        </div>
+      </div>
     </nav>
 
     <div class="sidebar__foot">
@@ -56,7 +67,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, reactive } from 'vue'
 import { useRoute } from 'vue-router'
 import GuildAvatar from './GuildAvatar.vue'
 import { usePremium } from '../stores/premium.js'
@@ -76,8 +87,10 @@ defineEmits(['navigate'])
 
 const route = useRoute()
 
+// Stable per-group keys (independent of the translated title) drive collapse state.
 const groups = computed(() => [
   {
+    key: 'config',
     title: t('sidebar.section'),
     links: [
       {
@@ -102,38 +115,19 @@ const groups = computed(() => [
         icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>'
       },
       {
-        to: `/dashboard/${props.guildId}/stats`,
-        label: t('sidebar.linkStats'),
-        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>'
+        to: `/dashboard/${props.guildId}/verification`,
+        label: t('sidebar.linkVerification'),
+        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>'
       },
       {
-        to: `/dashboard/${props.guildId}/tempvoice`,
-        label: t('sidebar.linkTempVoice'),
-        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>'
-      },
-      {
-        to: `/dashboard/${props.guildId}/scheduled`,
-        label: t('sidebar.linkScheduled'),
-        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>'
-      },
-      {
-        to: `/dashboard/${props.guildId}/tickets`,
-        label: t('sidebar.linkTickets'),
-        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"/><line x1="12" y1="7" x2="12" y2="17" stroke-dasharray="2 2"/></svg>'
-      },
-      {
-        to: `/dashboard/${props.guildId}/applications`,
-        label: t('sidebar.linkApplications'),
-        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></svg>'
-      },
-      {
-        to: `/dashboard/${props.guildId}/backup`,
-        label: t('sidebar.linkBackup'),
-        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>'
+        to: `/dashboard/${props.guildId}/custom-commands`,
+        label: t('sidebar.linkCustomCommands'),
+        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>'
       }
     ]
   },
   {
+    key: 'moderation',
     title: t('sidebar.sectionModeration'),
     links: [
       {
@@ -150,36 +144,27 @@ const groups = computed(() => [
         to: `/dashboard/${props.guildId}/antiraid`,
         label: t('sidebar.linkAntiRaid'),
         icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>'
-      },
-      {
-        to: `/dashboard/${props.guildId}/verification`,
-        label: t('sidebar.linkVerification'),
-        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>'
       }
     ]
   },
   {
+    key: 'engagement',
     title: t('sidebar.sectionEngagement'),
     links: [
-      {
-        to: `/dashboard/${props.guildId}/reaction-roles`,
-        label: t('sidebar.linkReactionRoles'),
-        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>'
-      },
       {
         to: `/dashboard/${props.guildId}/leveling`,
         label: t('sidebar.linkLeveling'),
         icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="14 7 21 7 21 14"/></svg>'
       },
       {
-        to: `/dashboard/${props.guildId}/custom-commands`,
-        label: t('sidebar.linkCustomCommands'),
-        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>'
+        to: `/dashboard/${props.guildId}/reaction-roles`,
+        label: t('sidebar.linkReactionRoles'),
+        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>'
       },
       {
-        to: `/dashboard/${props.guildId}/social`,
-        label: t('sidebar.linkSocial'),
-        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg>'
+        to: `/dashboard/${props.guildId}/rolemenus`,
+        label: t('sidebar.linkRoleMenus'),
+        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="16" width="18" height="4" rx="1"/></svg>'
       },
       {
         to: `/dashboard/${props.guildId}/starboard`,
@@ -197,16 +182,6 @@ const groups = computed(() => [
         icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8"/><path d="M4 16s.5-1 2-1 2.5 2 4 2 2.5-2 4-2 2.5 2 4 2 2-1 2-1"/><path d="M2 21h20"/><path d="M7 8v3M12 8v3M17 8v3M7 4h.01M12 4h.01M17 4h.01"/></svg>'
       },
       {
-        to: `/dashboard/${props.guildId}/rolemenus`,
-        label: t('sidebar.linkRoleMenus'),
-        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="16" width="18" height="4" rx="1"/></svg>'
-      },
-      {
-        to: `/dashboard/${props.guildId}/giveaways`,
-        label: t('sidebar.linkGiveaways'),
-        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>'
-      },
-      {
         to: `/dashboard/${props.guildId}/counting`,
         label: t('sidebar.linkCounting'),
         icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>'
@@ -217,9 +192,9 @@ const groups = computed(() => [
         icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>'
       },
       {
-        to: `/dashboard/${props.guildId}/invitetracking`,
-        label: t('sidebar.linkInviteTracking'),
-        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>'
+        to: `/dashboard/${props.guildId}/giveaways`,
+        label: t('sidebar.linkGiveaways'),
+        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>'
       },
       {
         to: `/dashboard/${props.guildId}/economy`,
@@ -229,6 +204,43 @@ const groups = computed(() => [
     ]
   },
   {
+    key: 'community',
+    title: t('sidebar.sectionCommunity'),
+    links: [
+      {
+        to: `/dashboard/${props.guildId}/tempvoice`,
+        label: t('sidebar.linkTempVoice'),
+        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>'
+      },
+      {
+        to: `/dashboard/${props.guildId}/tickets`,
+        label: t('sidebar.linkTickets'),
+        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"/><line x1="12" y1="7" x2="12" y2="17" stroke-dasharray="2 2"/></svg>'
+      },
+      {
+        to: `/dashboard/${props.guildId}/applications`,
+        label: t('sidebar.linkApplications'),
+        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></svg>'
+      },
+      {
+        to: `/dashboard/${props.guildId}/invitetracking`,
+        label: t('sidebar.linkInviteTracking'),
+        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>'
+      },
+      {
+        to: `/dashboard/${props.guildId}/social`,
+        label: t('sidebar.linkSocial'),
+        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg>'
+      },
+      {
+        to: `/dashboard/${props.guildId}/scheduled`,
+        label: t('sidebar.linkScheduled'),
+        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>'
+      }
+    ]
+  },
+  {
+    key: 'games',
     title: t('sidebar.sectionGames'),
     links: [
       {
@@ -262,8 +274,42 @@ const groups = computed(() => [
         icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="13" height="16" rx="2"/><path d="M8 9c-1.5 1-1.5 3 0 4 1.5-1 1.5-3 0-4z"/><path d="M19 7l2 .8a2 2 0 0 1 1.2 2.5l-3 8"/></svg>'
       }
     ]
+  },
+  {
+    key: 'server',
+    title: t('sidebar.sectionServer'),
+    links: [
+      {
+        to: `/dashboard/${props.guildId}/stats`,
+        label: t('sidebar.linkStats'),
+        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>'
+      },
+      {
+        to: `/dashboard/${props.guildId}/backup`,
+        label: t('sidebar.linkBackup'),
+        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>'
+      }
+    ]
   }
 ])
+
+// --- Collapsible category state (persisted across navigations) ---
+const STORAGE_KEY = 'projectx_sidebar_collapsed'
+function loadCollapsed() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {} } catch { return {} }
+}
+const collapsed = reactive(loadCollapsed())
+function isCollapsed(key) { return !!collapsed[key] }
+function toggleGroup(key) {
+  collapsed[key] = !collapsed[key]
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(collapsed)) } catch { /* ignore */ }
+}
+onMounted(() => {
+  // Auto-expand the group that holds the current route so the active page stays visible.
+  for (const g of groups.value) {
+    if (collapsed[g.key] && g.links.some((l) => isActive(l))) collapsed[g.key] = false
+  }
+})
 
 function isActive(link) {
   if (link.exact) return route.path === link.to
@@ -381,18 +427,55 @@ function isLocked(link) {
   background: transparent;
 }
 
+.sidebar__group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar__group + .sidebar__group {
+  margin-top: var(--space-3);
+}
+
 .sidebar__section {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
   font-size: 0.7rem;
   color: var(--color-text-soft);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-weight: 600;
-  padding: 0 var(--space-3) var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  transition: color var(--transition-fast), background var(--transition-fast);
 }
 
-.sidebar__section + .sidebar__link ~ .sidebar__section,
-.sidebar__nav > .sidebar__section:not(:first-child) {
-  margin-top: var(--space-4);
+.sidebar__section:hover {
+  color: var(--color-text);
+  background: var(--color-surface-2);
+}
+
+.sidebar__section-caret {
+  flex-shrink: 0;
+  transition: transform var(--transition-fast);
+}
+
+.sidebar__section.is-collapsed .sidebar__section-caret {
+  transform: rotate(-90deg);
+}
+
+.sidebar__section-title {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.sidebar__group-links {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .sidebar__link {
