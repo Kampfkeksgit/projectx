@@ -196,10 +196,10 @@ export default {
     label: 'Dil'
   },
   landing: {
-    pill: 'Topluluğunuzu karşılamanın daha sıcak bir yolu',
-    titleStart: 'Discord botunuz için',
-    titleHighlight: 'modern bir panel',
-    sub: "ProjectX; karşılama, moderasyon, seviye sistemi, tepki rolleri ve daha fazlasını yapılandırmayı zahmetsiz hale getirir — Discord'u birebir yansıtan canlı bir önizlemeyle. Komut listesi yok, JSON dosyaları yok.",
+    pill: 'Topluluğunuz için her şey — tek bir yerde',
+    titleStart: 'Discord sunucunuzdan',
+    titleHighlight: 'daha fazlasını alın',
+    sub: "Karşılama mesajları, moderasyon, seviye sistemi ve çok daha fazlası — hepsi tek bir yerde, sadece birkaç tıklamayla kurulur. Her şeyin nasıl göründüğünü anında görürsünüz. Teknik bilgi gerekmez.",
     exploreFeatures: 'Özellikleri keşfet →',
     featuresTitle: 'İhtiyacınız olan her şey, fazlası değil.',
     feature1Title: 'Karşılama mesajları',

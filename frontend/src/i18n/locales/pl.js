@@ -196,10 +196,10 @@ export default {
     label: 'Język'
   },
   landing: {
-    pill: 'Przyjaźniejszy sposób na powitanie społeczności',
-    titleStart: 'Nowoczesny panel dla Twojego',
-    titleHighlight: 'bota Discord',
-    sub: 'ProjectX sprawia, że konfiguracja powitań, moderacji, poziomów, ról reakcji i wielu innych funkcji jest banalnie prosta — z podglądem na żywo, który odwzorowuje Discord. Bez list komend, bez plików JSON.',
+    pill: 'Wszystko dla Twojej społeczności — w jednym miejscu',
+    titleStart: 'Wyciśnij więcej ze swojego',
+    titleHighlight: 'serwera Discord',
+    sub: 'Powitania, moderacja, system poziomów i wiele więcej — wszystko w jednym miejscu i gotowe w kilka kliknięć. Od razu widzisz, jak wszystko wygląda. Bez wiedzy technicznej.',
     exploreFeatures: 'Poznaj funkcje →',
     featuresTitle: 'Wszystko, czego potrzebujesz, i nic ponad to.',
     feature1Title: 'Wiadomości powitalne',

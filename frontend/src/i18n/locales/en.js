@@ -196,10 +196,10 @@ export default {
     label: 'Language'
   },
   landing: {
-    pill: 'A friendlier way to greet your community',
-    titleStart: 'A modern dashboard for your',
-    titleHighlight: 'Discord bot',
-    sub: "ProjectX makes it effortless to configure welcome, moderation, leveling, reaction roles and more — with a live preview that mirrors Discord. No command lists, no JSON files.",
+    pill: 'Everything for your community — in one place',
+    titleStart: 'Get more out of your',
+    titleHighlight: 'Discord server',
+    sub: "Welcome messages, moderation, a leveling system and much more — all in one place, set up in just a few clicks. See exactly how everything looks, instantly. No technical skills needed.",
     exploreFeatures: 'Explore features →',
     featuresTitle: "Everything you need, nothing you don't.",
     feature1Title: 'Welcome messages',
