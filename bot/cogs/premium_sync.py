@@ -23,7 +23,7 @@ import aiohttp
 from discord.ext import commands, tasks
 
 import config
-from utils.backend import bot_put
+from utils.backend import bot_put, bot_get
 
 
 DISCORD_API = "https://discord.com/api/v10"
@@ -55,10 +55,12 @@ class PremiumSync(commands.Cog):
         if config.SKU_PRO_ID:
             self.sku_tiers[str(config.SKU_PRO_ID)] = "pro"
         self._tier_rank = {"free": 0, "basic": 1, "pro": 2}
-        if self._enabled():
+        # Start the loop whenever the backend is reachable: _sync() no-ops without
+        # SKU IDs, but expiry reminders run for manual/code premium regardless.
+        if self.api_key and self.backend_url:
             self.sync_loop.start()
-        else:
-            print("[premium] no SKU IDs configured — SKU sync inert (manual premium still works)")
+        if not self._enabled():
+            print("[premium] no SKU IDs configured — SKU sync inert (manual/code premium + reminders still work)")
 
     def _enabled(self):
         return bool(self.api_key and self.backend_url and self.app_id and self.sku_tiers)
@@ -70,6 +72,41 @@ class PremiumSync(commands.Cog):
     @tasks.loop(seconds=max(60, config.PREMIUM_POLL_INTERVAL))
     async def sync_loop(self):
         await self._sync()
+        # Expiry reminders work for ALL premium sources (manual/code/sku), so
+        # they run even when SKU sync is inert.
+        await self._remind_expiring()
+
+    async def _remind_expiring(self):
+        """DM the owner of each guild whose premium expires within ~3 days."""
+        if not self.api_key or not self.backend_url:
+            return
+        try:
+            data = await bot_get(self.backend_url, self.api_key, "/api/bot/premium/expiring")
+        except Exception as exc:
+            print(f"[premium] expiring fetch error: {exc}")
+            return
+        for g in (data or {}).get("guilds", []):
+            gid = g.get("guild_id")
+            guild = self.bot.get_guild(int(gid)) if gid and str(gid).isdigit() else None
+            if guild is None:
+                continue
+            try:
+                owner = guild.owner or await guild.fetch_member(guild.owner_id)
+            except Exception:
+                owner = None
+            if owner is None:
+                continue
+            tier = str(g.get("premium_tier") or "premium").capitalize()
+            until = g.get("premium_until")
+            when = f"<t:{int(until)}:D>" if until else "soon"
+            try:
+                await owner.send(
+                    f"⏳ Heads up: **{guild.name}**'s **{tier}** subscription expires {when}. "
+                    f"Renew it in the dashboard to keep your premium modules active."
+                )
+                await bot_put(self.backend_url, self.api_key, f"/api/bot/premium/{gid}/reminded", {})
+            except Exception as exc:
+                print(f"[premium] reminder DM to owner of {gid} failed: {exc}")
 
     @sync_loop.before_loop
     async def _before(self):

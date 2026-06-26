@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 37;
+const CURRENT_SCHEMA_VERSION = 40;
 
 /**
  * Initialize schema version tracking
@@ -96,7 +96,10 @@ async function applyMigrations(fromVersion, toVersion) {
     34: migrationV34,
     35: migrationV35,
     36: migrationV36,
-    37: migrationV37
+    37: migrationV37,
+    38: migrationV38,
+    39: migrationV39,
+    40: migrationV40
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -1942,6 +1945,76 @@ function migrationV37() {
       created_at INTEGER
     )`,
     `CREATE INDEX IF NOT EXISTS idx_error_log_created ON error_log(created_at DESC)`
+  ]);
+}
+
+/**
+ * Migration V38: Daily admin metrics snapshots (Owner admin → Analytics).
+ *   - admin_metrics_snapshots: one row per UTC day with user/guild/premium
+ *     totals + a module-adoption JSON blob, so the dashboard can chart growth
+ *     and module-adoption trends over time. `day` is the UTC-midnight unix-
+ *     seconds value (PK → upsert keeps one row per day).
+ * Idempotent; mirrored in initializeDatabase(). Captured by a backend interval
+ * (see server.js → captureMetricsSnapshot).
+ */
+function migrationV38() {
+  return runSchemaBatch(38, [
+    `CREATE TABLE IF NOT EXISTS admin_metrics_snapshots (
+      day             INTEGER PRIMARY KEY,
+      users_total     INTEGER DEFAULT 0,
+      guilds_total    INTEGER DEFAULT 0,
+      guilds_present  INTEGER DEFAULT 0,
+      premium_basic   INTEGER DEFAULT 0,
+      premium_pro     INTEGER DEFAULT 0,
+      module_adoption TEXT DEFAULT '{}',
+      created_at      INTEGER
+    )`
+  ]);
+}
+
+/**
+ * Migration V39: Owner broadcast queue (Owner admin → Kommunikation).
+ *   - admin_broadcasts: a DM blast to all server owners. The owner enqueues one,
+ *     the bot polls the oldest pending job, DMs every unique guild owner, and
+ *     reports progress. `status` ∈ {pending|sending|done|failed}.
+ * Idempotent; mirrored in initializeDatabase().
+ */
+function migrationV39() {
+  return runSchemaBatch(39, [
+    `CREATE TABLE IF NOT EXISTS admin_broadcasts (
+      id         TEXT PRIMARY KEY,
+      message    TEXT,
+      status     TEXT DEFAULT 'pending',
+      sent_count INTEGER DEFAULT 0,
+      total      INTEGER DEFAULT 0,
+      created_by TEXT,
+      created_at INTEGER,
+      updated_at INTEGER
+    )`
+  ]);
+}
+
+/**
+ * Migration V40: Premium & Business (Owner admin → Premium).
+ *   - premium_codes: redeemable promo/trial codes (tier + duration). A guild
+ *     admin redeems one → time-limited premium (source 'code').
+ *   - guilds.premium_reminded_at: dedupe for the bot's "premium expiring soon"
+ *     owner-DM reminder (unix-seconds of the last reminder; NULL = never).
+ * Idempotent; mirrored in initializeDatabase().
+ */
+function migrationV40() {
+  return runSchemaBatch(40, [
+    `CREATE TABLE IF NOT EXISTS premium_codes (
+      code          TEXT PRIMARY KEY,
+      tier          TEXT,
+      duration_days INTEGER DEFAULT 30,
+      max_uses      INTEGER DEFAULT 1,
+      uses          INTEGER DEFAULT 0,
+      created_by    TEXT,
+      created_at    INTEGER,
+      expires_at    INTEGER
+    )`,
+    'ALTER TABLE guilds ADD COLUMN premium_reminded_at INTEGER'
   ]);
 }
 

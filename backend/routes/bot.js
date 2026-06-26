@@ -97,7 +97,11 @@ import {
   getDueBackupJobs,
   updateBackupJob,
   createBackup,
-  logError
+  logError,
+  getDueBroadcast,
+  updateBroadcast,
+  getExpiringPremiumGuilds,
+  markPremiumReminded
 } from '../db.js'
 import { requireBotToken } from '../middleware/session.js'
 import { setBotStats } from '../state/botStats.js'
@@ -867,6 +871,63 @@ router.get('/guilds/:guild_id/settings/suggestions', requireBotToken, async (req
   } catch (error) {
     console.error('Bot get suggestion settings error:', error.message)
     res.status(500).json({ error: 'Failed to fetch suggestion settings' })
+  }
+})
+
+/**
+ * Bot-only: owner broadcast queue (Owner admin → Kommunikation).
+ *   GET /api/bot/broadcasts/due → { broadcast } | { broadcast: null }
+ *   PUT /api/bot/broadcasts/:id  body { status?, sent_count?, total? }
+ */
+router.get('/broadcasts/due', requireBotToken, async (req, res) => {
+  try {
+    const broadcast = await getDueBroadcast()
+    return res.json({ broadcast: broadcast || null })
+  } catch (error) {
+    console.error('Bot get due broadcast error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch broadcast' })
+  }
+})
+
+router.put('/broadcasts/:id', requireBotToken, async (req, res) => {
+  try {
+    const { status, sent_count, total } = req.body || {}
+    const changes = await updateBroadcast(req.params.id, {
+      status,
+      sent_count: sent_count !== undefined ? Number(sent_count) : undefined,
+      total: total !== undefined ? Number(total) : undefined
+    })
+    if (changes === 0) return res.status(404).json({ error: 'Broadcast not found' })
+    return res.json({ success: true })
+  } catch (error) {
+    console.error('Bot update broadcast error:', error.message)
+    res.status(500).json({ error: 'Failed to update broadcast' })
+  }
+})
+
+/**
+ * Bot-only: premium guilds whose subscription expires soon (for owner-DM
+ * reminders). Returns guilds not reminded in the last 24h.
+ *   GET /api/bot/premium/expiring → { guilds: [{ guild_id, guild_name, premium_tier, premium_until }] }
+ *   PUT /api/bot/premium/:guild_id/reminded
+ */
+router.get('/premium/expiring', requireBotToken, async (req, res) => {
+  try {
+    const guilds = await getExpiringPremiumGuilds(3)
+    return res.json({ guilds })
+  } catch (error) {
+    console.error('Bot expiring premium error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch expiring premium' })
+  }
+})
+
+router.put('/premium/:guild_id/reminded', requireBotToken, async (req, res) => {
+  try {
+    await markPremiumReminded(req.params.guild_id)
+    return res.json({ success: true })
+  } catch (error) {
+    console.error('Bot mark reminded error:', error.message)
+    res.status(500).json({ error: 'Failed to mark reminded' })
   }
 })
 

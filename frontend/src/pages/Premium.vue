@@ -53,6 +53,16 @@
       </article>
     </section>
 
+    <!-- Redeem a promo / trial code -->
+    <section class="redeem">
+      <h3 class="redeem__title">{{ t('premium.redeemTitle') }}</h3>
+      <p class="redeem__desc">{{ t('premium.redeemDesc') }}</p>
+      <div class="redeem__row">
+        <input v-model="redeemInput" class="redeem__input" :placeholder="t('premium.redeemPlaceholder')" maxlength="20" @keyup.enter="redeemCode" />
+        <AppButton variant="primary" :loading="redeeming" :disabled="!redeemInput.trim()" @click="redeemCode">{{ t('premium.redeemBtn') }}</AppButton>
+      </div>
+    </section>
+
     <p class="prem__note">{{ t('premium.upgradeNote') }}</p>
   </div>
 </template>
@@ -64,10 +74,35 @@ import AppButton from '../components/AppButton.vue'
 import api from '../services/api.js'
 import { usePremium, TIER_RANK } from '../stores/premium.js'
 import { useI18n } from '../i18n/index.js'
+import { useToast } from '../composables/useToast.js'
 
 const { t } = useI18n()
 const route = useRoute()
 const premium = usePremium()
+const toast = useToast()
+
+const redeemInput = ref('')
+const redeeming = ref(false)
+
+async function redeemCode() {
+  const code = redeemInput.value.trim()
+  if (!code) return
+  redeeming.value = true
+  try {
+    await api.post(`/guilds/${guildId.value}/premium/redeem`, { code })
+    redeemInput.value = ''
+    await premium.load(guildId.value, { force: true })
+    toast.success(t('premium.redeemSuccess'))
+  } catch (err) {
+    const reason = err.response?.data?.reason
+    const key = reason === 'expired' ? 'premium.redeemExpired'
+      : reason === 'exhausted' ? 'premium.redeemExhausted'
+      : 'premium.redeemInvalid'
+    toast.error(t(key))
+  } finally {
+    redeeming.value = false
+  }
+}
 
 const guildId = computed(() => route.params.guild_id)
 const currentTier = computed(() => premium.cache.tier || 'free')
@@ -122,6 +157,22 @@ onMounted(() => {
 .prem__eyebrow { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-soft); margin-bottom: var(--space-2); }
 .prem__title { font-size: clamp(1.7rem, 3vw, 2.2rem); letter-spacing: -0.025em; margin-bottom: var(--space-2); }
 .prem__sub { color: var(--color-text-muted); }
+
+.redeem {
+  margin-top: var(--space-7); padding: var(--space-5) var(--space-6);
+  border-radius: var(--radius-xl); border: 1px solid var(--color-border);
+  background: var(--color-surface); background-image: var(--gradient-card);
+}
+.redeem__title { font-size: 1.05rem; margin-bottom: var(--space-2); }
+.redeem__desc { color: var(--color-text-muted); font-size: 0.9rem; margin-bottom: var(--space-4); }
+.redeem__row { display: flex; gap: var(--space-3); flex-wrap: wrap; }
+.redeem__input {
+  flex: 1; min-width: 200px; padding: 0.7rem 0.85rem;
+  background: var(--color-bg-elevated); border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md); color: var(--color-text);
+  font-family: var(--font-mono); font-size: 0.95rem; letter-spacing: 0.04em;
+}
+.redeem__input:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-soft); }
 
 .current {
   display: flex; align-items: center; gap: var(--space-4);

@@ -220,6 +220,98 @@
         </div>
       </div>
 
+      <!-- ANALYTICS (growth & adoption) -->
+      <div v-else-if="tab === 'analytics'">
+        <div class="charts-grid">
+          <StatsChart :title="t('admin.anServers')" :points="metrics" :lines="serverLines" :empty-text="t('admin.anEmpty')" />
+          <StatsChart :title="t('admin.anUsers')" :points="metrics" :lines="userLines" :empty-text="t('admin.anEmpty')" />
+          <StatsChart :title="t('admin.anPremium')" :points="metrics" :lines="premiumLines" :empty-text="t('admin.anEmpty')" />
+          <StatsChart :title="t('admin.anAdoption')" :points="adoptionPoints" :lines="adoptionLines" :empty-text="t('admin.anEmpty')" />
+        </div>
+
+        <div class="panel">
+          <div class="panel__head-row">
+            <h3 class="panel__title">{{ t('admin.anTopGuilds') }}</h3>
+            <div class="seg">
+              <button class="seg__btn" :class="{ 'is-active': topBy === 'modules' }" @click="setTopBy('modules')">{{ t('admin.anByModules') }}</button>
+              <button class="seg__btn" :class="{ 'is-active': topBy === 'activity' }" @click="setTopBy('activity')">{{ t('admin.anByActivity') }}</button>
+            </div>
+          </div>
+          <p v-if="!topGuilds.length" class="panel__empty">{{ t('admin.anTopEmpty') }}</p>
+          <ul v-else class="mini-rows">
+            <li v-for="(g, i) in topGuilds" :key="g.id" class="mini-row">
+              <span class="mini-row__rank">{{ i + 1 }}</span>
+              <GuildAvatar :name="g.guild_name || g.id" :icon-url="g.guild_icon_url" size="sm" />
+              <span class="mini-row__name">{{ g.guild_name || g.id }}</span>
+              <span class="pill">{{ topBy === 'activity' ? t('admin.anEvents', { n: g.score }) : t('admin.anModules', { n: g.score }) }}</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- PREMIUM (revenue + promo codes) -->
+      <div v-else-if="tab === 'premium'">
+        <div v-if="revenue" class="cards">
+          <div class="card">
+            <div class="card__label">{{ t('admin.pcRevenue') }}</div>
+            <div class="card__value">{{ revenue.mrr }} {{ revenue.currency }}</div>
+            <div class="card__meta">{{ t('admin.pcRevenueMeta') }}</div>
+          </div>
+          <div class="card">
+            <div class="card__label">{{ t('premium.tiers.basic.name') }}</div>
+            <div class="card__value">{{ revenue.basic }}</div>
+            <div class="card__meta">× {{ revenue.price_basic }} {{ revenue.currency }}</div>
+          </div>
+          <div class="card">
+            <div class="card__label">{{ t('premium.tiers.pro.name') }}</div>
+            <div class="card__value">{{ revenue.pro }}</div>
+            <div class="card__meta">× {{ revenue.price_pro }} {{ revenue.currency }}</div>
+          </div>
+        </div>
+
+        <div class="panel panel--form">
+          <h3 class="panel__title">{{ t('admin.pcTitle') }}</h3>
+          <p class="panel__desc">{{ t('admin.pcDesc') }}</p>
+          <div class="code-form">
+            <label class="code-form__field">
+              <span class="modal__label">{{ t('admin.pcTier') }}</span>
+              <select v-model="codeForm.tier" class="modal__input">
+                <option value="basic">{{ t('premium.tiers.basic.name') }}</option>
+                <option value="pro">{{ t('premium.tiers.pro.name') }}</option>
+              </select>
+            </label>
+            <label class="code-form__field">
+              <span class="modal__label">{{ t('admin.pcDuration') }}</span>
+              <input v-model.number="codeForm.duration_days" class="modal__input" type="number" min="1" max="3650" />
+            </label>
+            <label class="code-form__field">
+              <span class="modal__label">{{ t('admin.pcMaxUses') }}</span>
+              <input v-model.number="codeForm.max_uses" class="modal__input" type="number" min="0" max="100000" />
+            </label>
+            <AppButton variant="primary" :loading="creatingCode" @click="createCode">{{ t('admin.pcGenerate') }}</AppButton>
+          </div>
+          <p class="code-form__hint">{{ t('admin.pcMaxUsesHint') }}</p>
+
+          <ul v-if="codes.length" class="rows" style="margin-top: var(--space-4)">
+            <li v-for="c in codes" :key="c.code" class="row">
+              <div class="row__main">
+                <div class="row__text">
+                  <div class="row__name">
+                    <code class="code-pill" @click="copyCode(c.code)" :title="t('admin.pcCopy')">{{ c.code }}</code>
+                    <span class="pill" :class="`pill--${c.tier}`">{{ t(`premium.tiers.${c.tier}.name`) }}</span>
+                  </div>
+                  <div class="row__sub">{{ t('admin.pcCodeMeta', { days: c.duration_days, uses: c.uses, max: c.max_uses === 0 ? '∞' : c.max_uses }) }}</div>
+                </div>
+              </div>
+              <div class="row__right">
+                <AppButton variant="danger" @click="deleteCode(c.code)">{{ t('common.delete') }}</AppButton>
+              </div>
+            </li>
+          </ul>
+          <p v-else class="panel__empty" style="margin-top: var(--space-3)">{{ t('admin.pcEmpty') }}</p>
+        </div>
+      </div>
+
       <!-- HEALTH (bot monitoring) -->
       <div v-else-if="tab === 'health' && health">
         <div class="cards">
@@ -314,6 +406,43 @@
             <AppButton variant="primary" :loading="savingMaintenance" @click="saveMaintenance">{{ t('admin.sysSave') }}</AppButton>
           </div>
         </div>
+
+        <!-- Announcement banner -->
+        <div class="panel panel--form">
+          <h3 class="panel__title">{{ t('admin.annTitle') }}</h3>
+          <p class="panel__desc">{{ t('admin.annDesc') }}</p>
+          <label class="toggle-row">
+            <AppToggle v-model="announcement.enabled" />
+            <span>{{ announcement.enabled ? t('admin.annOn') : t('admin.annOff') }}</span>
+          </label>
+          <label class="modal__label">{{ t('admin.annLevelLabel') }}</label>
+          <select v-model="announcement.level" class="modal__input">
+            <option value="info">{{ t('admin.annLevelInfo') }}</option>
+            <option value="warning">{{ t('admin.annLevelWarning') }}</option>
+          </select>
+          <label class="modal__label">{{ t('admin.annMessageLabel') }}</label>
+          <input v-model="announcement.message" class="modal__input" :placeholder="t('admin.annMessagePlaceholder')" maxlength="500" />
+          <div class="panel__actions">
+            <AppButton variant="primary" :loading="savingAnnouncement" @click="saveAnnouncement">{{ t('admin.sysSave') }}</AppButton>
+          </div>
+        </div>
+
+        <!-- Owner broadcast -->
+        <div class="panel panel--form">
+          <h3 class="panel__title">{{ t('admin.bcTitle') }}</h3>
+          <p class="panel__desc">{{ t('admin.bcDesc') }}</p>
+          <textarea v-model="broadcastMessage" class="modal__input" rows="3" :placeholder="t('admin.bcPlaceholder')" maxlength="2000"></textarea>
+          <div class="panel__actions">
+            <AppButton variant="primary" :loading="sendingBroadcast" :disabled="!broadcastMessage.trim()" @click="sendBroadcast">{{ t('admin.bcSend') }}</AppButton>
+          </div>
+          <ul v-if="broadcasts.length" class="mini-rows" style="margin-top: var(--space-4)">
+            <li v-for="b in broadcasts" :key="b.id" class="mini-row">
+              <span class="job-status" :class="`job-status--${b.status === 'sending' ? 'running' : b.status === 'done' ? 'done' : b.status === 'failed' ? 'failed' : 'pending'}`">{{ b.status }}</span>
+              <span class="mini-row__name">{{ b.message }}</span>
+              <span class="mini-row__time">{{ t('admin.bcSentCount', { sent: b.sent_count, total: b.total }) }}</span>
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
 
@@ -391,13 +520,14 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../services/api.js'
 import AppButton from '../components/AppButton.vue'
 import AppToggle from '../components/AppToggle.vue'
 import GuildAvatar from '../components/GuildAvatar.vue'
 import LoadingPage from '../components/LoadingPage.vue'
+import StatsChart from '../components/StatsChart.vue'
 import { useToast } from '../composables/useToast.js'
 import { useAuth } from '../stores/auth.js'
 import { useI18n } from '../i18n/index.js'
@@ -407,7 +537,7 @@ const router = useRouter()
 const toast = useToast()
 const auth = useAuth()
 
-const tabs = ['overview', 'health', 'users', 'guilds', 'audit', 'jobs', 'errors', 'system']
+const tabs = ['overview', 'analytics', 'premium', 'health', 'users', 'guilds', 'audit', 'jobs', 'errors', 'system']
 const tab = ref('overview')
 const search = ref('')
 const loading = ref(true)
@@ -434,6 +564,24 @@ const savingPremium = ref(false)
 
 const maintenance = ref({ enabled: false, message: '' })
 const savingMaintenance = ref(false)
+
+// Kommunikation (Kat. 3)
+const announcement = ref({ enabled: false, message: '', level: 'info' })
+const savingAnnouncement = ref(false)
+const broadcastMessage = ref('')
+const broadcasts = ref([])
+const sendingBroadcast = ref(false)
+
+// Premium & Business (Kat. 4)
+const revenue = ref(null)
+const codes = ref([])
+const codeForm = reactive({ tier: 'basic', duration_days: 30, max_uses: 1 })
+const creatingCode = ref(false)
+
+// Analytics (Kat. 2)
+const metrics = ref([])
+const topGuilds = ref([])
+const topBy = ref('modules')
 
 // Monitoring (Kat. 1)
 const health = ref(null)
@@ -472,6 +620,29 @@ const adoptionList = computed(() => {
     .sort((a, b) => b.count - a.count)
 })
 const maxAdoption = computed(() => Math.max(1, ...adoptionList.value.map((m) => m.count)))
+
+// --- Analytics chart data ---
+const ADOPTION_COLORS = ['#5865f2', '#22d3ee', '#f472b6', '#facc15', '#34d399']
+// Top 5 modules by the latest snapshot's adoption → trend lines.
+const adoptionLines = computed(() => {
+  const last = metrics.value[metrics.value.length - 1]
+  if (!last || !last.adoption) return []
+  return Object.entries(last.adoption)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([key], i) => ({ key, label: prettyKey(key), color: ADOPTION_COLORS[i % ADOPTION_COLORS.length] }))
+})
+// Flatten each snapshot's adoption map onto the point so StatsChart can read p[key].
+const adoptionPoints = computed(() => metrics.value.map((m) => ({ ts: m.ts, ...(m.adoption || {}) })))
+const serverLines = computed(() => [
+  { key: 'guilds', label: t('admin.anLineGuilds'), color: '#5865f2' },
+  { key: 'present', label: t('admin.anLinePresent'), color: '#22c55e' }
+])
+const userLines = computed(() => [{ key: 'users', label: t('admin.anLineUsers'), color: '#22d3ee' }])
+const premiumLines = computed(() => [
+  { key: 'basic', label: t('premium.tiers.basic.name'), color: '#a78bfa' },
+  { key: 'pro', label: t('premium.tiers.pro.name'), color: '#ec4899' }
+])
 
 onMounted(() => load())
 
@@ -541,6 +712,20 @@ async function load() {
       const { data } = await api.get('/admin/audit', { params: { action: auditAction.value, target: search.value, limit: PAGE, offset: 0 } })
       audit.value = data.entries || []
       total.value = data.total || 0
+    } else if (tab.value === 'analytics') {
+      const [m, tg] = await Promise.all([
+        api.get('/admin/metrics', { params: { days: 30 } }),
+        api.get('/admin/top-guilds', { params: { by: topBy.value } })
+      ])
+      metrics.value = m.data.snapshots || []
+      topGuilds.value = tg.data.guilds || []
+    } else if (tab.value === 'premium') {
+      const [rev, cd] = await Promise.all([
+        api.get('/admin/revenue'),
+        api.get('/admin/premium-codes')
+      ])
+      revenue.value = rev.data.revenue
+      codes.value = cd.data.codes || []
     } else if (tab.value === 'health') {
       const { data } = await api.get('/admin/health')
       health.value = { bot: data.bot, backend: data.backend }
@@ -553,8 +738,14 @@ async function load() {
       errors.value = data.entries || []
       total.value = data.total || 0
     } else if (tab.value === 'system') {
-      const { data } = await api.get('/admin/maintenance')
-      maintenance.value = { enabled: !!data.enabled, message: data.message || '' }
+      const [mnt, ann, bc] = await Promise.all([
+        api.get('/admin/maintenance'),
+        api.get('/admin/announcement'),
+        api.get('/admin/broadcasts')
+      ])
+      maintenance.value = { enabled: !!mnt.data.enabled, message: mnt.data.message || '' }
+      announcement.value = { enabled: !!ann.data.enabled, message: ann.data.message || '', level: ann.data.level || 'info' }
+      broadcasts.value = bc.data.broadcasts || []
     }
   } catch (err) {
     toast.error(t('admin.loadFailed'))
@@ -591,6 +782,17 @@ async function loadMore() {
     toast.error(t('admin.loadFailed'))
   } finally {
     loadingMore.value = false
+  }
+}
+
+async function setTopBy(by) {
+  if (topBy.value === by) return
+  topBy.value = by
+  try {
+    const { data } = await api.get('/admin/top-guilds', { params: { by } })
+    topGuilds.value = data.guilds || []
+  } catch (err) {
+    toast.error(t('admin.loadFailed'))
   }
 }
 
@@ -724,6 +926,63 @@ async function saveMaintenance() {
   } finally { savingMaintenance.value = false }
 }
 
+async function createCode() {
+  creatingCode.value = true
+  try {
+    const { data } = await api.post('/admin/premium-codes', {
+      tier: codeForm.tier,
+      duration_days: Number(codeForm.duration_days) || 30,
+      max_uses: Number(codeForm.max_uses) || 0
+    })
+    if (data?.code) codes.value.unshift(data.code)
+    toast.success(t('admin.pcCreated', { code: data.code?.code || '' }))
+  } catch (err) {
+    toast.error(err.response?.data?.error || t('admin.actionFailed'))
+  } finally { creatingCode.value = false }
+}
+
+async function deleteCode(code) {
+  try {
+    await api.delete(`/admin/premium-codes/${encodeURIComponent(code)}`)
+    codes.value = codes.value.filter((c) => c.code !== code)
+  } catch (err) {
+    toast.error(err.response?.data?.error || t('admin.actionFailed'))
+  }
+}
+
+function copyCode(code) {
+  try { navigator.clipboard?.writeText(code); toast.success(t('admin.pcCopied')) } catch { /* ignore */ }
+}
+
+async function saveAnnouncement() {
+  savingAnnouncement.value = true
+  try {
+    await api.put('/admin/announcement', {
+      enabled: announcement.value.enabled,
+      message: announcement.value.message,
+      level: announcement.value.level
+    })
+    toast.success(t('admin.sysSaved'))
+  } catch (err) {
+    toast.error(err.response?.data?.error || t('admin.actionFailed'))
+  } finally { savingAnnouncement.value = false }
+}
+
+async function sendBroadcast() {
+  const msg = broadcastMessage.value.trim()
+  if (!msg) return
+  sendingBroadcast.value = true
+  try {
+    await api.post('/admin/broadcast', { message: msg })
+    broadcastMessage.value = ''
+    toast.success(t('admin.bcQueued'))
+    const { data } = await api.get('/admin/broadcasts')
+    broadcasts.value = data.broadcasts || []
+  } catch (err) {
+    toast.error(err.response?.data?.error || t('admin.actionFailed'))
+  } finally { sendingBroadcast.value = false }
+}
+
 async function exportCsv(kind) {
   try {
     const { data } = await api.get(`/admin/${kind}/export`, { responseType: 'blob' })
@@ -829,6 +1088,18 @@ function goBack() { router.push('/dashboard') }
 .job-status--running { background: rgba(245, 158, 11, 0.18); color: #fbbf24; }
 .job-status--done { background: rgba(34, 197, 94, 0.18); color: #4ade80; }
 .job-status--failed { background: rgba(239, 68, 68, 0.18); color: #f87171; }
+.charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-5); }
+.panel__head-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-4); flex-wrap: wrap; }
+.seg { display: inline-flex; border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow: hidden; }
+.seg__btn { padding: 0.35rem 0.8rem; font-size: 0.8rem; font-weight: 600; color: var(--color-text-soft); background: var(--color-bg-elevated); }
+.seg__btn.is-active { background: var(--color-primary-soft); color: var(--color-text); }
+.mini-row__rank { width: 1.4rem; text-align: center; font-weight: 700; color: var(--color-text-soft); font-size: 0.85rem; flex-shrink: 0; }
+.code-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3); }
+.code-form__field { display: flex; flex-direction: column; gap: 4px; }
+.code-form__field .modal__input { width: 130px; }
+.code-form__hint { font-size: 0.78rem; color: var(--color-text-soft); margin-top: var(--space-2); }
+.code-pill { font-family: var(--font-mono); font-size: 0.9rem; background: var(--color-surface-2); padding: 0.15rem 0.5rem; border-radius: var(--radius-sm); cursor: pointer; letter-spacing: 0.04em; }
+.code-pill:hover { color: var(--color-primary); }
 .tier-select { padding: 0.4rem 0.6rem; border-radius: var(--radius-md); border: 1px solid var(--color-border); background: var(--color-bg-elevated); color: var(--color-text); font-size: 0.8rem; font-weight: 600; cursor: pointer; }
 .tier-select:focus { outline: none; border-color: var(--color-primary); }
 .tier-select--basic { border-color: rgba(99, 102, 241, 0.5); color: #a5b4fc; }

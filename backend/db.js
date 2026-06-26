@@ -772,6 +772,60 @@ function initializeDatabase() {
       }
     });
 
+    // ----- Daily admin metrics snapshots (v38) -----
+    db.run(`
+      CREATE TABLE IF NOT EXISTS admin_metrics_snapshots (
+        day             INTEGER PRIMARY KEY,
+        users_total     INTEGER DEFAULT 0,
+        guilds_total    INTEGER DEFAULT 0,
+        guilds_present  INTEGER DEFAULT 0,
+        premium_basic   INTEGER DEFAULT 0,
+        premium_pro     INTEGER DEFAULT 0,
+        module_adoption TEXT DEFAULT '{}',
+        created_at      INTEGER
+      )
+    `, (err) => {
+      if (err) console.error('Error creating admin_metrics_snapshots table:', err);
+      else console.log('✓ Admin metrics snapshots table initialized');
+    });
+
+    // ----- Owner broadcast queue (v39) -----
+    db.run(`
+      CREATE TABLE IF NOT EXISTS admin_broadcasts (
+        id         TEXT PRIMARY KEY,
+        message    TEXT,
+        status     TEXT DEFAULT 'pending',
+        sent_count INTEGER DEFAULT 0,
+        total      INTEGER DEFAULT 0,
+        created_by TEXT,
+        created_at INTEGER,
+        updated_at INTEGER
+      )
+    `, (err) => {
+      if (err) console.error('Error creating admin_broadcasts table:', err);
+      else console.log('✓ Admin broadcasts table initialized');
+    });
+
+    // ----- Premium codes + expiry-reminder column (v40) -----
+    db.run(`
+      CREATE TABLE IF NOT EXISTS premium_codes (
+        code          TEXT PRIMARY KEY,
+        tier          TEXT,
+        duration_days INTEGER DEFAULT 30,
+        max_uses      INTEGER DEFAULT 1,
+        uses          INTEGER DEFAULT 0,
+        created_by    TEXT,
+        created_at    INTEGER,
+        expires_at    INTEGER
+      )
+    `, (err) => {
+      if (err) console.error('Error creating premium_codes table:', err);
+      else console.log('✓ Premium codes table initialized');
+    });
+    db.run('ALTER TABLE guilds ADD COLUMN premium_reminded_at INTEGER', (err) => {
+      if (err && !/duplicate column name/i.test(err.message)) console.error('Error adding guilds.premium_reminded_at:', err.message);
+    });
+
     // ----- Batch 2 modules (v13): Birthday / Scheduled / Anti-Raid -----
 
     db.run(`
@@ -1406,7 +1460,7 @@ export function getGuildPremium(guildId) {
 export function setGuildPremium(guildId, { tier, source = 'manual', until = null } = {}) {
   return new Promise((resolve, reject) => {
     const t = PREMIUM_TIERS.includes(tier) ? tier : 'free';
-    const src = t === 'free' ? null : (source === 'sku' ? 'sku' : 'manual');
+    const src = t === 'free' ? null : (['sku', 'manual', 'code'].includes(source) ? source : 'manual');
     const u = t === 'free' ? null : (until && Number(until) > 0 ? Math.floor(Number(until)) : null);
     db.run(
       'UPDATE guilds SET premium_tier = ?, premium_source = ?, premium_until = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
@@ -2416,6 +2470,184 @@ export async function getMaintenanceState() {
 export function setMaintenanceState({ enabled, message = '' }) {
   const payload = JSON.stringify({ enabled: !!enabled, message: String(message || '').slice(0, 500) });
   return setSystemSetting('maintenance', payload);
+}
+
+export const ANNOUNCEMENT_LEVELS = ['info', 'warning'];
+
+/**
+ * Global announcement banner — shown to ALL dashboard users (unlike the
+ * maintenance banner it does not block writes). Stored in system_settings.
+ */
+export async function getAnnouncementState() {
+  const raw = await getSystemSetting('announcement');
+  if (!raw) return { enabled: false, message: '', level: 'info' };
+  try {
+    const p = JSON.parse(raw);
+    return {
+      enabled: !!p.enabled,
+      message: typeof p.message === 'string' ? p.message : '',
+      level: ANNOUNCEMENT_LEVELS.includes(p.level) ? p.level : 'info'
+    };
+  } catch {
+    return { enabled: false, message: '', level: 'info' };
+  }
+}
+
+export function setAnnouncementState({ enabled, message = '', level = 'info' }) {
+  const lvl = ANNOUNCEMENT_LEVELS.includes(level) ? level : 'info';
+  const payload = JSON.stringify({ enabled: !!enabled, message: String(message || '').slice(0, 500), level: lvl });
+  return setSystemSetting('announcement', payload);
+}
+
+// ----- Owner broadcast queue (v39) -----
+
+export const BROADCAST_STATUSES = ['pending', 'sending', 'done', 'failed'];
+
+/** Owner admin: enqueue a DM broadcast to all server owners. */
+export function createBroadcast(message, createdBy) {
+  const id = randomUUID();
+  const now = Math.floor(Date.now() / 1000);
+  return new Promise((resolve, reject) => {
+    db.run(
+      `INSERT INTO admin_broadcasts (id, message, status, sent_count, total, created_by, created_at, updated_at)
+       VALUES (?, ?, 'pending', 0, 0, ?, ?, ?)`,
+      [id, String(message || '').slice(0, 2000), createdBy || null, now, now],
+      (err) => (err ? reject(err) : resolve({ id }))
+    );
+  });
+}
+
+/** Bot: oldest pending broadcast (or null). */
+export function getDueBroadcast() {
+  return dbGet("SELECT * FROM admin_broadcasts WHERE status = 'pending' ORDER BY created_at ASC LIMIT 1");
+}
+
+/** Bot: update a broadcast's status/progress. */
+export function updateBroadcast(id, { status, sent_count, total } = {}) {
+  return new Promise((resolve, reject) => {
+    db.get('SELECT * FROM admin_broadcasts WHERE id = ?', [id], (gErr, row) => {
+      if (gErr) return reject(gErr);
+      if (!row) return resolve(0);
+      const nextStatus = BROADCAST_STATUSES.includes(status) ? status : row.status;
+      const nextSent = Number.isFinite(sent_count) ? Math.max(0, Math.floor(sent_count)) : row.sent_count;
+      const nextTotal = Number.isFinite(total) ? Math.max(0, Math.floor(total)) : row.total;
+      db.run(
+        'UPDATE admin_broadcasts SET status = ?, sent_count = ?, total = ?, updated_at = ? WHERE id = ?',
+        [nextStatus, nextSent, nextTotal, Math.floor(Date.now() / 1000), id],
+        function (err) { if (err) reject(err); else resolve(this.changes); }
+      );
+    });
+  });
+}
+
+/** Owner admin: recent broadcasts (history + live status). */
+export function getRecentBroadcasts(limit = 20) {
+  return dbAll('SELECT * FROM admin_broadcasts ORDER BY created_at DESC LIMIT ?', [clampRange(limit, 1, 100, 20)]);
+}
+
+// ----- Premium & Business (v40): codes + revenue + expiry reminders -----
+
+function generatePremiumCode() {
+  // 12 hex chars from a UUID, grouped XXXX-XXXX-XXXX (uppercase, human-friendly).
+  const raw = randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase();
+  return `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}`;
+}
+
+/** Owner admin: create a redeemable promo/trial code. */
+export async function createPremiumCode({ tier, duration_days, max_uses, expires_at, createdBy } = {}) {
+  const t = PREMIUM_TIERS.includes(tier) && tier !== 'free' ? tier : 'basic';
+  const dur = clampRange(duration_days, 1, 3650, 30);
+  const maxUses = clampRange(max_uses, 0, 100000, 1); // 0 = unlimited
+  const exp = expires_at && Number(expires_at) > 0 ? Math.floor(Number(expires_at)) : null;
+  const now = Math.floor(Date.now() / 1000);
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = generatePremiumCode();
+    try {
+      await new Promise((resolve, reject) => {
+        db.run(
+          'INSERT INTO premium_codes (code, tier, duration_days, max_uses, uses, created_by, created_at, expires_at) VALUES (?, ?, ?, ?, 0, ?, ?, ?)',
+          [code, t, dur, maxUses, createdBy || null, now, exp],
+          (err) => (err ? reject(err) : resolve())
+        );
+      });
+      return { code, tier: t, duration_days: dur, max_uses: maxUses, uses: 0, created_at: now, expires_at: exp };
+    } catch (err) {
+      if (!/UNIQUE|PRIMARY/i.test(err.message)) throw err; // collision → retry
+    }
+  }
+  throw new Error('Could not generate a unique code');
+}
+
+export function getPremiumCodes() {
+  return dbAll('SELECT * FROM premium_codes ORDER BY created_at DESC');
+}
+
+export function deletePremiumCode(code) {
+  return new Promise((resolve, reject) => {
+    db.run('DELETE FROM premium_codes WHERE code = ?', [String(code || '').trim().toUpperCase()],
+      function (err) { if (err) reject(err); else resolve(this.changes); });
+  });
+}
+
+/**
+ * Guild admin: redeem a code → time-limited premium (source 'code'). Throws an
+ * Error with `.reason` ∈ {invalid|expired|exhausted} on failure.
+ */
+export function redeemPremiumCode(rawCode, guildId) {
+  return runInTransaction(async () => {
+    const code = String(rawCode || '').trim().toUpperCase();
+    const fail = (reason) => { throw Object.assign(new Error(reason), { reason, code: 'REDEEM' }); };
+    if (!code) fail('invalid');
+    const row = await dbGet('SELECT * FROM premium_codes WHERE code = ?', [code]);
+    const now = Math.floor(Date.now() / 1000);
+    if (!row) fail('invalid');
+    if (row.expires_at && row.expires_at <= now) fail('expired');
+    if (row.max_uses && row.max_uses > 0 && row.uses >= row.max_uses) fail('exhausted');
+    const until = now + (row.duration_days || 30) * 86400;
+    await runStmt(
+      "UPDATE guilds SET premium_tier = ?, premium_source = 'code', premium_until = ?, premium_reminded_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      [row.tier, until, guildId]
+    );
+    await runStmt('UPDATE premium_codes SET uses = uses + 1 WHERE code = ?', [code]);
+    return { tier: row.tier, until, duration_days: row.duration_days };
+  });
+}
+
+/** Owner admin: estimated monthly revenue from active premium (PLAN_CATALOG prices). */
+export async function getRevenue() {
+  const now = Math.floor(Date.now() / 1000);
+  const r = await dbGet(`SELECT
+      SUM(CASE WHEN premium_tier = 'basic' AND (premium_until IS NULL OR premium_until > ${now}) THEN 1 ELSE 0 END) AS basic,
+      SUM(CASE WHEN premium_tier = 'pro'   AND (premium_until IS NULL OR premium_until > ${now}) THEN 1 ELSE 0 END) AS pro
+    FROM guilds`);
+  const price = {};
+  for (const tt of PLAN_CATALOG.tiers) price[tt.key] = tt.price_monthly;
+  const basic = r?.basic || 0;
+  const pro = r?.pro || 0;
+  const mrr = Number((basic * (price.basic || 0) + pro * (price.pro || 0)).toFixed(2));
+  return { currency: PLAN_CATALOG.currency, basic, pro, price_basic: price.basic || 0, price_pro: price.pro || 0, mrr };
+}
+
+/** Bot: premium guilds expiring within `days` not reminded in the last 24h. */
+export function getExpiringPremiumGuilds(days = 3) {
+  const now = Math.floor(Date.now() / 1000);
+  const until = now + clampRange(days, 1, 30, 3) * 86400;
+  return dbAll(
+    `SELECT id AS guild_id, guild_name, premium_tier, premium_until
+       FROM guilds
+      WHERE premium_tier IS NOT NULL AND premium_tier != 'free'
+        AND premium_until IS NOT NULL AND premium_until > ? AND premium_until <= ?
+        AND (premium_reminded_at IS NULL OR premium_reminded_at < ?)`,
+    [now, until, now - 86400]
+  );
+}
+
+/** Bot: mark a guild's owner as reminded about the upcoming premium expiry. */
+export function markPremiumReminded(guildId) {
+  return new Promise((resolve, reject) => {
+    db.run('UPDATE guilds SET premium_reminded_at = ? WHERE id = ?', [Math.floor(Date.now() / 1000), guildId],
+      function (err) { if (err) reject(err); else resolve(this.changes); });
+  });
 }
 
 // ----- CSV export (owner-only) -----
@@ -7429,6 +7661,121 @@ export function clearErrorLog() {
   return new Promise((resolve, reject) => {
     db.run('DELETE FROM error_log', [], function (err) { if (err) reject(err); else resolve(this.changes); });
   });
+}
+
+// ============================================================
+// Admin analytics (v38) — daily growth/adoption snapshots + top guilds
+// ============================================================
+
+/** Compute the current module-adoption map (guilds with each module active). */
+async function computeModuleAdoption() {
+  const adoption = {};
+  await Promise.all([
+    ...FLAG_MODULE_TABLES.map(async (m) => {
+      const row = await dbGet(`SELECT COUNT(*) AS n FROM ${m.table} WHERE enabled = 1`);
+      adoption[m.key] = row?.n || 0;
+    }),
+    ...COUNT_MODULE_TABLES.map(async (m) => {
+      const w = m.where ? ` WHERE ${m.where}` : '';
+      const row = await dbGet(`SELECT COUNT(DISTINCT guild_id) AS n FROM ${m.table}${w}`);
+      adoption[m.key] = row?.n || 0;
+    }),
+    (async () => {
+      const w = await dbGet('SELECT COUNT(*) AS n FROM guild_settings WHERE welcome_enabled = 1');
+      adoption['welcome'] = w?.n || 0;
+      const l = await dbGet('SELECT COUNT(*) AS n FROM guild_settings WHERE leave_enabled = 1');
+      adoption['leave'] = l?.n || 0;
+    })()
+  ]);
+  return adoption;
+}
+
+/**
+ * Capture today's metrics snapshot (upsert, one row per UTC day). Best-effort —
+ * called from a backend interval (server.js). Premium counts are expiry-aware.
+ */
+export async function captureMetricsSnapshot() {
+  const now = Math.floor(Date.now() / 1000);
+  const day = Math.floor(now / 86400) * 86400;
+  const [u, g, p] = await Promise.all([
+    dbGet('SELECT COUNT(*) AS n FROM users'),
+    dbGet('SELECT COUNT(*) AS total, SUM(CASE WHEN bot_present = 1 THEN 1 ELSE 0 END) AS present FROM guilds'),
+    dbGet(`SELECT
+        SUM(CASE WHEN premium_tier = 'basic' AND (premium_until IS NULL OR premium_until > ${now}) THEN 1 ELSE 0 END) AS basic,
+        SUM(CASE WHEN premium_tier = 'pro'   AND (premium_until IS NULL OR premium_until > ${now}) THEN 1 ELSE 0 END) AS pro
+      FROM guilds`)
+  ]);
+  const adoption = await computeModuleAdoption();
+  await new Promise((resolve, reject) => {
+    db.run(
+      `INSERT INTO admin_metrics_snapshots (day, users_total, guilds_total, guilds_present, premium_basic, premium_pro, module_adoption, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(day) DO UPDATE SET
+         users_total = excluded.users_total,
+         guilds_total = excluded.guilds_total,
+         guilds_present = excluded.guilds_present,
+         premium_basic = excluded.premium_basic,
+         premium_pro = excluded.premium_pro,
+         module_adoption = excluded.module_adoption,
+         created_at = excluded.created_at`,
+      [day, u?.n || 0, g?.total || 0, g?.present || 0, p?.basic || 0, p?.pro || 0, JSON.stringify(adoption), now],
+      (err) => (err ? reject(err) : resolve())
+    );
+  });
+  return { day };
+}
+
+/** Owner admin: daily snapshots for the last `days` days (oldest first). */
+export function getMetricsSnapshots(days = 30) {
+  const d = clampRange(days, 1, 365, 30);
+  const since = Math.floor(Date.now() / 1000) - d * 86400;
+  return dbAll('SELECT * FROM admin_metrics_snapshots WHERE day >= ? ORDER BY day ASC', [since]).then((rows) =>
+    rows.map((r) => {
+      let adoption = {};
+      try { adoption = JSON.parse(r.module_adoption || '{}'); } catch { adoption = {}; }
+      return {
+        ts: r.day,
+        users: r.users_total || 0,
+        guilds: r.guilds_total || 0,
+        present: r.guilds_present || 0,
+        basic: r.premium_basic || 0,
+        pro: r.premium_pro || 0,
+        premium: (r.premium_basic || 0) + (r.premium_pro || 0),
+        adoption
+      };
+    })
+  );
+}
+
+/**
+ * Owner admin: top guilds by `by` ∈ {modules|activity}.
+ *   modules  — number of active feature modules configured in the guild.
+ *   activity — audit-log entries in the last 30 days (a rough activity proxy).
+ */
+export async function getTopGuilds({ by = 'modules', limit = 15 } = {}) {
+  const lim = clampRange(limit, 1, 50, 15);
+  if (by === 'activity') {
+    return dbAll(
+      `SELECT a.guild_id AS id, g.guild_name, g.guild_icon_url, COUNT(*) AS score
+         FROM audit_log a JOIN guilds g ON g.id = a.guild_id
+        WHERE a.guild_id IS NOT NULL AND a.created_at >= datetime('now', '-30 day')
+        GROUP BY a.guild_id ORDER BY score DESC, g.guild_name ASC LIMIT ?`,
+      [lim]
+    );
+  }
+  // modules: union of per-module guild ids, counted per guild.
+  const parts = [];
+  for (const m of FLAG_MODULE_TABLES) parts.push(`SELECT guild_id FROM ${m.table} WHERE enabled = 1`);
+  for (const m of COUNT_MODULE_TABLES) parts.push(`SELECT DISTINCT guild_id FROM ${m.table}${m.where ? ' WHERE ' + m.where : ''}`);
+  parts.push('SELECT guild_id FROM guild_settings WHERE welcome_enabled = 1');
+  parts.push('SELECT guild_id FROM guild_settings WHERE leave_enabled = 1');
+  const union = parts.join(' UNION ALL ');
+  return dbAll(
+    `SELECT u.guild_id AS id, g.guild_name, g.guild_icon_url, COUNT(*) AS score
+       FROM (${union}) u JOIN guilds g ON g.id = u.guild_id
+      GROUP BY u.guild_id ORDER BY score DESC, g.guild_name ASC LIMIT ?`,
+    [lim]
+  );
 }
 
 // ============================================================
