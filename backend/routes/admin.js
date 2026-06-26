@@ -32,7 +32,11 @@ import {
   setAnnouncementState,
   ANNOUNCEMENT_LEVELS,
   createBroadcast,
-  getRecentBroadcasts
+  getRecentBroadcasts,
+  createPremiumCode,
+  getPremiumCodes,
+  deletePremiumCode,
+  getRevenue
 } from '../db.js'
 import { getBotHealth } from '../state/botStats.js'
 import { requireSession, requireOwner, isOwner } from '../middleware/session.js'
@@ -381,6 +385,66 @@ router.get('/broadcasts', async (req, res) => {
   } catch (error) {
     console.error('Admin broadcasts list error:', error.message)
     res.status(500).json({ error: 'Failed to load broadcasts' })
+  }
+})
+
+/**
+ * Premium codes (Owner admin → Premium).
+ *   POST   /api/admin/premium-codes  Body: { tier, duration_days?, max_uses?, expires_at? }
+ *   GET    /api/admin/premium-codes
+ *   DELETE /api/admin/premium-codes/:code
+ */
+router.post('/premium-codes', async (req, res) => {
+  try {
+    const { tier, duration_days, max_uses, expires_at } = req.body || {}
+    if (!PREMIUM_TIERS.includes(tier) || tier === 'free') {
+      return res.status(400).json({ error: 'tier must be basic or pro' })
+    }
+    const code = await createPremiumCode({
+      tier,
+      duration_days: Number(duration_days),
+      max_uses: Number(max_uses),
+      expires_at: expires_at ? Number(expires_at) : null,
+      createdBy: req.user.id
+    })
+    await logAuditAction(req.user.id, null, 'ADMIN_PREMIUM_CODE_CREATE', { code: code.code, tier: code.tier, duration_days: code.duration_days, max_uses: code.max_uses })
+    res.json({ success: true, code })
+  } catch (error) {
+    console.error('Admin create premium code error:', error.message)
+    res.status(500).json({ error: 'Failed to create code' })
+  }
+})
+
+router.get('/premium-codes', async (req, res) => {
+  try {
+    const codes = await getPremiumCodes()
+    res.json({ success: true, codes })
+  } catch (error) {
+    console.error('Admin list premium codes error:', error.message)
+    res.status(500).json({ error: 'Failed to load codes' })
+  }
+})
+
+router.delete('/premium-codes/:code', async (req, res) => {
+  try {
+    const changes = await deletePremiumCode(req.params.code)
+    if (changes === 0) return res.status(404).json({ error: 'Code not found' })
+    await logAuditAction(req.user.id, null, 'ADMIN_PREMIUM_CODE_DELETE', { code: req.params.code })
+    res.json({ success: true })
+  } catch (error) {
+    console.error('Admin delete premium code error:', error.message)
+    res.status(500).json({ error: 'Failed to delete code' })
+  }
+})
+
+/** GET /api/admin/revenue — estimated MRR from active premium (Analytics/Premium). */
+router.get('/revenue', async (req, res) => {
+  try {
+    const revenue = await getRevenue()
+    res.json({ success: true, revenue })
+  } catch (error) {
+    console.error('Admin revenue error:', error.message)
+    res.status(500).json({ error: 'Failed to load revenue' })
   }
 })
 

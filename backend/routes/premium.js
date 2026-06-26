@@ -1,5 +1,5 @@
 import express from 'express'
-import { getGuild, effectiveTier, moduleUnlockMap, MODULE_TIERS } from '../db.js'
+import { getGuild, effectiveTier, moduleUnlockMap, MODULE_TIERS, redeemPremiumCode, logAuditAction } from '../db.js'
 import { requireGuildAccess } from '../middleware/auth.js'
 import { requireSession } from '../middleware/session.js'
 
@@ -25,6 +25,27 @@ router.get('/', requireSession, requireGuildAccess, async (req, res) => {
   } catch (error) {
     console.error('Get premium error:', error.message)
     res.status(500).json({ error: 'Failed to fetch premium status' })
+  }
+})
+
+/**
+ * POST /api/guilds/:guild_id/premium/redeem  Body: { code }
+ * Redeem a promo/trial code → time-limited premium for this guild.
+ * 400 { error: 'invalid_code', reason } on a bad/expired/exhausted code.
+ */
+router.post('/redeem', requireSession, requireGuildAccess, async (req, res) => {
+  try {
+    const guildId = req.params.guild_id
+    const code = typeof req.body?.code === 'string' ? req.body.code : ''
+    const result = await redeemPremiumCode(code, guildId)
+    await logAuditAction(req.user.id, guildId, 'PREMIUM_CODE_REDEEM', { tier: result.tier, until: result.until })
+    res.json({ success: true, ...result })
+  } catch (error) {
+    if (error.code === 'REDEEM') {
+      return res.status(400).json({ error: 'invalid_code', reason: error.reason })
+    }
+    console.error('Redeem premium code error:', error.message)
+    res.status(500).json({ error: 'Failed to redeem code' })
   }
 })
 
