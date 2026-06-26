@@ -789,6 +789,23 @@ function initializeDatabase() {
       else console.log('✓ Admin metrics snapshots table initialized');
     });
 
+    // ----- Owner broadcast queue (v39) -----
+    db.run(`
+      CREATE TABLE IF NOT EXISTS admin_broadcasts (
+        id         TEXT PRIMARY KEY,
+        message    TEXT,
+        status     TEXT DEFAULT 'pending',
+        sent_count INTEGER DEFAULT 0,
+        total      INTEGER DEFAULT 0,
+        created_by TEXT,
+        created_at INTEGER,
+        updated_at INTEGER
+      )
+    `, (err) => {
+      if (err) console.error('Error creating admin_broadcasts table:', err);
+      else console.log('✓ Admin broadcasts table initialized');
+    });
+
     // ----- Batch 2 modules (v13): Birthday / Scheduled / Anti-Raid -----
 
     db.run(`
@@ -2433,6 +2450,79 @@ export async function getMaintenanceState() {
 export function setMaintenanceState({ enabled, message = '' }) {
   const payload = JSON.stringify({ enabled: !!enabled, message: String(message || '').slice(0, 500) });
   return setSystemSetting('maintenance', payload);
+}
+
+export const ANNOUNCEMENT_LEVELS = ['info', 'warning'];
+
+/**
+ * Global announcement banner — shown to ALL dashboard users (unlike the
+ * maintenance banner it does not block writes). Stored in system_settings.
+ */
+export async function getAnnouncementState() {
+  const raw = await getSystemSetting('announcement');
+  if (!raw) return { enabled: false, message: '', level: 'info' };
+  try {
+    const p = JSON.parse(raw);
+    return {
+      enabled: !!p.enabled,
+      message: typeof p.message === 'string' ? p.message : '',
+      level: ANNOUNCEMENT_LEVELS.includes(p.level) ? p.level : 'info'
+    };
+  } catch {
+    return { enabled: false, message: '', level: 'info' };
+  }
+}
+
+export function setAnnouncementState({ enabled, message = '', level = 'info' }) {
+  const lvl = ANNOUNCEMENT_LEVELS.includes(level) ? level : 'info';
+  const payload = JSON.stringify({ enabled: !!enabled, message: String(message || '').slice(0, 500), level: lvl });
+  return setSystemSetting('announcement', payload);
+}
+
+// ----- Owner broadcast queue (v39) -----
+
+export const BROADCAST_STATUSES = ['pending', 'sending', 'done', 'failed'];
+
+/** Owner admin: enqueue a DM broadcast to all server owners. */
+export function createBroadcast(message, createdBy) {
+  const id = randomUUID();
+  const now = Math.floor(Date.now() / 1000);
+  return new Promise((resolve, reject) => {
+    db.run(
+      `INSERT INTO admin_broadcasts (id, message, status, sent_count, total, created_by, created_at, updated_at)
+       VALUES (?, ?, 'pending', 0, 0, ?, ?, ?)`,
+      [id, String(message || '').slice(0, 2000), createdBy || null, now, now],
+      (err) => (err ? reject(err) : resolve({ id }))
+    );
+  });
+}
+
+/** Bot: oldest pending broadcast (or null). */
+export function getDueBroadcast() {
+  return dbGet("SELECT * FROM admin_broadcasts WHERE status = 'pending' ORDER BY created_at ASC LIMIT 1");
+}
+
+/** Bot: update a broadcast's status/progress. */
+export function updateBroadcast(id, { status, sent_count, total } = {}) {
+  return new Promise((resolve, reject) => {
+    db.get('SELECT * FROM admin_broadcasts WHERE id = ?', [id], (gErr, row) => {
+      if (gErr) return reject(gErr);
+      if (!row) return resolve(0);
+      const nextStatus = BROADCAST_STATUSES.includes(status) ? status : row.status;
+      const nextSent = Number.isFinite(sent_count) ? Math.max(0, Math.floor(sent_count)) : row.sent_count;
+      const nextTotal = Number.isFinite(total) ? Math.max(0, Math.floor(total)) : row.total;
+      db.run(
+        'UPDATE admin_broadcasts SET status = ?, sent_count = ?, total = ?, updated_at = ? WHERE id = ?',
+        [nextStatus, nextSent, nextTotal, Math.floor(Date.now() / 1000), id],
+        function (err) { if (err) reject(err); else resolve(this.changes); }
+      );
+    });
+  });
+}
+
+/** Owner admin: recent broadcasts (history + live status). */
+export function getRecentBroadcasts(limit = 20) {
+  return dbAll('SELECT * FROM admin_broadcasts ORDER BY created_at DESC LIMIT ?', [clampRange(limit, 1, 100, 20)]);
 }
 
 // ----- CSV export (owner-only) -----

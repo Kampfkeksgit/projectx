@@ -343,6 +343,43 @@
             <AppButton variant="primary" :loading="savingMaintenance" @click="saveMaintenance">{{ t('admin.sysSave') }}</AppButton>
           </div>
         </div>
+
+        <!-- Announcement banner -->
+        <div class="panel panel--form">
+          <h3 class="panel__title">{{ t('admin.annTitle') }}</h3>
+          <p class="panel__desc">{{ t('admin.annDesc') }}</p>
+          <label class="toggle-row">
+            <AppToggle v-model="announcement.enabled" />
+            <span>{{ announcement.enabled ? t('admin.annOn') : t('admin.annOff') }}</span>
+          </label>
+          <label class="modal__label">{{ t('admin.annLevelLabel') }}</label>
+          <select v-model="announcement.level" class="modal__input">
+            <option value="info">{{ t('admin.annLevelInfo') }}</option>
+            <option value="warning">{{ t('admin.annLevelWarning') }}</option>
+          </select>
+          <label class="modal__label">{{ t('admin.annMessageLabel') }}</label>
+          <input v-model="announcement.message" class="modal__input" :placeholder="t('admin.annMessagePlaceholder')" maxlength="500" />
+          <div class="panel__actions">
+            <AppButton variant="primary" :loading="savingAnnouncement" @click="saveAnnouncement">{{ t('admin.sysSave') }}</AppButton>
+          </div>
+        </div>
+
+        <!-- Owner broadcast -->
+        <div class="panel panel--form">
+          <h3 class="panel__title">{{ t('admin.bcTitle') }}</h3>
+          <p class="panel__desc">{{ t('admin.bcDesc') }}</p>
+          <textarea v-model="broadcastMessage" class="modal__input" rows="3" :placeholder="t('admin.bcPlaceholder')" maxlength="2000"></textarea>
+          <div class="panel__actions">
+            <AppButton variant="primary" :loading="sendingBroadcast" :disabled="!broadcastMessage.trim()" @click="sendBroadcast">{{ t('admin.bcSend') }}</AppButton>
+          </div>
+          <ul v-if="broadcasts.length" class="mini-rows" style="margin-top: var(--space-4)">
+            <li v-for="b in broadcasts" :key="b.id" class="mini-row">
+              <span class="job-status" :class="`job-status--${b.status === 'sending' ? 'running' : b.status === 'done' ? 'done' : b.status === 'failed' ? 'failed' : 'pending'}`">{{ b.status }}</span>
+              <span class="mini-row__name">{{ b.message }}</span>
+              <span class="mini-row__time">{{ t('admin.bcSentCount', { sent: b.sent_count, total: b.total }) }}</span>
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
 
@@ -464,6 +501,13 @@ const savingPremium = ref(false)
 
 const maintenance = ref({ enabled: false, message: '' })
 const savingMaintenance = ref(false)
+
+// Kommunikation (Kat. 3)
+const announcement = ref({ enabled: false, message: '', level: 'info' })
+const savingAnnouncement = ref(false)
+const broadcastMessage = ref('')
+const broadcasts = ref([])
+const sendingBroadcast = ref(false)
 
 // Analytics (Kat. 2)
 const metrics = ref([])
@@ -618,8 +662,14 @@ async function load() {
       errors.value = data.entries || []
       total.value = data.total || 0
     } else if (tab.value === 'system') {
-      const { data } = await api.get('/admin/maintenance')
-      maintenance.value = { enabled: !!data.enabled, message: data.message || '' }
+      const [mnt, ann, bc] = await Promise.all([
+        api.get('/admin/maintenance'),
+        api.get('/admin/announcement'),
+        api.get('/admin/broadcasts')
+      ])
+      maintenance.value = { enabled: !!mnt.data.enabled, message: mnt.data.message || '' }
+      announcement.value = { enabled: !!ann.data.enabled, message: ann.data.message || '', level: ann.data.level || 'info' }
+      broadcasts.value = bc.data.broadcasts || []
     }
   } catch (err) {
     toast.error(t('admin.loadFailed'))
@@ -798,6 +848,35 @@ async function saveMaintenance() {
   } catch (err) {
     toast.error(err.response?.data?.error || t('admin.actionFailed'))
   } finally { savingMaintenance.value = false }
+}
+
+async function saveAnnouncement() {
+  savingAnnouncement.value = true
+  try {
+    await api.put('/admin/announcement', {
+      enabled: announcement.value.enabled,
+      message: announcement.value.message,
+      level: announcement.value.level
+    })
+    toast.success(t('admin.sysSaved'))
+  } catch (err) {
+    toast.error(err.response?.data?.error || t('admin.actionFailed'))
+  } finally { savingAnnouncement.value = false }
+}
+
+async function sendBroadcast() {
+  const msg = broadcastMessage.value.trim()
+  if (!msg) return
+  sendingBroadcast.value = true
+  try {
+    await api.post('/admin/broadcast', { message: msg })
+    broadcastMessage.value = ''
+    toast.success(t('admin.bcQueued'))
+    const { data } = await api.get('/admin/broadcasts')
+    broadcasts.value = data.broadcasts || []
+  } catch (err) {
+    toast.error(err.response?.data?.error || t('admin.actionFailed'))
+  } finally { sendingBroadcast.value = false }
 }
 
 async function exportCsv(kind) {

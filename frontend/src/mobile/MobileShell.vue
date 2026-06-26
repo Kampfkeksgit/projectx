@@ -1,6 +1,7 @@
 <template>
   <div class="m-shell">
     <MaintenanceBanner />
+    <AnnouncementBanner />
     <MobileTopBar @open-account="accountOpen = true" />
 
     <main class="m-shell__main">
@@ -24,6 +25,7 @@ import MobileTopBar from './MobileTopBar.vue'
 import MobileTabBar from './MobileTabBar.vue'
 import MobileAccountSheet from './MobileAccountSheet.vue'
 import MaintenanceBanner from '../components/MaintenanceBanner.vue'
+import AnnouncementBanner from '../components/AnnouncementBanner.vue'
 
 const auth = useAuth()
 const accountOpen = ref(false)
