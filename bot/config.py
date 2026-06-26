@@ -8,6 +8,8 @@ DISCORD_CLIENT_ID = os.getenv('DISCORD_CLIENT_ID')
 DISCORD_CLIENT_SECRET = os.getenv('DISCORD_CLIENT_SECRET')
 BACKEND_URL = os.getenv('BACKEND_URL', 'http://localhost:3000')
 DATABASE_URL = os.getenv('DATABASE_URL', 'bot.db')
+# Bot version string, surfaced in the Owner admin → Monitoring → Bot-Health panel.
+BOT_VERSION = os.getenv('BOT_VERSION', '1.0.0')
 # Shared secret used to authenticate to backend /api/bot/* endpoints.
 # Must match BOT_API_KEY in the backend's .env.
 BOT_API_KEY = os.getenv('BOT_API_KEY')

@@ -96,7 +96,8 @@ import {
   getGameLeaderboard,
   getDueBackupJobs,
   updateBackupJob,
-  createBackup
+  createBackup,
+  logError
 } from '../db.js'
 import { requireBotToken } from '../middleware/session.js'
 import { setBotStats } from '../state/botStats.js'
@@ -179,16 +180,33 @@ router.put('/premium', requireBotToken, async (req, res) => {
  */
 router.put('/stats', requireBotToken, (req, res) => {
   try {
-    const { guild_count, user_count, started_at } = req.body || {}
+    const { guild_count, user_count, started_at, latency_ms, version } = req.body || {}
     setBotStats({
       guild_count: Number(guild_count),
       user_count: Number(user_count),
-      started_at: Number(started_at)
+      started_at: Number(started_at),
+      latency_ms: Number(latency_ms),
+      version: typeof version === 'string' ? version : undefined
     })
     return res.json({ success: true })
   } catch (error) {
     console.error('Bot stats update error:', error.message)
     res.status(500).json({ error: 'Failed to update stats' })
+  }
+})
+
+/**
+ * Bot-only: report an exception/warning into the central error log
+ * (Owner admin → Monitoring). Body: { level?, context?, message, stack?, guild_id? }.
+ */
+router.post('/errors', requireBotToken, async (req, res) => {
+  try {
+    const { level, context, message, stack, guild_id } = req.body || {}
+    await logError({ source: 'bot', level, context, message, stack, guild_id })
+    return res.json({ success: true })
+  } catch (error) {
+    console.error('Bot error report failed:', error.message)
+    res.status(500).json({ error: 'Failed to record error' })
   }
 })
 

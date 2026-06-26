@@ -95,6 +95,9 @@ class Presence(commands.Cog):
         guild_count = len(self.bot.guilds)
         # Sum guild member_count; guard against None values.
         user_count = sum((g.member_count or 0) for g in self.bot.guilds)
+        # Gateway heartbeat latency (ms); nan before the first heartbeat.
+        latency = self.bot.latency
+        latency_ms = round(latency * 1000) if latency is not None and latency == latency else None
         url = f"{self.backend_url}/api/bot/stats"
 
         try:
@@ -104,7 +107,9 @@ class Presence(commands.Cog):
                     json={
                         "guild_count": guild_count,
                         "user_count": user_count,
-                        "started_at": self.started_at or int(time.time())
+                        "started_at": self.started_at or int(time.time()),
+                        "latency_ms": latency_ms,
+                        "version": getattr(config, "BOT_VERSION", None),
                     },
                     headers={"X-Bot-Token": self.api_key},
                     timeout=aiohttp.ClientTimeout(total=REQUEST_TIMEOUT_SECONDS),

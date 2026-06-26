@@ -21,9 +21,19 @@ import {
   createMarketplaceTemplate,
   getAdminMarketplaceTemplates,
   deleteMarketplaceTemplate,
-  setMarketplaceTemplateStatus
+  setMarketplaceTemplateStatus,
+  getAllBackupJobs,
+  retryBackupJob,
+  getErrorLog,
+  clearErrorLog
 } from '../db.js'
+import { getBotHealth } from '../state/botStats.js'
 import { requireSession, requireOwner, isOwner } from '../middleware/session.js'
+import { createRequire } from 'module'
+
+const require = createRequire(import.meta.url)
+let BACKEND_VERSION = null
+try { BACKEND_VERSION = require('../package.json').version || null } catch { BACKEND_VERSION = null }
 
 const router = express.Router()
 
@@ -235,6 +245,80 @@ router.put('/maintenance', async (req, res) => {
   } catch (error) {
     console.error('Admin set maintenance error:', error.message)
     res.status(500).json({ error: 'Failed to update maintenance state' })
+  }
+})
+
+/**
+ * GET /api/admin/health — bot live status (from the botStats cache) + backend
+ * process facts. For the Monitoring → Bot-Health panel.
+ */
+router.get('/health', async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      bot: getBotHealth(),
+      backend: {
+        version: BACKEND_VERSION,
+        node: process.version,
+        uptime_seconds: Math.floor(process.uptime())
+      }
+    })
+  } catch (error) {
+    console.error('Admin health error:', error.message)
+    res.status(500).json({ error: 'Failed to load health' })
+  }
+})
+
+/**
+ * GET /api/admin/errors?source=&level=&limit=&offset= — central error feed.
+ * DELETE /api/admin/errors — clear the log.
+ */
+router.get('/errors', async (req, res) => {
+  try {
+    const { source = '', level = '', limit = 50, offset = 0 } = req.query
+    const result = await getErrorLog({ source, level, limit, offset })
+    res.json({ success: true, ...result })
+  } catch (error) {
+    console.error('Admin errors error:', error.message)
+    res.status(500).json({ error: 'Failed to load errors' })
+  }
+})
+
+router.delete('/errors', async (req, res) => {
+  try {
+    const cleared = await clearErrorLog()
+    await logAuditAction(req.user.id, null, 'ADMIN_CLEAR_ERRORS', { cleared })
+    res.json({ success: true, cleared })
+  } catch (error) {
+    console.error('Admin clear errors error:', error.message)
+    res.status(500).json({ error: 'Failed to clear errors' })
+  }
+})
+
+/**
+ * GET /api/admin/jobs?status=&limit=&offset= — backup job queue across all guilds.
+ * POST /api/admin/jobs/:id/retry — requeue a failed job.
+ */
+router.get('/jobs', async (req, res) => {
+  try {
+    const { status = '', limit = 50, offset = 0 } = req.query
+    const result = await getAllBackupJobs({ status, limit, offset })
+    res.json({ success: true, ...result })
+  } catch (error) {
+    console.error('Admin jobs error:', error.message)
+    res.status(500).json({ error: 'Failed to load jobs' })
+  }
+})
+
+router.post('/jobs/:id/retry', async (req, res) => {
+  try {
+    const changes = await retryBackupJob(req.params.id)
+    if (changes === 0) return res.status(404).json({ error: 'Job not found or not failed' })
+    await logAuditAction(req.user.id, null, 'ADMIN_RETRY_JOB', { job_id: req.params.id })
+    res.json({ success: true })
+  } catch (error) {
+    console.error('Admin retry job error:', error.message)
+    res.status(500).json({ error: 'Failed to retry job' })
   }
 })
 

@@ -752,6 +752,26 @@ function initializeDatabase() {
       else console.log('✓ Guild general settings table initialized');
     });
 
+    // ----- Central error log (v37) -----
+    db.run(`
+      CREATE TABLE IF NOT EXISTS error_log (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        source     TEXT,
+        level      TEXT DEFAULT 'error',
+        context    TEXT,
+        message    TEXT,
+        stack      TEXT,
+        guild_id   TEXT,
+        created_at INTEGER
+      )
+    `, (err) => {
+      if (err) console.error('Error creating error_log table:', err);
+      else {
+        db.run('CREATE INDEX IF NOT EXISTS idx_error_log_created ON error_log(created_at DESC)');
+        console.log('✓ Error log table initialized');
+      }
+    });
+
     // ----- Batch 2 modules (v13): Birthday / Scheduled / Anti-Raid -----
 
     db.run(`
@@ -7302,6 +7322,112 @@ export function updateBackupJob(jobId, { status, backup_id, message } = {}) {
         function (err) { if (err) reject(err); else resolve(this.changes); }
       );
     });
+  });
+}
+
+/**
+ * Owner admin → Monitoring: all backup jobs across every guild (newest first),
+ * joined with the guild name. Optional `status` filter. Paginated.
+ */
+export function getAllBackupJobs({ status = '', limit = 50, offset = 0 } = {}) {
+  const lim = clampRange(limit, 1, 200, 50);
+  const off = clampRange(offset, 0, 1e9, 0);
+  const where = BACKUP_JOB_STATUSES.includes(status) ? 'WHERE j.status = ?' : '';
+  const params = where ? [status] : [];
+  return new Promise((resolve, reject) => {
+    dbGet(`SELECT COUNT(*) AS n FROM guild_backup_jobs j ${where}`, params)
+      .then((c) => dbAll(
+        `SELECT j.*, g.guild_name, g.guild_icon_url
+           FROM guild_backup_jobs j
+           LEFT JOIN guilds g ON g.id = j.guild_id
+           ${where}
+          ORDER BY j.updated_at DESC, j.created_at DESC
+          LIMIT ? OFFSET ?`,
+        [...params, lim, off]
+      ).then((rows) => resolve({
+        jobs: rows.map((r) => ({ ...shapeBackupJob(r), guild_id: r.guild_id, guild_name: r.guild_name || null, guild_icon_url: r.guild_icon_url || null })),
+        total: c?.n || 0
+      })))
+      .catch(reject);
+  });
+}
+
+/** Owner admin: requeue a failed job (status failed → pending, clears message). */
+export function retryBackupJob(jobId) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      "UPDATE guild_backup_jobs SET status = 'pending', message = NULL, updated_at = ? WHERE id = ? AND status = 'failed'",
+      [backupNowSeconds(), jobId],
+      function (err) { if (err) reject(err); else resolve(this.changes); }
+    );
+  });
+}
+
+// ============================================================
+// Central error log (v37) — bot + backend exceptions for the admin viewer
+// ============================================================
+
+export const ERROR_LOG_SOURCES = ['bot', 'backend'];
+export const ERROR_LOG_LEVELS = ['error', 'warning'];
+const ERROR_LOG_MAX = 2000; // retention cap
+
+/**
+ * Record an exception/warning. Best-effort — never throws (logging must not
+ * cascade into another failure). Prunes to the newest ERROR_LOG_MAX rows.
+ */
+export function logError({ source, level, context, message, stack, guild_id } = {}) {
+  return new Promise((resolve) => {
+    try {
+      const src = ERROR_LOG_SOURCES.includes(source) ? source : 'backend';
+      const lvl = ERROR_LOG_LEVELS.includes(level) ? level : 'error';
+      const ctx = context == null ? null : String(context).slice(0, 200);
+      const msg = String(message == null ? '' : message).slice(0, 2000);
+      const stk = stack == null ? null : String(stack).slice(0, 8000);
+      const gid = isSnowflake(guild_id) ? guild_id : null;
+      const now = Math.floor(Date.now() / 1000);
+      db.run(
+        'INSERT INTO error_log (source, level, context, message, stack, guild_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [src, lvl, ctx, msg, stk, gid, now],
+        (err) => {
+          if (err) { resolve(false); return; }
+          // Prune occasionally (cheap enough to run each insert at this volume).
+          db.run(
+            'DELETE FROM error_log WHERE id NOT IN (SELECT id FROM error_log ORDER BY id DESC LIMIT ?)',
+            [ERROR_LOG_MAX],
+            () => resolve(true)
+          );
+        }
+      );
+    } catch {
+      resolve(false);
+    }
+  });
+}
+
+/** Owner admin: paginated, filterable error feed (newest first). */
+export function getErrorLog({ source = '', level = '', limit = 50, offset = 0 } = {}) {
+  const lim = clampRange(limit, 1, 200, 50);
+  const off = clampRange(offset, 0, 1e9, 0);
+  const conds = [];
+  const params = [];
+  if (ERROR_LOG_SOURCES.includes(source)) { conds.push('source = ?'); params.push(source); }
+  if (ERROR_LOG_LEVELS.includes(level)) { conds.push('level = ?'); params.push(level); }
+  const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
+  return new Promise((resolve, reject) => {
+    dbGet(`SELECT COUNT(*) AS n FROM error_log ${where}`, params)
+      .then((c) => dbAll(
+        `SELECT id, source, level, context, message, stack, guild_id, created_at
+           FROM error_log ${where} ORDER BY id DESC LIMIT ? OFFSET ?`,
+        [...params, lim, off]
+      ).then((rows) => resolve({ entries: rows, total: c?.n || 0 })))
+      .catch(reject);
+  });
+}
+
+/** Owner admin: wipe the error log. Returns number of rows deleted. */
+export function clearErrorLog() {
+  return new Promise((resolve, reject) => {
+    db.run('DELETE FROM error_log', [], function (err) { if (err) reject(err); else resolve(this.changes); });
   });
 }
 

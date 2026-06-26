@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 36;
+const CURRENT_SCHEMA_VERSION = 37;
 
 /**
  * Initialize schema version tracking
@@ -95,7 +95,8 @@ async function applyMigrations(fromVersion, toVersion) {
     33: migrationV33,
     34: migrationV34,
     35: migrationV35,
-    36: migrationV36
+    36: migrationV36,
+    37: migrationV37
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -1917,6 +1918,30 @@ function migrationV36() {
       updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
     )`
+  ]);
+}
+
+/**
+ * Migration V37: Central error log (Owner admin → Monitoring).
+ *   - error_log: exceptions/warnings reported by the bot and backend, so the
+ *     owner can browse failures in the dashboard instead of digging through
+ *     stdout. `source` ∈ {bot|backend}, `level` ∈ {error|warning}.
+ * Idempotent; mirrored in initializeDatabase(). Retention is enforced in
+ * logError() (keeps the newest ERROR_LOG_MAX rows).
+ */
+function migrationV37() {
+  return runSchemaBatch(37, [
+    `CREATE TABLE IF NOT EXISTS error_log (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      source     TEXT,
+      level      TEXT DEFAULT 'error',
+      context    TEXT,
+      message    TEXT,
+      stack      TEXT,
+      guild_id   TEXT,
+      created_at INTEGER
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_error_log_created ON error_log(created_at DESC)`
   ]);
 }
 
