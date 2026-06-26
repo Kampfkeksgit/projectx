@@ -31,12 +31,37 @@
             <option v-for="a in auditActions" :key="a" :value="a">{{ a }}</option>
           </select>
         </div>
-        <div class="search">
+        <div v-if="tab === 'jobs'" class="filter">
+          <select v-model="jobStatus" class="filter__select" @change="load">
+            <option value="">{{ t('admin.jobsAllStatus') }}</option>
+            <option v-for="s in JOB_STATUSES" :key="s" :value="s">{{ s }}</option>
+          </select>
+        </div>
+        <template v-if="tab === 'errors'">
+          <div class="filter">
+            <select v-model="errSource" class="filter__select" @change="load">
+              <option value="">{{ t('admin.errAllSources') }}</option>
+              <option value="bot">bot</option>
+              <option value="backend">backend</option>
+            </select>
+          </div>
+          <div class="filter">
+            <select v-model="errLevel" class="filter__select" @change="load">
+              <option value="">{{ t('admin.errAllLevels') }}</option>
+              <option value="error">error</option>
+              <option value="warning">warning</option>
+            </select>
+          </div>
+        </template>
+        <div v-if="['users', 'guilds', 'audit'].includes(tab)" class="search">
           <svg class="search__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <input v-model="search" class="search__input" :placeholder="searchPlaceholder" @input="onSearchInput" />
         </div>
         <AppButton v-if="tab === 'users' || tab === 'guilds'" variant="ghost" @click="exportCsv(tab)">
           {{ t('admin.exportBtn') }}
+        </AppButton>
+        <AppButton v-if="tab === 'errors' && errors.length" variant="danger" @click="clearErrors">
+          {{ t('admin.errClear') }}
         </AppButton>
       </div>
 
@@ -195,6 +220,85 @@
         </div>
       </div>
 
+      <!-- HEALTH (bot monitoring) -->
+      <div v-else-if="tab === 'health' && health">
+        <div class="cards">
+          <div class="card">
+            <div class="card__label">{{ t('admin.healthBot') }}</div>
+            <div class="card__value"><span class="dot" :class="health.bot.online ? 'dot--on' : 'dot--off'"></span> {{ health.bot.online ? t('admin.healthOnline') : t('admin.healthOffline') }}</div>
+            <div class="card__meta">{{ health.bot.last_seen_seconds_ago != null ? t('admin.healthLastSeen', { ago: fmtDuration(health.bot.last_seen_seconds_ago) }) : t('admin.healthNeverSeen') }}</div>
+          </div>
+          <div class="card">
+            <div class="card__label">{{ t('admin.healthLatency') }}</div>
+            <div class="card__value">{{ health.bot.latency_ms != null ? health.bot.latency_ms + ' ms' : '—' }}</div>
+          </div>
+          <div class="card">
+            <div class="card__label">{{ t('admin.healthUptime') }}</div>
+            <div class="card__value">{{ health.bot.online ? fmtDuration(health.bot.uptime_seconds) : '—' }}</div>
+          </div>
+          <div class="card">
+            <div class="card__label">{{ t('admin.healthServers') }}</div>
+            <div class="card__value">{{ health.bot.guild_count }}</div>
+            <div class="card__meta">{{ t('admin.healthUsers', { n: health.bot.user_count }) }}</div>
+          </div>
+          <div class="card">
+            <div class="card__label">{{ t('admin.healthVersion') }}</div>
+            <div class="card__value">{{ health.bot.version || '—' }}</div>
+            <div class="card__meta">{{ t('admin.healthBackend', { v: health.backend.version || '—', node: health.backend.node }) }}</div>
+          </div>
+        </div>
+        <div class="admin__more">
+          <AppButton variant="ghost" @click="load">{{ t('common.refresh') }}</AppButton>
+        </div>
+      </div>
+
+      <!-- JOBS (backup queue across all guilds) -->
+      <div v-else-if="tab === 'jobs'">
+        <div v-if="jobs.length === 0" class="empty"><p>{{ t('admin.jobsEmpty') }}</p></div>
+        <ul v-else class="rows">
+          <li v-for="j in jobs" :key="j.id" class="row">
+            <div class="row__main">
+              <GuildAvatar :name="j.guild_name || j.guild_id" :icon-url="j.guild_icon_url" size="sm" />
+              <div class="row__text">
+                <div class="row__name">{{ j.type }} <span class="job-status" :class="`job-status--${j.status}`">{{ j.status }}</span></div>
+                <div class="row__sub">{{ j.guild_name || j.guild_id }} · {{ fmtDateTimeUnix(j.updated_at || j.created_at) }}</div>
+                <div v-if="j.message" class="row__reason">{{ j.message }}</div>
+              </div>
+            </div>
+            <div class="row__right">
+              <AppButton v-if="j.status === 'failed'" variant="subtle" :loading="busyId === j.id" @click="retryJob(j)">{{ t('admin.jobsRetry') }}</AppButton>
+            </div>
+          </li>
+        </ul>
+        <div v-if="!loading && jobs.length < total" class="admin__more">
+          <AppButton variant="ghost" :loading="loadingMore" @click="loadMore">{{ t('admin.loadMore') }}</AppButton>
+        </div>
+      </div>
+
+      <!-- ERRORS (central error log) -->
+      <div v-else-if="tab === 'errors'">
+        <div v-if="errors.length === 0" class="empty"><p>{{ t('admin.errEmpty') }}</p></div>
+        <ul v-else class="rows">
+          <li v-for="e in errors" :key="e.id" class="audit-row">
+            <div class="audit-row__head">
+              <span class="audit-row__action">
+                <span class="job-status" :class="e.level === 'warning' ? 'job-status--running' : 'job-status--failed'">{{ e.source }}/{{ e.level }}</span>
+                {{ e.context }}
+              </span>
+              <span class="audit-row__time">{{ fmtDateTimeUnix(e.created_at) }}</span>
+            </div>
+            <div class="audit-row__meta">
+              <span>{{ e.message }}</span>
+              <span v-if="e.guild_id"> · {{ t('admin.colGuild') }}: {{ e.guild_id }}</span>
+            </div>
+            <pre v-if="e.stack" class="audit-row__changes">{{ e.stack }}</pre>
+          </li>
+        </ul>
+        <div v-if="!loading && errors.length < total" class="admin__more">
+          <AppButton variant="ghost" :loading="loadingMore" @click="loadMore">{{ t('admin.loadMore') }}</AppButton>
+        </div>
+      </div>
+
       <!-- SYSTEM (maintenance) -->
       <div v-else-if="tab === 'system'">
         <div class="panel panel--form">
@@ -303,7 +407,7 @@ const router = useRouter()
 const toast = useToast()
 const auth = useAuth()
 
-const tabs = ['overview', 'users', 'guilds', 'audit', 'system']
+const tabs = ['overview', 'health', 'users', 'guilds', 'audit', 'jobs', 'errors', 'system']
 const tab = ref('overview')
 const search = ref('')
 const loading = ref(true)
@@ -331,6 +435,15 @@ const savingPremium = ref(false)
 const maintenance = ref({ enabled: false, message: '' })
 const savingMaintenance = ref(false)
 
+// Monitoring (Kat. 1)
+const health = ref(null)
+const jobs = ref([])
+const jobStatus = ref('')
+const errors = ref([])
+const errSource = ref('')
+const errLevel = ref('')
+const JOB_STATUSES = ['pending', 'running', 'done', 'failed']
+
 const DURATIONS = [
   { key: 'permanent', sec: 0 },
   { key: '1h', sec: 3600 },
@@ -346,7 +459,7 @@ const PREMIUM_DURATIONS = [
 
 let searchTimer = null
 
-const showToolbar = computed(() => ['users', 'guilds', 'audit'].includes(tab.value))
+const showToolbar = computed(() => ['users', 'guilds', 'audit', 'jobs', 'errors'].includes(tab.value))
 const searchPlaceholder = computed(() => {
   if (tab.value === 'users') return t('admin.searchUsers')
   if (tab.value === 'guilds') return t('admin.searchGuilds')
@@ -376,6 +489,19 @@ function fmtDateTime(s) {
 }
 function fmtChanges(c) {
   try { return typeof c === 'string' ? c : JSON.stringify(c) } catch { return '' }
+}
+function fmtDateTimeUnix(sec) {
+  if (!sec) return ''
+  const d = new Date(Number(sec) * 1000)
+  return isNaN(d.getTime()) ? '' : d.toLocaleString(locale.value)
+}
+function fmtDuration(sec) {
+  sec = Math.max(0, Math.floor(Number(sec) || 0))
+  const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60
+  if (d) return `${d}d ${h}h`
+  if (h) return `${h}h ${m}m`
+  if (m) return `${m}m ${s}s`
+  return `${s}s`
 }
 function durationToUntil(key, table) {
   const d = table.find((x) => x.key === key)
@@ -415,6 +541,17 @@ async function load() {
       const { data } = await api.get('/admin/audit', { params: { action: auditAction.value, target: search.value, limit: PAGE, offset: 0 } })
       audit.value = data.entries || []
       total.value = data.total || 0
+    } else if (tab.value === 'health') {
+      const { data } = await api.get('/admin/health')
+      health.value = { bot: data.bot, backend: data.backend }
+    } else if (tab.value === 'jobs') {
+      const { data } = await api.get('/admin/jobs', { params: { status: jobStatus.value, limit: PAGE, offset: 0 } })
+      jobs.value = data.jobs || []
+      total.value = data.total || 0
+    } else if (tab.value === 'errors') {
+      const { data } = await api.get('/admin/errors', { params: { source: errSource.value, level: errLevel.value, limit: PAGE, offset: 0 } })
+      errors.value = data.entries || []
+      total.value = data.total || 0
     } else if (tab.value === 'system') {
       const { data } = await api.get('/admin/maintenance')
       maintenance.value = { enabled: !!data.enabled, message: data.message || '' }
@@ -441,11 +578,44 @@ async function loadMore() {
       const { data } = await api.get('/admin/audit', { params: { action: auditAction.value, target: search.value, limit: PAGE, offset: audit.value.length } })
       audit.value = audit.value.concat(data.entries || [])
       total.value = data.total || total.value
+    } else if (tab.value === 'jobs') {
+      const { data } = await api.get('/admin/jobs', { params: { status: jobStatus.value, limit: PAGE, offset: jobs.value.length } })
+      jobs.value = jobs.value.concat(data.jobs || [])
+      total.value = data.total || total.value
+    } else if (tab.value === 'errors') {
+      const { data } = await api.get('/admin/errors', { params: { source: errSource.value, level: errLevel.value, limit: PAGE, offset: errors.value.length } })
+      errors.value = errors.value.concat(data.entries || [])
+      total.value = data.total || total.value
     }
   } catch (err) {
     toast.error(t('admin.loadFailed'))
   } finally {
     loadingMore.value = false
+  }
+}
+
+async function retryJob(j) {
+  busyId.value = j.id
+  try {
+    await api.post(`/admin/jobs/${j.id}/retry`)
+    j.status = 'pending'
+    j.message = null
+    toast.success(t('admin.jobsRetried'))
+  } catch (err) {
+    toast.error(err.response?.data?.error || t('admin.loadFailed'))
+  } finally {
+    busyId.value = null
+  }
+}
+
+async function clearErrors() {
+  try {
+    await api.delete('/admin/errors')
+    errors.value = []
+    total.value = 0
+    toast.success(t('admin.errCleared'))
+  } catch (err) {
+    toast.error(t('admin.loadFailed'))
   }
 }
 
@@ -654,6 +824,11 @@ function goBack() { router.push('/dashboard') }
 .status { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 0.25rem 0.6rem; border-radius: var(--radius-full); }
 .status--active { background: var(--color-surface-2); color: var(--color-text-soft); }
 .status--blocked { background: var(--color-danger); color: #fff; }
+.job-status { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; padding: 0.12rem 0.45rem; border-radius: var(--radius-full); }
+.job-status--pending { background: var(--color-surface-2); color: var(--color-text-soft); }
+.job-status--running { background: rgba(245, 158, 11, 0.18); color: #fbbf24; }
+.job-status--done { background: rgba(34, 197, 94, 0.18); color: #4ade80; }
+.job-status--failed { background: rgba(239, 68, 68, 0.18); color: #f87171; }
 .tier-select { padding: 0.4rem 0.6rem; border-radius: var(--radius-md); border: 1px solid var(--color-border); background: var(--color-bg-elevated); color: var(--color-text); font-size: 0.8rem; font-weight: 600; cursor: pointer; }
 .tier-select:focus { outline: none; border-color: var(--color-primary); }
 .tier-select--basic { border-color: rgba(99, 102, 241, 0.5); color: #a5b4fc; }

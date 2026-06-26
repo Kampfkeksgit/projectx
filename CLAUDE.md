@@ -55,7 +55,8 @@ projectx/
 │   │                           # Danach in setup_hook: bot.tree.sync() für Slash-Commands. on_ready loggt nur noch die Verbindung.
 │   │                           # command_prefix = async _resolve_prefix (per-Guild via command_config, Cache, Mention immer aktiv)
 │   │                           # Globale Gates: @bot.check (Prefix) + bot.tree.interaction_check (Slash) sperren deaktivierte Befehle
-│   │                           # on_command_error schluckt CheckFailure/CommandNotFound (deaktiviert/keine Perms), printet sonst Traceback
+│   │                           # on_command_error schluckt CheckFailure/CommandNotFound (deaktiviert/keine Perms), printet sonst Traceback +
+│   │                           # meldet via report_error → POST /api/bot/errors; globaler on_error fängt Event-Exceptions (→ error_log/Admin-Monitoring)
 │   │                           # Intents: default + message_content + members + presences (presences = PRIVILEGED, im Dev-Portal aktivieren — nötig für Online/Offline-Stats)
 │   ├── config.py               # Lädt .env (DISCORD_TOKEN, BACKEND_URL, BOT_API_KEY, Social-API-Keys …)
 │   ├── requirements.txt
@@ -228,7 +229,8 @@ projectx/
 │   │                           # /stats (PUT) + /stats/configs + .../stats/counters/:cid/channel +
 │   │                           # .../stats/snapshot (X-Bot-Token-protected)
 │   ├── state/
-│   │   └── botStats.js         # In-Memory Cache für Bot-Stats (guild_count, user_count, started_at)
+│   │   └── botStats.js         # In-Memory Cache für Bot-Stats (guild_count, user_count, started_at, latency_ms, version)
+│   │                           # getPublicStats() (Landing) + getBotHealth() (Admin-Monitoring: online/uptime/latency/last-seen)
 │   │                           # 15min Stale-Window — danach gilt der Bot als offline
 │   ├── utils/
 │   │   └── dbHelper.js
@@ -359,9 +361,11 @@ projectx/
 │           │                        # + Vorlage-anwenden-Modal mit Umschalter „Meine Server"/„Marketplace" + Owner-Publish-Button je Snapshot
 │           │                        # + Löschen-Confirm; pollt aktive Jobs alle 4s bis fertig
 │           ├── Premium.vue         # /dashboard/:guild_id/premium (Tarif-Übersicht Free/Basic/Pro + aktueller Tier + Upgrade-CTA)
-│           ├── Admin.vue           # /admin (OWNER-only — Tabs Overview/Users/Guilds/Audit/System; Router-Guard requiresOwner)
-│           │                       # Overview (Metrik-Karten + Premium-läuft-ab + Modul-Adoption), Users/Guilds (Sperren mit Temp-Ban-Dauer,
-│           │                       # Tier-Select, CSV-Export, Guild-Inspektor-Modal), Audit (filterbarer Log), System (Wartungsmodus-Toggle)
+│           ├── Admin.vue           # /admin (OWNER-only — Tabs Overview/Health/Users/Guilds/Audit/Jobs/Errors/System; Router-Guard requiresOwner)
+│           │                       # Overview (Metrik-Karten + Premium-läuft-ab + Modul-Adoption), Health (Bot-Live-Status: online/Latenz/Uptime/
+│           │                       # Server/Version aus /admin/health), Users/Guilds (Sperren mit Temp-Ban-Dauer, Tier-Select, CSV-Export,
+│           │                       # Guild-Inspektor-Modal), Audit (filterbarer Log), Jobs (Backup-Job-Queue aller Guilds + Retry),
+│           │                       # Errors (zentrales Fehler-Log, Filter Quelle/Stufe + Leeren), System (Wartungsmodus-Toggle)
 │           ├── AuthCallback.vue     # /auth/callback (OAuth-Return → /dashboard)
 │           └── legal/
 │               ├── LegalLayout.vue  # Shared Typography-Wrapper (TOC, Sections, Last-Updated)
@@ -492,6 +496,7 @@ Portainer: als **Stack** aus dem Git-Repo deployen, Env-Vars im Stack setzen (si
 - `DISCORD_CLIENT_ID`
 - `DISCORD_CLIENT_SECRET`
 - `BACKEND_URL` — z. B. `http://localhost:3000`
+- `BOT_VERSION` — optional; Versions-String, der im Admin-Health-Panel angezeigt wird (default `1.0.0`). Wird vom `presence`-Cog mit `PUT /api/bot/stats` gepusht.
 
 > ⚠️ **Presence-Intent (kein Env, sondern Portal-Toggle):** Das `stats`-Cog zählt Online/Offline über `member.status` — dafür ist das **privilegierte Presence-Intent** nötig. In [main.py](bot/main.py) ist `intents.presences = True` gesetzt; zusätzlich muss es im **Discord Developer Portal** (Bot → Privileged Gateway Intents → Presence Intent) aktiviert werden, sonst zählt der Bot alle Member als offline. Auto-Create von Stats-Channels braucht außerdem `MANAGE_CHANNELS`, Temp-Voice zusätzlich `MOVE_MEMBERS`, Server-Backup/Restore zusätzlich `MANAGE_ROLES` (bereits enthalten) + `MANAGE_GUILD` (Server-Name/-Icon) — die Invite-Bitmask wurde auf `285223990` erhöht (= `268446742 | MOVE_MEMBERS | MANAGE_GUILD`).
 - `BOT_API_KEY` — **muss identisch zu `backend/.env`** sein; wird als `X-Bot-Token`-Header an `/api/bot/*` gesendet. Generierung: `python -c "import secrets; print(secrets.token_urlsafe(48))"`.
@@ -642,7 +647,8 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - `GET /api/bot/guilds/:guild_id/settings/moderation` → Moderation-Settings (volle erweiterte Shape inkl. Filter/Whitelist/Warn-Felder)
 - `POST /api/bot/guilds/:guild_id/moderation/warn` body `{ user_id }` → `{ count, total, threshold, threshold_reached, escalation_action, timeout_duration }`. Erhöht den Warn-Zähler atomar; bei erreichter Schwelle eskaliert der Bot mit `escalation_action`. Wird vom `moderation`-Cog bei jedem Content-Filter-Verstoß aufgerufen (nur wenn `warn_threshold > 0`).
 - `PUT /api/bot/presence` body `{ guild_ids: string[] }` → `{ success: true, present: N, absent: M, received: K }`. Setzt `guilds.bot_present = 1` für alle übergebenen Guild-IDs (sofern die Row existiert) und `= 0` für alle anderen Rows. Wird vom Bot-Cog `presence.py` aufgerufen (on_ready + on_guild_join/remove + 5min loop). Snowflake-Filter `^\d{15,25}$`.
-- `PUT /api/bot/stats` body `{ guild_count, user_count, started_at }` → `{ success: true }`. Befüllt den In-Memory-Cache in [state/botStats.js](backend/state/botStats.js) für die Landing-Page. `started_at` ist unix-seconds (Bot setzt das einmal beim ersten `on_ready` und behält es über Reconnects hinweg). Wird zusammen mit `presence` alle 5 Minuten aufgerufen.
+- `PUT /api/bot/stats` body `{ guild_count, user_count, started_at, latency_ms?, version? }` → `{ success: true }`. Befüllt den In-Memory-Cache in [state/botStats.js](backend/state/botStats.js) für die Landing-Page **und das Admin-Health-Panel** (`getBotHealth()`). `started_at` ist unix-seconds (Bot setzt das einmal beim ersten `on_ready`); `latency_ms`/`version` werden vom `presence`-Cog mitgeschickt. Wird zusammen mit `presence` alle 5 Minuten aufgerufen.
+- `POST /api/bot/errors` body `{ level?, context?, message, stack?, guild_id? }` → `{ success: true }`. Schreibt eine Bot-Exception ins zentrale `error_log` (`source = 'bot'`). Vom Bot in `on_command_error` + globalem `on_error` (`report_error` in [main.py](bot/main.py)) aufgerufen.
 - `PUT /api/bot/premium` body `{ entitlements: [{ guild_id, tier, until? }] }` → `{ success, synced, downgraded }`. Bulk-Sync der Discord-SKU-Entitlements: setzt `source = 'sku'`-Premium für entitled Guilds und downgradet Guilds, deren SKU-Premium nicht mehr aktiv ist (Owner-`manual`-Premium bleibt unberührt). Vom `premium_sync`-Cog aufgerufen. Nicht unter dem `/guilds/:id`-Guard (guild-übergreifend).
 
 **Admin** (Cookie required + Owner-only via `requireOwner`/`OWNER_DISCORD_ID`) — System-Owner sperrt User/Guilds, sieht System-Metriken, das Audit-Log, inspiziert Guilds und schaltet den Wartungsmodus.
@@ -656,6 +662,7 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - `GET /api/admin/guilds/:guild_id/inspect` → `{ success, inspect: { id, guild_name, guild_icon_url, bot_present, blocked, blocked_reason, blocked_until, premium_tier, premium_source, premium_until, premium_effective, dashboard_members, created_at, modules:[{key,kind,enabled,configured,count?}] } }`. Read-only Modul-/Premium-/Presence-Snapshot (Support-Tool). 404 wenn Guild unbekannt. `getGuildInspect`.
 - `GET /api/admin/maintenance` → `{ success, enabled, message }`. `PUT /api/admin/maintenance` body `{ enabled, message? }` → `{ success, enabled, message }`. Globaler Wartungsmodus. Audit `ADMIN_MAINTENANCE`. `getMaintenanceState`/`setMaintenanceState`.
 - `GET /api/admin/users/export` + `GET /api/admin/guilds/export` → CSV-Download (`text/csv`, UTF-8 BOM). `getUsersForExport`/`getGuildsForExport`.
+- **Monitoring (Kat. 1):** `GET /api/admin/health` → `{ success, bot: { online, guild_count, user_count, started_at, uptime_seconds, last_seen_seconds_ago, latency_ms, version, ... }, backend: { version, node, uptime_seconds } }` (Bot-Detail aus `botStats.getBotHealth()`). `GET /api/admin/errors?source=&level=&limit=&offset=` → `{ success, entries, total }` (zentrales Fehler-Log); `DELETE /api/admin/errors` → leert es (Audit `ADMIN_CLEAR_ERRORS`). `GET /api/admin/jobs?status=&limit=&offset=` → `{ success, jobs, total }` (alle `guild_backup_jobs` über alle Guilds, mit `guild_name`); `POST /api/admin/jobs/:id/retry` → fehlgeschlagenen Job auf `pending` zurücksetzen (Audit `ADMIN_RETRY_JOB`).
 
 **Premium / Tiers** (Cookie required) — Modul-Gating Free/Basic/Pro (`MODULE_TIERS` in [db.js](backend/db.js) ist Single Source).
 - `GET /api/guilds/:id/premium` → `{ success, tier, source, until, module_tiers: { key: tier }, modules: { key: bool } }`. Liefert dem Dashboard den effektiven Tier (abgelaufenes Premium → `free`) + die Unlock-Map pro Modul-Key (= Dashboard-Route-Segment).
@@ -782,9 +789,9 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - Engine: **SQLite3** (Datei via `DATABASE_URL`, default `./data/bot.db`)
 - Connection: [backend/db.js](backend/db.js)
 - Migrations: [backend/migrations.js](backend/migrations.js)
-  - **Aktuelle Schema-Version: `36`**
+  - **Aktuelle Schema-Version: `37`**
   - `CURRENT_SCHEMA_VERSION` Konstante steuert Upgrades.
-  - `applyMigrations(from, to)` mappt Versionsnummern → Migration-Funktionen (`migrationV1`, …, `migrationV36`). v23–v36 nutzen den `runSchemaBatch(version, statements)`-Helper.
+  - `applyMigrations(from, to)` mappt Versionsnummern → Migration-Funktionen (`migrationV1`, …, `migrationV37`). v23–v37 nutzen den `runSchemaBatch(version, statements)`-Helper.
   - Versionstabelle: `schema_version (version PK, applied_at)`.
   - `migrationV2` fügt `users.token_expires_at INTEGER` hinzu (idempotent).
   - `migrationV3` legt `guild_autorole_settings`, `guild_log_settings`, `guild_moderation_settings` an (`CREATE TABLE IF NOT EXISTS` — idempotent; werden parallel auch im `initializeDatabase()`-Pfad erzeugt, damit Fresh-DBs auch ohne Migrations-Run funktionieren).
@@ -823,6 +830,7 @@ Mount-Points aus [backend/server.js](backend/server.js):
   - `migrationV34` (Template-Marketplace): legt `marketplace_templates` an (`id` UUID, `owner_user_id`, `source_guild_id`, `name`/`description`/`category`, `guild_name`/`guild_icon_url`, `channels_count`/`roles_count`, `data` JSON-Blob, `status ∈ {approved|pending|rejected}` default `approved`, `uses`, `created_at`, `idx_marketplace_status`) — vom System-Owner veröffentlichte Server-Vorlagen, die jede Pro-Guild anwenden kann. Idempotent + Mirror. `getDueBackupJobs()` joint die Daten jetzt via `COALESCE(guild_backups.data, marketplace_templates.data)` über `backup_id` (der Job-`backup_id` kann auf beide Tabellen zeigen).
   - `migrationV35` (Temp-Voice-Steuerungspanel): 3 idempotente ALTERs auf `guild_tempvoice_settings` — `panel_enabled` (interaktives Panel beim Channel-Erstellen), `panel_destination ∈ {voice|dm|channel}` (Default `voice`), `panel_channel_id` (für `channel`-Ziel). Mirror + defensive ALTERs in `initializeDatabase()`. `TEMPVOICE_PANEL_DESTINATIONS` in [db.js](backend/db.js) ist Single Source; `TEMPVOICE_DEFAULTS`/`getTempVoiceSettings`/`upsertTempVoiceSettings` erweitert. Kein neuer Endpoint — die Felder fließen durch `/tempvoice` (Cookie) und `/api/bot/guilds/:id/settings/tempvoice`.
   - `migrationV36` (Allgemeine Dashboard-Einstellungen, Free): legt `guild_general_settings` an (`guild_id PK`, `language` Default `'en'`, `timezone` Default `'UTC'`, `embed_color` Default `'#5865F2'`, `dashboard_theme` Default `'dark'`; **kein `enabled`-Toggle** — immer aktiv). Idempotent + Mirror in `initializeDatabase()`. `GENERAL_LANGUAGES` (`en|de|tr|ru|pl`) / `GENERAL_THEMES` (`dark|light`) / `GENERAL_TIMEZONES` (kuratierte IANA-Liste, Frontend-Spiegel) / `GENERAL_DEFAULTS` in [db.js](backend/db.js) sind Single Source; `getGeneralSettings`/`upsertGeneralSettings` validieren/fallbacken (Sprache→en, Zeitzone→UTC, Farbe via `sanitizeColor`, Theme→dark). Neuer Cookie-Router [general.js](backend/routes/general.js) (`/api/guilds/:id/general` GET/PUT, Audit `UPDATE_GENERAL_SETTINGS`) + Bot-GET `/api/bot/guilds/:id/settings/general`. `MODULE_TIERS.general = 'free'`, in `MODULE_DEFAULTS`.
+  - `migrationV37` (Zentrales Fehler-Log, Owner-Admin → Monitoring): legt `error_log` an (`id` AUTOINCREMENT, `source ∈ {bot|backend}`, `level ∈ {error|warning}`, `context`, `message`, `stack`, `guild_id`, `created_at` unix-seconds; Index `idx_error_log_created`). Idempotent + Mirror in `initializeDatabase()`. Helfer in [db.js](backend/db.js): `logError` (best-effort, wirft nie; Retention `ERROR_LOG_MAX = 2000`), `getErrorLog`/`clearErrorLog`, `ERROR_LOG_SOURCES`/`ERROR_LOG_LEVELS`. Plus (kein Schema) `getAllBackupJobs({status,limit,offset})` + `retryBackupJob` für den Job-Monitor.
   - `migrationV18` (Ticket-Überarbeitung, idempotente ALTERs + neue Tabelle + Mirror): `guild_ticket_settings` +10 Spalten (`panel_type ∈ {dropdown|buttons}`, `panel_embed`/`welcome_embed` JSON, `ping_role_id`, `naming_template`, `claim_enabled`, `close_confirm`, `rating_enabled`, `rating_mode ∈ {channel|dm|both}`, `log_channel_id`); `guild_tickets` +8 Spalten (`ticket_category_id`, `number`, `claimed_by`, `rating`, `rating_comment`, `closed_by`, `closed_at`, `extra_user_ids` JSON); neue Tabelle `guild_ticket_categories` (`id` UUID, `idx_ticket_categories_guild`, FK CASCADE) — Ticket-Typen mit Label/Emoji/Desc + Kategorie-/Support-Rollen-/Ping-Rollen-Override, Welcome-Text, `button_style`, Position, Enabled.
 
 **Kern-Tabellen** (Details: [backend/DATABASE_SCHEMA.md](backend/DATABASE_SCHEMA.md), [backend/DATABASE_FUNCTIONS.md](backend/DATABASE_FUNCTIONS.md))
@@ -873,6 +881,7 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - `guild_games_settings` (eine Row, geteilter `games_channel_id` + pro-Spiel-Toggle inkl. `poker_enabled` + `poker_table_theme` Filz-Design + `games_language` In-Game-Sprache) + `guild_game_scores` (`(guild_id, user_id, game)`, `wins`/`plays`) — Games-Kategorie (Basic): Tic-Tac-Toe/RPS/Trivia/Connect-Four/Hangman/Poker
 - `guild_backups` (`id` UUID, `name`, `guild_name`/`guild_icon_url`, `channels_count`/`roles_count`, `data` JSON-Blob mit `{server,roles,channels}`, `created_at`; Retention max 15/Guild) + `guild_backup_jobs` (`id` UUID, `type ∈ {snapshot|restore}`, `status`, `backup_id`, `mode ∈ {missing|mirror}`, `parts` (JSON-Teil-Auswahl, NULL=alle), `message`, `created_at`/`updated_at`) — Server-Backup & Restore (Pro)
 - `marketplace_templates` (`id` UUID, `owner_user_id`, `source_guild_id`, `name`/`description`/`category`, `guild_name`/`guild_icon_url`, `channels_count`/`roles_count`, `data` JSON-Blob, `status`, `uses`, `created_at`) — Template-Marketplace (Owner veröffentlicht, jede Pro-Guild wendet an; `backup_id` eines Restore-Jobs kann auf diese Tabelle zeigen)
+- `error_log` — zentrales Fehler-/Exception-Log (`source ∈ {bot|backend}`, `level`, `context`, `message`, `stack`, `guild_id`, `created_at`), gefüllt von Bot (`POST /api/bot/errors`) + Backend (globaler Error-Handler), gelesen vom Owner-Admin → Monitoring. Retention 2000 Zeilen.
 - `schema_version` — Migrations-Tracking
 
 **Wichtige DB-Helper** in [backend/db.js](backend/db.js):
@@ -1033,6 +1042,13 @@ Empfehlung aus [README.md](README.md): SQLite → PostgreSQL für Multi-Instance
 
 ## 14. Letzte Aktualisierung
 
+- **Datum:** 2026-06-26
+- **Admin-Bereich → Betrieb & Monitoring (Schema v37):** Drei neue Owner-Admin-Funktionen.
+  - **Bot-Health-Panel** — neuer Tab „Health" zeigt Live-Status aus dem `botStats`-Cache: online/offline (15min-Stale-Fenster), Gateway-Latenz, Uptime, „zuletzt gesehen", Server-/Nutzerzahl, Bot-Version + Backend-Version/Node/Uptime. `botStats.js` um `latency_ms`/`version` + `getBotHealth()` erweitert; `PUT /api/bot/stats` nimmt `latency_ms`/`version` (vom `presence`-Cog gepusht, `config.BOT_VERSION`). Endpoint `GET /api/admin/health`.
+  - **Fehler-/Exception-Viewer** — neue Tabelle `error_log` (Migration v37, idempotent + Mirror). Bot meldet via `POST /api/bot/errors` (`report_error` in [main.py](bot/main.py): `on_command_error` + globaler `on_error`), Backend via globalem Error-Handler in [server.js](backend/server.js). Admin-Tab „Errors" mit Filter (Quelle/Stufe) + Leeren. `logError`/`getErrorLog`/`clearErrorLog` in [db.js](backend/db.js) (Retention 2000). Endpoints `GET/DELETE /api/admin/errors` (Audit `ADMIN_CLEAR_ERRORS`).
+  - **Job-Queue-Monitor** — Admin-Tab „Jobs" listet alle `guild_backup_jobs` über alle Guilds (mit `guild_name`), Filter nach Status, „Retry" für fehlgeschlagene (→ `pending`). `getAllBackupJobs`/`retryBackupJob` in [db.js](backend/db.js). Endpoints `GET /api/admin/jobs` + `POST /api/admin/jobs/:id/retry` (Audit `ADMIN_RETRY_JOB`).
+  - **Frontend:** [Admin.vue](frontend/src/pages/Admin.vue) um 3 Tabs (health/jobs/errors) + Toolbar-Filter + `.job-status`-Badges erweitert. i18n: ~24 neue `admin.*`-Keys in **allen 5 Sprachen** (Parität 1403/Locale, TR/RU/PL via Sub-Agents).
+  - Verifiziert: Migration v37 + DB-Smoke (error_log Insert/Filter/Clear, Jobs-Global-Liste/Retry, Health-Detail) grün, Backend-Syntax OK, Bot kompiliert, Frontend-Build grün, i18n-Parität 1403/Locale.
 - **Datum:** 2026-06-24
 - **Allgemein-Modul (Schema v36, Free):** Neues 34. Modul — eine pro-Server Seite `/dashboard/:guild_id/general` für **allgemeine Dashboard-Einstellungen**: **Sprache** (en/de/tr/ru/pl), **Zeitzone** (kuratierte IANA-Liste), **Standard-Embed-Farbe** (Hex-Picker), **Dashboard-Theme** (dark|light). Kein `enabled`-Toggle (immer aktiv).
   - **Schema:** Migration v36 = Tabelle `guild_general_settings` (`guild_id PK` + `language`/`timezone`/`embed_color`/`dashboard_theme`; idempotent + Mirror in `initializeDatabase()`). `GENERAL_LANGUAGES`/`GENERAL_THEMES`/`GENERAL_TIMEZONES`/`GENERAL_DEFAULTS` + `getGeneralSettings`/`upsertGeneralSettings` (validieren/fallbacken) in [db.js](backend/db.js). `MODULE_TIERS.general='free'`, in `MODULE_DEFAULTS`.

@@ -13,14 +13,41 @@ const state = {
   guild_count: 0,
   user_count: 0,
   started_at: null,   // unix seconds; when the bot connected to the gateway
-  last_updated: 0     // unix ms; when we last received a stats ping
+  last_updated: 0,    // unix ms; when we last received a stats ping
+  latency_ms: null,   // gateway heartbeat latency (ms), reported by the bot
+  version: null       // bot version string, reported by the bot
 }
 
-export function setBotStats({ guild_count, user_count, started_at }) {
+export function setBotStats({ guild_count, user_count, started_at, latency_ms, version }) {
   if (Number.isFinite(guild_count)) state.guild_count = Math.max(0, Math.floor(guild_count))
   if (Number.isFinite(user_count))  state.user_count  = Math.max(0, Math.floor(user_count))
   if (Number.isFinite(started_at) && started_at > 0) state.started_at = Math.floor(started_at)
+  if (Number.isFinite(latency_ms) && latency_ms >= 0) state.latency_ms = Math.round(latency_ms)
+  if (typeof version === 'string' && version.trim()) state.version = version.trim().slice(0, 40)
   state.last_updated = Date.now()
+}
+
+/**
+ * Owner admin → Monitoring: full bot health detail. Unlike getPublicStats this
+ * keeps the last-known counts even when stale, but flags `online` honestly so
+ * the dashboard can show "last seen" + the values from that moment.
+ */
+export function getBotHealth() {
+  const nowMs = Date.now()
+  const online = state.last_updated > 0 && nowMs - state.last_updated <= STALE_AFTER_MS
+  const nowSec = Math.floor(nowMs / 1000)
+  return {
+    online,
+    guild_count: state.guild_count,
+    user_count: state.user_count,
+    started_at: state.started_at,
+    uptime_seconds: state.started_at ? Math.max(0, nowSec - state.started_at) : 0,
+    last_updated: state.last_updated || null,        // unix ms
+    last_seen_seconds_ago: state.last_updated ? Math.max(0, Math.floor((nowMs - state.last_updated) / 1000)) : null,
+    latency_ms: state.latency_ms,
+    version: state.version,
+    stale_after_ms: STALE_AFTER_MS
+  }
 }
 
 export function getPublicStats() {

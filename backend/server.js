@@ -3,7 +3,7 @@ import cors from 'cors'
 import cookieParser from 'cookie-parser'
 import dotenv from 'dotenv'
 import { initializeSchemaVersion, checkAndApplyMigrations } from './migrations.js'
-import { whenDbReady } from './db.js'
+import { whenDbReady, logError } from './db.js'
 import authRoutes from './routes/auth.js'
 import guildRoutes from './routes/guilds.js'
 import settingsRoutes from './routes/settings.js'
@@ -139,6 +139,14 @@ app.use('/api/bot', botRoutes)
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err)
+  // Record into the central error log for the Owner admin → Monitoring viewer.
+  logError({
+    source: 'backend',
+    level: 'error',
+    context: `${req.method} ${req.originalUrl}`.slice(0, 200),
+    message: err.message || String(err),
+    stack: err.stack || null
+  }).catch(() => {})
   res.status(500).json({ error: 'Internal server error', message: err.message })
 })
 

@@ -4,6 +4,23 @@ import discord
 from discord.ext import commands
 import config
 from utils.command_config import get_prefix as cc_get_prefix, is_disabled as cc_is_disabled, DEFAULT_PREFIX
+from utils.backend import bot_post
+
+
+async def report_error(context, error, *, level="error", guild_id=None):
+    """Best-effort: push an exception to the backend's central error log
+    (Owner admin → Monitoring). Never raises."""
+    try:
+        stack = "".join(traceback.format_exception(type(error), error, error.__traceback__))[:8000]
+        await bot_post(config.BACKEND_URL, config.BOT_API_KEY, "/api/bot/errors", {
+            "level": level,
+            "context": str(context)[:200],
+            "message": f"{type(error).__name__}: {error}",
+            "stack": stack,
+            "guild_id": str(guild_id) if guild_id else None,
+        })
+    except Exception:
+        pass
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -70,6 +87,18 @@ async def on_command_error(ctx, error):
         return
     # Preserve visibility for genuine errors (matches the previous default).
     traceback.print_exception(type(error), error, error.__traceback__)
+    cmd = ctx.command.qualified_name if ctx.command else "unknown"
+    await report_error(f"command:{cmd}", error, guild_id=ctx.guild.id if ctx.guild else None)
+
+
+@bot.event
+async def on_error(event_method, *args, **kwargs):
+    # Generic gateway-event error handler. Capture the live exception + report it.
+    import sys
+    exc = sys.exc_info()[1]
+    traceback.print_exc()
+    if exc is not None:
+        await report_error(f"event:{event_method}", exc)
 
 @bot.event
 async def setup_hook():
