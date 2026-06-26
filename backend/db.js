@@ -806,6 +806,26 @@ function initializeDatabase() {
       else console.log('✓ Admin broadcasts table initialized');
     });
 
+    // ----- Premium codes + expiry-reminder column (v40) -----
+    db.run(`
+      CREATE TABLE IF NOT EXISTS premium_codes (
+        code          TEXT PRIMARY KEY,
+        tier          TEXT,
+        duration_days INTEGER DEFAULT 30,
+        max_uses      INTEGER DEFAULT 1,
+        uses          INTEGER DEFAULT 0,
+        created_by    TEXT,
+        created_at    INTEGER,
+        expires_at    INTEGER
+      )
+    `, (err) => {
+      if (err) console.error('Error creating premium_codes table:', err);
+      else console.log('✓ Premium codes table initialized');
+    });
+    db.run('ALTER TABLE guilds ADD COLUMN premium_reminded_at INTEGER', (err) => {
+      if (err && !/duplicate column name/i.test(err.message)) console.error('Error adding guilds.premium_reminded_at:', err.message);
+    });
+
     // ----- Batch 2 modules (v13): Birthday / Scheduled / Anti-Raid -----
 
     db.run(`
@@ -1440,7 +1460,7 @@ export function getGuildPremium(guildId) {
 export function setGuildPremium(guildId, { tier, source = 'manual', until = null } = {}) {
   return new Promise((resolve, reject) => {
     const t = PREMIUM_TIERS.includes(tier) ? tier : 'free';
-    const src = t === 'free' ? null : (source === 'sku' ? 'sku' : 'manual');
+    const src = t === 'free' ? null : (['sku', 'manual', 'code'].includes(source) ? source : 'manual');
     const u = t === 'free' ? null : (until && Number(until) > 0 ? Math.floor(Number(until)) : null);
     db.run(
       'UPDATE guilds SET premium_tier = ?, premium_source = ?, premium_until = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
@@ -2523,6 +2543,111 @@ export function updateBroadcast(id, { status, sent_count, total } = {}) {
 /** Owner admin: recent broadcasts (history + live status). */
 export function getRecentBroadcasts(limit = 20) {
   return dbAll('SELECT * FROM admin_broadcasts ORDER BY created_at DESC LIMIT ?', [clampRange(limit, 1, 100, 20)]);
+}
+
+// ----- Premium & Business (v40): codes + revenue + expiry reminders -----
+
+function generatePremiumCode() {
+  // 12 hex chars from a UUID, grouped XXXX-XXXX-XXXX (uppercase, human-friendly).
+  const raw = randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase();
+  return `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}`;
+}
+
+/** Owner admin: create a redeemable promo/trial code. */
+export async function createPremiumCode({ tier, duration_days, max_uses, expires_at, createdBy } = {}) {
+  const t = PREMIUM_TIERS.includes(tier) && tier !== 'free' ? tier : 'basic';
+  const dur = clampRange(duration_days, 1, 3650, 30);
+  const maxUses = clampRange(max_uses, 0, 100000, 1); // 0 = unlimited
+  const exp = expires_at && Number(expires_at) > 0 ? Math.floor(Number(expires_at)) : null;
+  const now = Math.floor(Date.now() / 1000);
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = generatePremiumCode();
+    try {
+      await new Promise((resolve, reject) => {
+        db.run(
+          'INSERT INTO premium_codes (code, tier, duration_days, max_uses, uses, created_by, created_at, expires_at) VALUES (?, ?, ?, ?, 0, ?, ?, ?)',
+          [code, t, dur, maxUses, createdBy || null, now, exp],
+          (err) => (err ? reject(err) : resolve())
+        );
+      });
+      return { code, tier: t, duration_days: dur, max_uses: maxUses, uses: 0, created_at: now, expires_at: exp };
+    } catch (err) {
+      if (!/UNIQUE|PRIMARY/i.test(err.message)) throw err; // collision → retry
+    }
+  }
+  throw new Error('Could not generate a unique code');
+}
+
+export function getPremiumCodes() {
+  return dbAll('SELECT * FROM premium_codes ORDER BY created_at DESC');
+}
+
+export function deletePremiumCode(code) {
+  return new Promise((resolve, reject) => {
+    db.run('DELETE FROM premium_codes WHERE code = ?', [String(code || '').trim().toUpperCase()],
+      function (err) { if (err) reject(err); else resolve(this.changes); });
+  });
+}
+
+/**
+ * Guild admin: redeem a code → time-limited premium (source 'code'). Throws an
+ * Error with `.reason` ∈ {invalid|expired|exhausted} on failure.
+ */
+export function redeemPremiumCode(rawCode, guildId) {
+  return runInTransaction(async () => {
+    const code = String(rawCode || '').trim().toUpperCase();
+    const fail = (reason) => { throw Object.assign(new Error(reason), { reason, code: 'REDEEM' }); };
+    if (!code) fail('invalid');
+    const row = await dbGet('SELECT * FROM premium_codes WHERE code = ?', [code]);
+    const now = Math.floor(Date.now() / 1000);
+    if (!row) fail('invalid');
+    if (row.expires_at && row.expires_at <= now) fail('expired');
+    if (row.max_uses && row.max_uses > 0 && row.uses >= row.max_uses) fail('exhausted');
+    const until = now + (row.duration_days || 30) * 86400;
+    await runStmt(
+      "UPDATE guilds SET premium_tier = ?, premium_source = 'code', premium_until = ?, premium_reminded_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      [row.tier, until, guildId]
+    );
+    await runStmt('UPDATE premium_codes SET uses = uses + 1 WHERE code = ?', [code]);
+    return { tier: row.tier, until, duration_days: row.duration_days };
+  });
+}
+
+/** Owner admin: estimated monthly revenue from active premium (PLAN_CATALOG prices). */
+export async function getRevenue() {
+  const now = Math.floor(Date.now() / 1000);
+  const r = await dbGet(`SELECT
+      SUM(CASE WHEN premium_tier = 'basic' AND (premium_until IS NULL OR premium_until > ${now}) THEN 1 ELSE 0 END) AS basic,
+      SUM(CASE WHEN premium_tier = 'pro'   AND (premium_until IS NULL OR premium_until > ${now}) THEN 1 ELSE 0 END) AS pro
+    FROM guilds`);
+  const price = {};
+  for (const tt of PLAN_CATALOG.tiers) price[tt.key] = tt.price_monthly;
+  const basic = r?.basic || 0;
+  const pro = r?.pro || 0;
+  const mrr = Number((basic * (price.basic || 0) + pro * (price.pro || 0)).toFixed(2));
+  return { currency: PLAN_CATALOG.currency, basic, pro, price_basic: price.basic || 0, price_pro: price.pro || 0, mrr };
+}
+
+/** Bot: premium guilds expiring within `days` not reminded in the last 24h. */
+export function getExpiringPremiumGuilds(days = 3) {
+  const now = Math.floor(Date.now() / 1000);
+  const until = now + clampRange(days, 1, 30, 3) * 86400;
+  return dbAll(
+    `SELECT id AS guild_id, guild_name, premium_tier, premium_until
+       FROM guilds
+      WHERE premium_tier IS NOT NULL AND premium_tier != 'free'
+        AND premium_until IS NOT NULL AND premium_until > ? AND premium_until <= ?
+        AND (premium_reminded_at IS NULL OR premium_reminded_at < ?)`,
+    [now, until, now - 86400]
+  );
+}
+
+/** Bot: mark a guild's owner as reminded about the upcoming premium expiry. */
+export function markPremiumReminded(guildId) {
+  return new Promise((resolve, reject) => {
+    db.run('UPDATE guilds SET premium_reminded_at = ? WHERE id = ?', [Math.floor(Date.now() / 1000), guildId],
+      function (err) { if (err) reject(err); else resolve(this.changes); });
+  });
 }
 
 // ----- CSV export (owner-only) -----
