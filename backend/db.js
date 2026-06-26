@@ -736,6 +736,22 @@ function initializeDatabase() {
       else console.log('✓ Guild suggestion settings table initialized');
     });
 
+    // ----- General dashboard settings (v36) -----
+    db.run(`
+      CREATE TABLE IF NOT EXISTS guild_general_settings (
+        guild_id        TEXT PRIMARY KEY,
+        language        TEXT DEFAULT 'en',
+        timezone        TEXT DEFAULT 'UTC',
+        embed_color     TEXT DEFAULT '#5865F2',
+        dashboard_theme TEXT DEFAULT 'dark',
+        updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+      )
+    `, (err) => {
+      if (err) console.error('Error creating guild_general_settings table:', err);
+      else console.log('✓ Guild general settings table initialized');
+    });
+
     // ----- Batch 2 modules (v13): Birthday / Scheduled / Anti-Raid -----
 
     db.run(`
@@ -1318,7 +1334,8 @@ export const MODULE_TIERS = {
   invitetracking: 'basic',
   games: 'basic', tictactoe: 'basic', rps: 'basic', trivia: 'basic', connect4: 'basic', hangman: 'basic', poker: 'basic',
   social: 'pro', stats: 'pro', tickets: 'pro', giveaways: 'pro', scheduled: 'pro',
-  applications: 'pro', economy: 'pro', backup: 'pro'
+  applications: 'pro', economy: 'pro', backup: 'pro',
+  general: 'free'
 };
 
 /** Marketing/pricing catalog surfaced on the public landing page. */
@@ -5119,6 +5136,72 @@ export function upsertSuggestionSettings(guildId, settings) {
   });
 }
 
+// ===== Module: General dashboard settings =====
+
+/** Languages selectable as the per-guild default (mirrors the i18n locales). */
+export const GENERAL_LANGUAGES = ['en', 'de', 'tr', 'ru', 'pl'];
+/** Dashboard themes selectable per guild. */
+export const GENERAL_THEMES = ['dark', 'light'];
+/**
+ * Curated IANA timezones offered in the dashboard dropdown. Kept in sync with the
+ * frontend list (General.vue). Any value outside this set falls back to 'UTC'.
+ */
+export const GENERAL_TIMEZONES = [
+  'UTC',
+  'Europe/London', 'Europe/Berlin', 'Europe/Paris', 'Europe/Madrid', 'Europe/Rome',
+  'Europe/Istanbul', 'Europe/Moscow', 'Europe/Warsaw', 'Europe/Athens',
+  'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
+  'America/Sao_Paulo', 'America/Mexico_City',
+  'Asia/Dubai', 'Asia/Kolkata', 'Asia/Shanghai', 'Asia/Tokyo', 'Asia/Singapore',
+  'Australia/Sydney', 'Pacific/Auckland'
+];
+
+export const GENERAL_DEFAULTS = {
+  language: 'en',
+  timezone: 'UTC',
+  embed_color: DEFAULT_EMBED_COLOR,
+  dashboard_theme: 'dark'
+};
+
+export function getGeneralSettings(guildId) {
+  return new Promise((resolve, reject) => {
+    db.get('SELECT * FROM guild_general_settings WHERE guild_id = ?', [guildId], (err, row) => {
+      if (err) return reject(err);
+      if (!row) return resolve({ ...GENERAL_DEFAULTS });
+      resolve({
+        language: GENERAL_LANGUAGES.includes(row.language) ? row.language : 'en',
+        timezone: GENERAL_TIMEZONES.includes(row.timezone) ? row.timezone : 'UTC',
+        embed_color: sanitizeColor(row.embed_color),
+        dashboard_theme: GENERAL_THEMES.includes(row.dashboard_theme) ? row.dashboard_theme : 'dark'
+      });
+    });
+  });
+}
+
+export function upsertGeneralSettings(guildId, settings) {
+  return new Promise((resolve, reject) => {
+    const language = GENERAL_LANGUAGES.includes(settings.language) ? settings.language : 'en';
+    const timezone = GENERAL_TIMEZONES.includes(settings.timezone) ? settings.timezone : 'UTC';
+    const color = sanitizeColor(settings.embed_color);
+    const theme = GENERAL_THEMES.includes(settings.dashboard_theme) ? settings.dashboard_theme : 'dark';
+    db.run(
+      `INSERT INTO guild_general_settings (guild_id, language, timezone, embed_color, dashboard_theme)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(guild_id) DO UPDATE SET
+         language = excluded.language,
+         timezone = excluded.timezone,
+         embed_color = excluded.embed_color,
+         dashboard_theme = excluded.dashboard_theme,
+         updated_at = CURRENT_TIMESTAMP`,
+      [guildId, language, timezone, color, theme],
+      function (err) {
+        if (err) reject(err);
+        else resolve(this.changes);
+      }
+    );
+  });
+}
+
 // ===== Module: Birthday =====
 
 export const BIRTHDAY_DEFAULTS = {
@@ -6993,7 +7076,8 @@ export const MODULE_DEFAULTS = {
   invitetracking: INVITE_DEFAULTS,
   applications: { forms: [] },
   economy: ECONOMY_DEFAULTS,
-  games: GAMES_DEFAULTS
+  games: GAMES_DEFAULTS,
+  general: GENERAL_DEFAULTS
 };
 
 // ============================================================

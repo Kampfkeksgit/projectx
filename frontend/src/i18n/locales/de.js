@@ -266,6 +266,7 @@ export default {
     sectionServer: 'Server',
     switchServer: 'Server wechseln',
     linkOverview: 'Übersicht',
+    linkGeneral: 'Allgemein',
     linkWelcome: 'Welcome',
     linkLeave: 'Leave',
     linkAutoRole: 'Auto-Rolle',
@@ -346,6 +347,8 @@ export default {
   overview: {
     eyebrow: 'Übersicht',
     sub: 'Lege fest, wie sich ProjectX in deinem Server verhält.',
+    generalTitle: 'Allgemein',
+    generalDesc: 'Sprache, Zeitzone, Standard-Embed-Farbe und Dashboard-Theme.',
     welcomeTitle: 'Welcome-Nachrichten',
     welcomeDesc: 'Begrüße jeden neuen Member auf deinem Server.',
     leaveTitle: 'Leave-Benachrichtigungen',
@@ -1375,6 +1378,23 @@ export default {
     selfStarLabel: 'Selbst-Sterne erlauben',
     selfStarHint: 'Die eigene Stern-Reaktion des Autors mitzählen.',
     loadError: 'Starboard-Einstellungen konnten nicht geladen werden'
+  },
+  general: {
+    eyebrow: 'Konfiguration',
+    title: 'Allgemeine Einstellungen',
+    sub: 'Serverweite Einstellungen, die überall in ProjectX gelten.',
+    languageLabel: 'Sprache',
+    languageHint: 'Standardsprache für Bot-Antworten auf diesem Server.',
+    timezoneLabel: 'Zeitzone',
+    timezoneHint: 'Wird für geplante Nachrichten, Logs und Zeitstempel genutzt.',
+    embedColorLabel: 'Standard-Embed-Farbe',
+    embedColorHint: 'Akzentfarbe für die Embeds des Bots auf diesem Server.',
+    themeLabel: 'Dashboard-Theme',
+    themeHint: 'Darstellung des Dashboards. Wird sofort angewendet.',
+    theme_dark: 'Dunkel',
+    theme_light: 'Hell',
+    usageNote: 'Diese Einstellungen gelten für den ganzen Server. Das Dashboard-Theme wird auf diesem Gerät gemerkt.',
+    loadError: 'Allgemeine Einstellungen konnten nicht geladen werden'
   },
   suggestions: {
     eyebrow: 'Engagement',

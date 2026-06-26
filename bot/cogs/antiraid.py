@@ -21,6 +21,7 @@ from discord.ext import commands
 
 import config
 from utils.backend import fetch_bot_settings
+from utils.bot_i18n import t, lang_for
 
 
 SETTINGS_TTL_SECONDS = 120
@@ -63,9 +64,10 @@ class AntiRaid(commands.Cog):
         if min_days > 0:
             age_days = (discord.utils.utcnow() - member.created_at).days
             if age_days < min_days:
+                lang = await lang_for(self.backend_url, self.api_key, member.guild.id)
                 await self._act_on_member(member, action, f"account only {age_days}d old (min {min_days}d)")
                 await self._alert(member.guild, settings,
-                                  f"🚨 {member} blocked — account age {age_days}d below minimum {min_days}d.")
+                                  t(lang, "raid.accountBlocked", member=str(member), age=age_days, min=min_days))
                 return
 
         # 2) Join-rate burst detection.
@@ -80,8 +82,9 @@ class AntiRaid(commands.Cog):
         if len(q) >= count and now >= self._raid_until.get(member.guild.id, 0):
             self._raid_until[member.guild.id] = now + RAID_COOLDOWN_SECONDS
             burst = [m for _, m in q]
+            lang = await lang_for(self.backend_url, self.api_key, member.guild.id)
             await self._alert(member.guild, settings,
-                              f"🚨 Possible raid: {len(burst)} joins in {window}s. Action: **{action}**.")
+                              t(lang, "raid.alert", count=len(burst), window=window, action=action))
             if action in ("kick", "ban"):
                 for m in burst:
                     await self._act_on_member(m, action, "raid burst")
@@ -105,8 +108,9 @@ class AntiRaid(commands.Cog):
         if channel is None:
             return
         try:
+            lang = await lang_for(self.backend_url, self.api_key, guild.id)
             embed = discord.Embed(description=text, color=ALERT_COLOR, timestamp=discord.utils.utcnow())
-            embed.set_author(name="Anti-Raid")
+            embed.set_author(name=t(lang, "raid.author"))
             await channel.send(embed=embed)
         except Exception as exc:
             print(f"[antiraid] alert failed in {guild.id}: {exc}")

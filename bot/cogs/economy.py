@@ -22,6 +22,8 @@ from discord.ext import commands
 
 import config
 from utils.backend import fetch_bot_settings, bot_get, bot_post
+from utils import general_config
+from utils.bot_i18n import t, lang_for
 
 
 ECONOMY_COLOR = 0xFACC15
@@ -60,12 +62,13 @@ class Economy(commands.Cog):
         ok, _ = await self._enabled(ctx.guild.id)
         if not ok:
             return
+        lang = await lang_for(self.backend_url, self.api_key, ctx.guild.id)
         target = member or ctx.author
         result = await bot_post(self.backend_url, self.api_key, f"/api/bot/guilds/{ctx.guild.id}/economy/balance", {"user_id": str(target.id)})
         if not result:
-            await ctx.reply("Couldn't fetch the balance right now.", mention_author=False)
+            await ctx.reply(t(lang, "eco.balanceFailed"), mention_author=False)
             return
-        await ctx.reply(f"💰 {target.display_name} has {fmt_amount(result.get('balance', 0), result)}.", mention_author=False)
+        await ctx.reply(t(lang, "eco.balance", name=target.display_name, amount=fmt_amount(result.get("balance", 0), result)), mention_author=False)
 
     @commands.command(name="daily")
     @commands.guild_only()
@@ -73,15 +76,16 @@ class Economy(commands.Cog):
         ok, _ = await self._enabled(ctx.guild.id)
         if not ok:
             return
+        lang = await lang_for(self.backend_url, self.api_key, ctx.guild.id)
         result = await bot_post(self.backend_url, self.api_key, f"/api/bot/guilds/{ctx.guild.id}/economy/daily", {"user_id": str(ctx.author.id)})
         if not result:
-            await ctx.reply("Couldn't claim your daily right now.", mention_author=False)
+            await ctx.reply(t(lang, "eco.dailyFailed"), mention_author=False)
             return
         if not result.get("ok"):
             if result.get("reason") == "cooldown":
-                await ctx.reply(f"⏳ You already claimed your daily. Come back in **{fmt_duration(result.get('remaining'))}**.", mention_author=False)
+                await ctx.reply(t(lang, "eco.dailyCooldown", time=fmt_duration(result.get("remaining"))), mention_author=False)
             return
-        await ctx.reply(f"🎁 You claimed {fmt_amount(result.get('amount', 0), result)}! New balance: {fmt_amount(result.get('balance', 0), result)}.", mention_author=False)
+        await ctx.reply(t(lang, "eco.dailyClaimed", amount=fmt_amount(result.get("amount", 0), result), balance=fmt_amount(result.get("balance", 0), result)), mention_author=False)
 
     @commands.command(name="work")
     @commands.guild_only()
@@ -89,15 +93,16 @@ class Economy(commands.Cog):
         ok, _ = await self._enabled(ctx.guild.id)
         if not ok:
             return
+        lang = await lang_for(self.backend_url, self.api_key, ctx.guild.id)
         result = await bot_post(self.backend_url, self.api_key, f"/api/bot/guilds/{ctx.guild.id}/economy/work", {"user_id": str(ctx.author.id)})
         if not result:
-            await ctx.reply("Couldn't work right now.", mention_author=False)
+            await ctx.reply(t(lang, "eco.workFailed"), mention_author=False)
             return
         if not result.get("ok"):
             if result.get("reason") == "cooldown":
-                await ctx.reply(f"⏳ You're tired. You can work again in **{fmt_duration(result.get('remaining'))}**.", mention_author=False)
+                await ctx.reply(t(lang, "eco.workCooldown", time=fmt_duration(result.get("remaining"))), mention_author=False)
             return
-        await ctx.reply(f"🛠️ You worked and earned {fmt_amount(result.get('amount', 0), result)}! Balance: {fmt_amount(result.get('balance', 0), result)}.", mention_author=False)
+        await ctx.reply(t(lang, "eco.worked", amount=fmt_amount(result.get("amount", 0), result), balance=fmt_amount(result.get("balance", 0), result)), mention_author=False)
 
     @commands.command(name="pay")
     @commands.guild_only()
@@ -105,27 +110,28 @@ class Economy(commands.Cog):
         ok, _ = await self._enabled(ctx.guild.id)
         if not ok:
             return
+        lang = await lang_for(self.backend_url, self.api_key, ctx.guild.id)
         if member is None or amount is None:
-            await ctx.reply("Usage: `!pay @user <amount>`", mention_author=False)
+            await ctx.reply(t(lang, "eco.payUsage"), mention_author=False)
             return
         if amount <= 0:
-            await ctx.reply("Amount must be positive.", mention_author=False)
+            await ctx.reply(t(lang, "eco.payPositive"), mention_author=False)
             return
         result = await bot_post(self.backend_url, self.api_key, f"/api/bot/guilds/{ctx.guild.id}/economy/pay",
                                 {"user_id": str(ctx.author.id), "target_id": str(member.id), "amount": amount})
         if not result:
-            await ctx.reply("Couldn't complete the transfer.", mention_author=False)
+            await ctx.reply(t(lang, "eco.transferFailed"), mention_author=False)
             return
         if not result.get("ok"):
             reason = result.get("reason")
             messages = {
-                "insufficient": "You don't have enough balance.",
-                "self": "You can't pay yourself.",
-                "bad_amount": "Invalid amount.",
+                "insufficient": t(lang, "eco.payInsufficient"),
+                "self": t(lang, "eco.paySelf"),
+                "bad_amount": t(lang, "eco.payBadAmount"),
             }
-            await ctx.reply(messages.get(reason, "Couldn't complete the transfer."), mention_author=False)
+            await ctx.reply(messages.get(reason, t(lang, "eco.transferFailed")), mention_author=False)
             return
-        await ctx.reply(f"✅ You sent {fmt_amount(amount, result)} to {member.mention}. Your balance: {fmt_amount(result.get('balance', 0), result)}.", mention_author=False)
+        await ctx.reply(t(lang, "eco.paid", amount=fmt_amount(amount, result), target=member.mention, balance=fmt_amount(result.get("balance", 0), result)), mention_author=False)
 
     @commands.command(name="rich", aliases=["leaderboard", "baltop"])
     @commands.guild_only()
@@ -133,17 +139,19 @@ class Economy(commands.Cog):
         ok, _ = await self._enabled(ctx.guild.id)
         if not ok:
             return
+        lang = await lang_for(self.backend_url, self.api_key, ctx.guild.id)
         data = await bot_get(self.backend_url, self.api_key, f"/api/bot/guilds/{ctx.guild.id}/economy/leaderboard?limit=10")
         entries = (data or {}).get("leaderboard") or []
         if not entries:
-            await ctx.reply("Nobody has any balance yet.", mention_author=False)
+            await ctx.reply(t(lang, "eco.nobody"), mention_author=False)
             return
         lines = []
         for e in entries:
             member = ctx.guild.get_member(int(e["user_id"]))
             name = member.display_name if member else f"User {e['user_id']}"
             lines.append(f"**{e['rank']}.** {name} — {e['balance']}")
-        embed = discord.Embed(title="💰 Richest members", description="\n".join(lines), color=ECONOMY_COLOR)
+        color = await general_config.get_embed_color(self.backend_url, self.api_key, ctx.guild.id, fallback=ECONOMY_COLOR)
+        embed = discord.Embed(title=t(lang, "eco.richTitle"), description="\n".join(lines), color=color)
         await ctx.send(embed=embed)
 
     @commands.command(name="shop")
@@ -152,19 +160,21 @@ class Economy(commands.Cog):
         ok, _ = await self._enabled(ctx.guild.id)
         if not ok:
             return
+        lang = await lang_for(self.backend_url, self.api_key, ctx.guild.id)
         data = await bot_get(self.backend_url, self.api_key, f"/api/bot/guilds/{ctx.guild.id}/economy/shop")
         items = (data or {}).get("items") or []
         if not items:
-            await ctx.reply("The shop is empty.", mention_author=False)
+            await ctx.reply(t(lang, "eco.shopEmpty"), mention_author=False)
             return
-        embed = discord.Embed(title="🛒 Shop", description="Buy with `!buy <id>`", color=ECONOMY_COLOR)
+        color = await general_config.get_embed_color(self.backend_url, self.api_key, ctx.guild.id, fallback=ECONOMY_COLOR)
+        embed = discord.Embed(title=t(lang, "eco.shopTitle"), description=t(lang, "eco.shopHint"), color=color)
         for it in items[:25]:
             desc = (it.get("description") or "").strip()
-            value = f"Price: **{it.get('price', 0)}**"
+            value = t(lang, "eco.shopPrice", price=it.get("price", 0))
             if desc:
                 value = f"{desc}\n{value}"
             value += f"\n`!buy {it['id']}`"
-            embed.add_field(name=it.get("name") or "Item", value=value, inline=False)
+            embed.add_field(name=it.get("name") or t(lang, "eco.itemFallback"), value=value, inline=False)
         await ctx.send(embed=embed)
 
     @commands.command(name="buy")
@@ -173,22 +183,23 @@ class Economy(commands.Cog):
         ok, _ = await self._enabled(ctx.guild.id)
         if not ok:
             return
+        lang = await lang_for(self.backend_url, self.api_key, ctx.guild.id)
         if not item_id:
-            await ctx.reply("Usage: `!buy <item_id>` (find the id with `!shop`)", mention_author=False)
+            await ctx.reply(t(lang, "eco.buyUsage"), mention_author=False)
             return
         result = await bot_post(self.backend_url, self.api_key, f"/api/bot/guilds/{ctx.guild.id}/economy/buy",
                                 {"user_id": str(ctx.author.id), "item_id": item_id})
         if not result:
-            await ctx.reply("Couldn't complete the purchase.", mention_author=False)
+            await ctx.reply(t(lang, "eco.buyFailed"), mention_author=False)
             return
         if not result.get("ok"):
             reason = result.get("reason")
             if reason == "insufficient":
-                await ctx.reply(f"You need **{result.get('price')}** but only have **{result.get('balance')}**.", mention_author=False)
+                await ctx.reply(t(lang, "eco.buyInsufficient", price=result.get("price"), balance=result.get("balance")), mention_author=False)
             elif reason == "not_found":
-                await ctx.reply("That item doesn't exist.", mention_author=False)
+                await ctx.reply(t(lang, "eco.buyNotFound"), mention_author=False)
             else:
-                await ctx.reply("Couldn't complete the purchase.", mention_author=False)
+                await ctx.reply(t(lang, "eco.buyFailed"), mention_author=False)
             return
         item = result.get("item") or {}
         role_id = result.get("role_id")
@@ -199,7 +210,7 @@ class Economy(commands.Cog):
                     await ctx.author.add_roles(role, reason="Shop purchase")
                 except Exception as exc:
                     print(f"[economy] add role failed: {exc}")
-        await ctx.reply(f"✅ You bought **{item.get('name')}**! Balance: {fmt_amount(result.get('balance', 0), result)}.", mention_author=False)
+        await ctx.reply(t(lang, "eco.bought", item=item.get("name"), balance=fmt_amount(result.get("balance", 0), result)), mention_author=False)
 
 
 async def setup(bot):

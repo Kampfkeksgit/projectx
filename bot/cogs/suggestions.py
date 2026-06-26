@@ -15,6 +15,8 @@ from discord.ext import commands
 
 import config
 from utils.backend import fetch_bot_settings
+from utils import general_config
+from utils.bot_i18n import t, lang_for
 
 
 SUGGEST_COLOR = 0x5865F2
@@ -29,37 +31,38 @@ class Suggestions(commands.Cog):
     @commands.command(name="suggest")
     @commands.guild_only()
     async def suggest(self, ctx, *, text: str = None):
+        lang = await lang_for(self.backend_url, self.api_key, ctx.guild.id)
         if not text or not text.strip():
-            await ctx.reply("Usage: `!suggest <your suggestion>`", mention_author=False)
+            await ctx.reply(t(lang, "suggest.usage"), mention_author=False)
             return
 
         settings = await fetch_bot_settings(self.backend_url, self.api_key, ctx.guild.id, "suggestions")
         if not settings or not settings.get("enabled"):
-            await ctx.reply("Suggestions are not enabled on this server.", mention_author=False)
+            await ctx.reply(t(lang, "suggest.disabled"), mention_author=False)
             return
 
         channel_id = settings.get("suggest_channel_id")
         channel = ctx.guild.get_channel(int(channel_id)) if channel_id else None
         if channel is None:
-            await ctx.reply("The suggestions channel is not configured.", mention_author=False)
+            await ctx.reply(t(lang, "suggest.noChannel"), mention_author=False)
             return
 
         embed = discord.Embed(
             description=text.strip()[:4000],
-            color=SUGGEST_COLOR,
+            color=await general_config.get_embed_color(self.backend_url, self.api_key, ctx.guild.id, fallback=SUGGEST_COLOR),
             timestamp=ctx.message.created_at,
         )
         embed.set_author(name=ctx.author.display_name, icon_url=ctx.author.display_avatar.url)
-        embed.set_footer(text=f"Suggestion • {ctx.author}")
+        embed.set_footer(text=t(lang, "suggest.footer", author=str(ctx.author)))
 
         try:
             msg = await channel.send(embed=embed)
         except discord.Forbidden:
-            await ctx.reply("I can't post in the suggestions channel.", mention_author=False)
+            await ctx.reply(t(lang, "suggest.cantPost"), mention_author=False)
             return
         except Exception as exc:
             print(f"[suggestions] post failed: {exc}")
-            await ctx.reply("Something went wrong posting your suggestion.", mention_author=False)
+            await ctx.reply(t(lang, "suggest.failed"), mention_author=False)
             return
 
         for emoji in (settings.get("upvote_emoji") or "👍", settings.get("downvote_emoji") or "👎"):
@@ -73,7 +76,7 @@ class Suggestions(commands.Cog):
             await ctx.message.delete()
         except Exception:
             pass
-        await ctx.send(f"{ctx.author.mention} ✅ your suggestion was posted in {channel.mention}.", delete_after=8)
+        await ctx.send(t(lang, "suggest.posted", user=ctx.author.mention, channel=channel.mention), delete_after=8)
 
 
 async def setup(bot):
