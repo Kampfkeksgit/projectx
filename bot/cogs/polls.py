@@ -19,6 +19,8 @@ from discord.ext import commands, tasks
 
 import config
 from utils.backend import bot_get, bot_post, bot_put
+from utils import general_config
+from utils.bot_i18n import t, lang_for
 
 
 POLL_COLOR = 0x5865F2
@@ -26,12 +28,12 @@ BAR_LEN = 12
 OPTION_EMOJI = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
 
 
-def build_poll_embed(question, options, counts, multi, ended=False):
+def build_poll_embed(question, options, counts, multi, ended=False, color=POLL_COLOR, lang="en"):
     counts = counts or [0] * len(options)
     total = sum(counts) or 0
     embed = discord.Embed(
         title=("📊 " + (question or "Poll"))[:256],
-        color=POLL_COLOR,
+        color=color,
     )
     lines = []
     for i, opt in enumerate(options):
@@ -42,8 +44,10 @@ def build_poll_embed(question, options, counts, multi, ended=False):
         emoji = OPTION_EMOJI[i] if i < len(OPTION_EMOJI) else "•"
         lines.append(f"{emoji} **{opt}**\n`{bar}` {c} ({pct:.0f}%)")
     embed.description = "\n\n".join(lines)
-    foot = f"{total} vote(s)" + (" • multiple choice" if multi else " • single choice")
-    embed.set_footer(text=foot + (" • Closed" if ended else ""))
+    foot = t(lang, "poll.votes", n=total) + " • " + (t(lang, "poll.multi") if multi else t(lang, "poll.single"))
+    if ended:
+        foot += " • " + t(lang, "poll.closedTag")
+    embed.set_footer(text=foot)
     return embed
 
 
@@ -73,14 +77,15 @@ class Polls(commands.Cog):
     @commands.command(name="poll")
     @commands.guild_only()
     async def poll(self, ctx, *, text: str = None):
+        lang = await lang_for(self.backend_url, self.api_key, ctx.guild.id)
         if not text or "|" not in text:
-            await ctx.reply("Usage: `!poll Question | Option A | Option B | ...` (2–10 options)", mention_author=False)
+            await ctx.reply(t(lang, "poll.usage"), mention_author=False)
             return
         parts = [p.strip() for p in text.split("|")]
         question = parts[0]
         options = [p for p in parts[1:] if p][:10]
         if not question or len(options) < 2:
-            await ctx.reply("A poll needs a question and at least 2 options.", mention_author=False)
+            await ctx.reply(t(lang, "poll.needOptions"), mention_author=False)
             return
 
         created = await bot_post(
@@ -89,14 +94,15 @@ class Polls(commands.Cog):
             {"channel_id": str(ctx.channel.id), "question": question, "options": options, "multi": False, "ends_at": 0},
         )
         if not created or not created.get("id"):
-            await ctx.reply("Couldn't create the poll right now.", mention_author=False)
+            await ctx.reply(t(lang, "poll.createFailed"), mention_author=False)
             return
         pid = created["id"]
-        embed = build_poll_embed(question, options, [0] * len(options), False)
+        color = await general_config.get_embed_color(self.backend_url, self.api_key, ctx.guild.id, fallback=POLL_COLOR)
+        embed = build_poll_embed(question, options, [0] * len(options), False, color=color, lang=lang)
         try:
             msg = await ctx.send(embed=embed, view=build_poll_view(pid, options))
         except discord.Forbidden:
-            await ctx.reply("I can't post in this channel.", mention_author=False)
+            await ctx.reply(t(lang, "poll.cantPost"), mention_author=False)
             return
         await bot_put(self.backend_url, self.api_key, f"/api/bot/guilds/{ctx.guild.id}/polls/{pid}/message", {"message_id": str(msg.id)})
         try:
@@ -122,18 +128,20 @@ class Polls(commands.Cog):
             f"/api/bot/guilds/{interaction.guild.id}/polls/{pid}/vote",
             {"user_id": str(interaction.user.id), "option_index": option_index},
         )
+        lang = await lang_for(self.backend_url, self.api_key, interaction.guild.id)
         if not result or not result.get("ok"):
             reason = (result or {}).get("reason")
-            msg = "This poll is closed." if reason == "closed" else "Couldn't register your vote."
+            msg = t(lang, "poll.closed") if reason == "closed" else t(lang, "poll.voteFailed")
             await interaction.followup.send(msg, ephemeral=True)
             return
         options = result.get("options") or []
-        embed = build_poll_embed(result.get("question"), options, result.get("counts"), result.get("multi"))
+        color = await general_config.get_embed_color(self.backend_url, self.api_key, interaction.guild.id, fallback=POLL_COLOR)
+        embed = build_poll_embed(result.get("question"), options, result.get("counts"), result.get("multi"), color=color, lang=lang)
         try:
             await interaction.message.edit(embed=embed, view=build_poll_view(pid, options))
         except Exception as exc:
             print(f"[polls] edit failed: {exc}")
-        await interaction.followup.send("✅ Your vote was counted.", ephemeral=True)
+        await interaction.followup.send(t(lang, "poll.voted"), ephemeral=True)
 
     @tasks.loop(seconds=30)
     async def close_loop(self):
@@ -163,7 +171,9 @@ class Polls(commands.Cog):
             return
         options = poll.get("options") or []
         counts = poll.get("counts") or [0] * len(options)
-        embed = build_poll_embed(poll.get("question"), options, counts, poll.get("multi"), ended=True)
+        color = await general_config.get_embed_color(self.backend_url, self.api_key, poll["guild_id"], fallback=POLL_COLOR)
+        lang = await lang_for(self.backend_url, self.api_key, poll["guild_id"])
+        embed = build_poll_embed(poll.get("question"), options, counts, poll.get("multi"), ended=True, color=color, lang=lang)
         if poll.get("message_id"):
             try:
                 msg = await channel.fetch_message(int(poll["message_id"]))

@@ -19,6 +19,8 @@ from discord.ext import commands
 
 import config
 from utils.backend import bot_get, bot_post, bot_put
+from utils import general_config
+from utils.bot_i18n import t, lang_for
 
 
 APP_COLOR = 0x6366F1
@@ -46,10 +48,10 @@ class ApplicationModal(discord.ui.Modal):
         await self.cog.handle_submit(interaction, self.form, self._fields)
 
 
-def build_review_view(app_id, form_id, applicant_id):
+def build_review_view(app_id, form_id, applicant_id, lang="en"):
     view = discord.ui.View(timeout=None)
-    view.add_item(discord.ui.Button(style=discord.ButtonStyle.success, label="Accept", emoji="✅", custom_id=f"appok:{app_id}:{form_id}:{applicant_id}"))
-    view.add_item(discord.ui.Button(style=discord.ButtonStyle.danger, label="Deny", emoji="✖️", custom_id=f"appno:{app_id}:{applicant_id}"))
+    view.add_item(discord.ui.Button(style=discord.ButtonStyle.success, label=t(lang, "app.accept"), emoji="✅", custom_id=f"appok:{app_id}:{form_id}:{applicant_id}"))
+    view.add_item(discord.ui.Button(style=discord.ButtonStyle.danger, label=t(lang, "app.deny"), emoji="✖️", custom_id=f"appno:{app_id}:{applicant_id}"))
     return view
 
 
@@ -63,28 +65,29 @@ class Applications(commands.Cog):
     @commands.has_permissions(administrator=True)
     @commands.guild_only()
     async def applypanel(self, ctx):
+        lang = await lang_for(self.backend_url, self.api_key, ctx.guild.id)
         data = await bot_get(self.backend_url, self.api_key, f"/api/bot/guilds/{ctx.guild.id}/settings/applications")
         forms = (data or {}).get("forms") or []
         if not forms:
-            await ctx.reply("No application forms are configured/enabled.", mention_author=False)
+            await ctx.reply(t(lang, "app.noForms"), mention_author=False)
             return
         embed = discord.Embed(
-            title="📋 Applications",
-            description="Click a button below to start an application.",
-            color=APP_COLOR,
+            title=t(lang, "app.panelTitle"),
+            description=t(lang, "app.panelDesc"),
+            color=await general_config.get_embed_color(self.backend_url, self.api_key, ctx.guild.id, fallback=APP_COLOR),
         )
         view = discord.ui.View(timeout=None)
         for form in forms[:5]:
-            embed.add_field(name=form.get("name") or "Application", value=(form.get("description") or "—")[:1024], inline=False)
+            embed.add_field(name=form.get("name") or t(lang, "app.formFallback"), value=(form.get("description") or "—")[:1024], inline=False)
             view.add_item(discord.ui.Button(
                 style=discord.ButtonStyle.primary,
-                label=(form.get("button_label") or form.get("name") or "Apply")[:80],
+                label=(form.get("button_label") or form.get("name") or t(lang, "app.applyButton"))[:80],
                 custom_id=f"app:{form['id']}",
             ))
         try:
             await ctx.send(embed=embed, view=view)
         except discord.Forbidden:
-            await ctx.reply("I can't post in this channel.", mention_author=False)
+            await ctx.reply(t(lang, "app.cantPost"), mention_author=False)
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction):
@@ -101,16 +104,18 @@ class Applications(commands.Cog):
     async def _open_form(self, interaction, form_id):
         data = await bot_get(self.backend_url, self.api_key, f"/api/bot/guilds/{interaction.guild.id}/applications/forms/{form_id}")
         form = (data or {}).get("form")
+        lang = await lang_for(self.backend_url, self.api_key, interaction.guild.id)
         if not form or not form.get("enabled"):
-            await interaction.response.send_message("This application is no longer available.", ephemeral=True)
+            await interaction.response.send_message(t(lang, "app.noLongerAvailable"), ephemeral=True)
             return
         if not form.get("questions"):
-            await interaction.response.send_message("This form has no questions configured.", ephemeral=True)
+            await interaction.response.send_message(t(lang, "app.noQuestions"), ephemeral=True)
             return
         await interaction.response.send_modal(ApplicationModal(self, form))
 
     async def handle_submit(self, interaction, form, fields):
         await interaction.response.defer(ephemeral=True)
+        lang = await lang_for(self.backend_url, self.api_key, interaction.guild.id)
         answers = [{"q": q, "a": str(field.value)} for q, field in fields]
         result = await bot_post(
             self.backend_url, self.api_key,
@@ -118,7 +123,7 @@ class Applications(commands.Cog):
             {"form_id": form["id"], "user_id": str(interaction.user.id), "answers": answers},
         )
         if not result or not result.get("id"):
-            await interaction.followup.send("Couldn't submit your application. Try again later.", ephemeral=True)
+            await interaction.followup.send(t(lang, "app.submitFailed"), ephemeral=True)
             return
         app_id = result["id"]
 
@@ -126,25 +131,26 @@ class Applications(commands.Cog):
         channel = interaction.guild.get_channel(int(review_channel_id)) if review_channel_id else None
         if channel is not None:
             embed = discord.Embed(
-                title=f"📋 New application — {form.get('name') or 'Application'}",
-                color=APP_COLOR,
+                title=t(lang, "app.reviewTitle", form=form.get("name") or t(lang, "app.formFallback")),
+                color=await general_config.get_embed_color(self.backend_url, self.api_key, interaction.guild.id, fallback=APP_COLOR),
                 timestamp=interaction.created_at,
             )
             embed.set_author(name=str(interaction.user), icon_url=interaction.user.display_avatar.url)
-            embed.add_field(name="Applicant", value=f"{interaction.user.mention} (`{interaction.user.id}`)", inline=False)
+            embed.add_field(name=t(lang, "app.applicant"), value=f"{interaction.user.mention} (`{interaction.user.id}`)", inline=False)
             for a in answers:
                 embed.add_field(name=a["q"][:256], value=(a["a"] or "—")[:1024], inline=False)
             try:
-                await channel.send(embed=embed, view=build_review_view(app_id, form["id"], interaction.user.id))
+                await channel.send(embed=embed, view=build_review_view(app_id, form["id"], interaction.user.id, lang=lang))
             except Exception as exc:
                 print(f"[applications] post review failed: {exc}")
-        await interaction.followup.send("✅ Your application was submitted. Thank you!", ephemeral=True)
+        await interaction.followup.send(t(lang, "app.submitted"), ephemeral=True)
 
     async def _review(self, interaction, custom_id, accepted):
         # Only staff who can manage roles may review.
+        lang = await lang_for(self.backend_url, self.api_key, interaction.guild.id)
         perms = interaction.user.guild_permissions
         if not (perms.administrator or perms.manage_roles):
-            await interaction.response.send_message("You don't have permission to review applications.", ephemeral=True)
+            await interaction.response.send_message(t(lang, "app.noPermission"), ephemeral=True)
             return
         await interaction.response.defer(ephemeral=True)
 
@@ -178,8 +184,8 @@ class Applications(commands.Cog):
         # Notify the applicant.
         if member:
             try:
-                msg = "✅ Your application was **accepted**!" if accepted else "✖️ Your application was **declined**."
-                await member.send(f"{msg} ({interaction.guild.name})")
+                msg = t(lang, "app.dmAccepted") if accepted else t(lang, "app.dmDeclined")
+                await member.send(t(lang, "app.dmWithGuild", msg=msg, guild=interaction.guild.name))
             except Exception:
                 pass
 
@@ -187,12 +193,12 @@ class Applications(commands.Cog):
         try:
             embed = interaction.message.embeds[0] if interaction.message.embeds else discord.Embed()
             embed.color = ACCEPT_COLOR if accepted else DENY_COLOR
-            verb = "Accepted" if accepted else "Denied"
-            embed.set_footer(text=f"{verb} by {interaction.user}")
+            footer = t(lang, "app.footerAccepted", user=interaction.user) if accepted else t(lang, "app.footerDenied", user=interaction.user)
+            embed.set_footer(text=footer)
             await interaction.message.edit(embed=embed, view=None)
         except Exception:
             pass
-        await interaction.followup.send(f"Application {'accepted' if accepted else 'denied'}.", ephemeral=True)
+        await interaction.followup.send(t(lang, "app.reviewedAccepted") if accepted else t(lang, "app.reviewedDenied"), ephemeral=True)
 
 
 async def setup(bot):

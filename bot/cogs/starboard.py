@@ -21,6 +21,7 @@ from discord.ext import commands
 
 import config
 from utils.backend import bot_get, bot_put, bot_delete
+from utils import general_config
 
 
 SETTINGS_TTL_SECONDS = 300
@@ -125,10 +126,10 @@ class Starboard(commands.Cog):
                 return count
         return 0
 
-    def _build_embed(self, message):
+    def _build_embed(self, message, color=STAR_COLOR):
         embed = discord.Embed(
             description=message.content or "",
-            color=STAR_COLOR,
+            color=color,
             timestamp=message.created_at,
         )
         embed.set_author(
@@ -146,7 +147,8 @@ class Starboard(commands.Cog):
 
     async def _post_or_update(self, message, star_channel, count, entry, payload):
         content = f"⭐ **{count}** <#{payload.channel_id}>"
-        embed = self._build_embed(message)
+        color = await general_config.get_embed_color(self.backend_url, self.api_key, message.guild.id, fallback=STAR_COLOR)
+        embed = self._build_embed(message, color=color)
 
         star_message_id = entry.get("star_message_id") if entry else None
         new_star_id = star_message_id

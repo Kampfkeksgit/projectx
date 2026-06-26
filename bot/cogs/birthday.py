@@ -20,6 +20,7 @@ from discord.ext import commands, tasks
 
 import config
 from utils.backend import bot_get, bot_post
+from utils.bot_i18n import t, lang_for
 
 
 BIRTHDAY_RE = re.compile(r"^(\d{1,2})[./-](\d{1,2})(?:[./-](\d{2,4}))?$")
@@ -122,17 +123,18 @@ class Birthday(commands.Cog):
     @commands.command(name="birthday", aliases=["setbirthday", "bday"])
     @commands.guild_only()
     async def birthday(self, ctx, date: str = None):
+        lang = await lang_for(self.backend_url, self.api_key, ctx.guild.id)
         if not date:
-            await ctx.reply("Usage: `!birthday DD.MM` (or `DD.MM.YYYY`)", mention_author=False)
+            await ctx.reply(t(lang, "bday.usage"), mention_author=False)
             return
         m = BIRTHDAY_RE.match(date.strip())
         if not m:
-            await ctx.reply("Please use the format `DD.MM` or `DD.MM.YYYY`.", mention_author=False)
+            await ctx.reply(t(lang, "bday.badFormat"), mention_author=False)
             return
         day, month = int(m.group(1)), int(m.group(2))
         year = int(m.group(3)) if m.group(3) else None
         if not (1 <= month <= 12 and 1 <= day <= 31):
-            await ctx.reply("That date doesn't look right.", mention_author=False)
+            await ctx.reply(t(lang, "bday.badDate"), mention_author=False)
             return
 
         body = {"user_id": str(ctx.author.id), "day": day, "month": month}
@@ -143,9 +145,9 @@ class Birthday(commands.Cog):
             f"/api/bot/guilds/{ctx.guild.id}/birthdays", body,
         )
         if result is None:
-            await ctx.reply("Couldn't save your birthday right now.", mention_author=False)
+            await ctx.reply(t(lang, "bday.saveFailed"), mention_author=False)
             return
-        await ctx.reply(f"🎂 Saved your birthday as **{day:02d}.{month:02d}**.", mention_author=False)
+        await ctx.reply(t(lang, "bday.saved", date=f"{day:02d}.{month:02d}"), mention_author=False)
 
 
 async def setup(bot):

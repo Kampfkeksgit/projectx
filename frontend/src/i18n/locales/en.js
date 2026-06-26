@@ -266,6 +266,7 @@ export default {
     sectionServer: 'Server',
     switchServer: 'Switch server',
     linkOverview: 'Overview',
+    linkGeneral: 'General',
     linkWelcome: 'Welcome',
     linkLeave: 'Leave',
     linkAutoRole: 'Auto-Role',
@@ -346,6 +347,8 @@ export default {
   overview: {
     eyebrow: 'Overview',
     sub: 'Configure how ProjectX behaves in your server.',
+    generalTitle: 'General',
+    generalDesc: 'Language, timezone, default embed color and dashboard theme.',
     welcomeTitle: 'Welcome messages',
     welcomeDesc: 'Greet every new member who joins your server.',
     leaveTitle: 'Leave notifications',
@@ -1375,6 +1378,23 @@ export default {
     selfStarLabel: 'Allow self-stars',
     selfStarHint: 'Count the author’s own star reaction.',
     loadError: 'Failed to load starboard settings'
+  },
+  general: {
+    eyebrow: 'Configuration',
+    title: 'General settings',
+    sub: 'Server-wide preferences that apply across ProjectX.',
+    languageLabel: 'Language',
+    languageHint: 'Default language for bot responses on this server.',
+    timezoneLabel: 'Timezone',
+    timezoneHint: 'Used for scheduled messages, logs and timestamps.',
+    embedColorLabel: 'Default embed color',
+    embedColorHint: 'Accent color used for the bot’s embeds on this server.',
+    themeLabel: 'Dashboard theme',
+    themeHint: 'Appearance of the dashboard. Applies immediately.',
+    theme_dark: 'Dark',
+    theme_light: 'Light',
+    usageNote: 'These settings apply to the whole server. The dashboard theme is remembered on this device.',
+    loadError: 'Failed to load general settings'
   },
   suggestions: {
     eyebrow: 'Engagement',

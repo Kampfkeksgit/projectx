@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 35;
+const CURRENT_SCHEMA_VERSION = 36;
 
 /**
  * Initialize schema version tracking
@@ -94,7 +94,8 @@ async function applyMigrations(fromVersion, toVersion) {
     32: migrationV32,
     33: migrationV33,
     34: migrationV34,
-    35: migrationV35
+    35: migrationV35,
+    36: migrationV36
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -1893,6 +1894,29 @@ function migrationV35() {
     'ALTER TABLE guild_tempvoice_settings ADD COLUMN panel_enabled BOOLEAN DEFAULT 0',
     "ALTER TABLE guild_tempvoice_settings ADD COLUMN panel_destination TEXT DEFAULT 'voice'",
     'ALTER TABLE guild_tempvoice_settings ADD COLUMN panel_channel_id TEXT'
+  ]);
+}
+
+/**
+ * Migration V36: General dashboard settings (Free).
+ *   - guild_general_settings: per-guild general preferences that aren't tied to a
+ *     single feature module — default language for bot/dashboard, server timezone
+ *     (used for scheduled posts, logs, timestamps), default embed accent color,
+ *     and the dashboard theme (dark|light) shown for this server.
+ * No `enabled` toggle — these settings are always active.
+ * Idempotent; mirrored in initializeDatabase().
+ */
+function migrationV36() {
+  return runSchemaBatch(36, [
+    `CREATE TABLE IF NOT EXISTS guild_general_settings (
+      guild_id        TEXT PRIMARY KEY,
+      language        TEXT DEFAULT 'en',
+      timezone        TEXT DEFAULT 'UTC',
+      embed_color     TEXT DEFAULT '#5865F2',
+      dashboard_theme TEXT DEFAULT 'dark',
+      updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+    )`
   ]);
 }
 

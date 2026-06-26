@@ -32,6 +32,8 @@ from discord.ext import commands
 
 import config
 from utils.backend import fetch_bot_settings, bot_get, bot_post, bot_delete
+from utils import general_config
+from utils.bot_i18n import t, lang_for
 
 
 SETTINGS_TTL_SECONDS = 300
@@ -40,20 +42,20 @@ PANEL_COLOR = 0x5865F2
 
 # ----- Panel UI builders -----
 
-def build_panel_view(channel_id):
+def build_panel_view(channel_id, lang="en"):
     """Control panel buttons. Handled in on_interaction (custom_id tv:<action>:<cid>),
     so they keep working across bot restarts."""
     cid = str(channel_id)
     view = discord.ui.View(timeout=None)
-    view.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, emoji="🔒", label="Lock", custom_id=f"tv:lock:{cid}"))
-    view.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, emoji="🔓", label="Unlock", custom_id=f"tv:unlock:{cid}"))
-    view.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, emoji="🙈", label="Hide", custom_id=f"tv:hide:{cid}"))
-    view.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, emoji="👁️", label="Show", custom_id=f"tv:show:{cid}"))
-    view.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, emoji="🔢", label="Limit", custom_id=f"tv:limit:{cid}"))
-    view.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, emoji="✏️", label="Rename", custom_id=f"tv:rename:{cid}"))
-    view.add_item(discord.ui.Button(style=discord.ButtonStyle.success, emoji="➕", label="Invite", custom_id=f"tv:invite:{cid}"))
-    view.add_item(discord.ui.Button(style=discord.ButtonStyle.danger, emoji="➖", label="Kick", custom_id=f"tv:kick:{cid}"))
-    view.add_item(discord.ui.Button(style=discord.ButtonStyle.primary, emoji="👑", label="Claim", custom_id=f"tv:claim:{cid}"))
+    view.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, emoji="🔒", label=t(lang, "tv.lock"), custom_id=f"tv:lock:{cid}"))
+    view.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, emoji="🔓", label=t(lang, "tv.unlock"), custom_id=f"tv:unlock:{cid}"))
+    view.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, emoji="🙈", label=t(lang, "tv.hide"), custom_id=f"tv:hide:{cid}"))
+    view.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, emoji="👁️", label=t(lang, "tv.show"), custom_id=f"tv:show:{cid}"))
+    view.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, emoji="🔢", label=t(lang, "tv.limit"), custom_id=f"tv:limit:{cid}"))
+    view.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, emoji="✏️", label=t(lang, "tv.rename"), custom_id=f"tv:rename:{cid}"))
+    view.add_item(discord.ui.Button(style=discord.ButtonStyle.success, emoji="➕", label=t(lang, "tv.invite"), custom_id=f"tv:invite:{cid}"))
+    view.add_item(discord.ui.Button(style=discord.ButtonStyle.danger, emoji="➖", label=t(lang, "tv.kick"), custom_id=f"tv:kick:{cid}"))
+    view.add_item(discord.ui.Button(style=discord.ButtonStyle.primary, emoji="👑", label=t(lang, "tv.claim"), custom_id=f"tv:claim:{cid}"))
     return view
 
 
@@ -63,25 +65,26 @@ def build_user_select_view(custom_id, placeholder):
     return view
 
 
-def build_panel_embed(channel, owner):
+def build_panel_embed(channel, owner, color=PANEL_COLOR, lang="en"):
     e = discord.Embed(
-        title="🎛️ Voice control",
-        description=f"Manage your voice channel **{channel.name}**.",
-        color=PANEL_COLOR,
+        title=t(lang, "tv.panelTitle"),
+        description=t(lang, "tv.panelDesc", name=channel.name),
+        color=color,
     )
     if owner is not None:
-        e.add_field(name="Owner", value=owner.mention, inline=True)
-    e.set_footer(text="Only the channel owner can use these controls · 👑 Claim if the owner left")
+        e.add_field(name=t(lang, "tv.ownerField"), value=owner.mention, inline=True)
+    e.set_footer(text=t(lang, "tv.panelFooter"))
     return e
 
 
 class LimitModal(discord.ui.Modal):
-    def __init__(self, channel):
-        super().__init__(title="Set user limit")
+    def __init__(self, channel, lang="en"):
+        super().__init__(title=t(lang, "tv.limitTitle"))
         self.channel = channel
+        self.lang = lang
         self.value = discord.ui.TextInput(
-            label="User limit (0 = unlimited)",
-            placeholder="0–99",
+            label=t(lang, "tv.limitLabel"),
+            placeholder=t(lang, "tv.limitPlaceholder"),
             required=True,
             max_length=2,
         )
@@ -90,24 +93,24 @@ class LimitModal(discord.ui.Modal):
     async def on_submit(self, interaction):
         raw = str(self.value.value or "").strip()
         if not raw.isdigit():
-            await interaction.response.send_message("Please enter a number between 0 and 99.", ephemeral=True)
+            await interaction.response.send_message(t(self.lang, "tv.limitBadInput"), ephemeral=True)
             return
         limit = max(0, min(99, int(raw)))
         try:
             await self.channel.edit(user_limit=limit, reason="Temp-Voice panel")
-            await interaction.response.send_message(
-                f"🔢 User limit set to **{'unlimited' if limit == 0 else limit}**.", ephemeral=True
-            )
+            value = t(self.lang, "tv.unlimited") if limit == 0 else limit
+            await interaction.response.send_message(t(self.lang, "tv.limitSet", value=value), ephemeral=True)
         except Exception as exc:
-            await interaction.response.send_message(f"Could not set limit: {str(exc)[:80]}", ephemeral=True)
+            await interaction.response.send_message(t(self.lang, "tv.limitFailed", error=str(exc)[:80]), ephemeral=True)
 
 
 class RenameModal(discord.ui.Modal):
-    def __init__(self, channel):
-        super().__init__(title="Rename channel")
+    def __init__(self, channel, lang="en"):
+        super().__init__(title=t(lang, "tv.renameTitle"))
         self.channel = channel
+        self.lang = lang
         self.value = discord.ui.TextInput(
-            label="New name",
+            label=t(lang, "tv.renameLabel"),
             default=channel.name,
             required=True,
             max_length=100,
@@ -117,13 +120,13 @@ class RenameModal(discord.ui.Modal):
     async def on_submit(self, interaction):
         name = str(self.value.value or "").strip()[:100]
         if not name:
-            await interaction.response.send_message("Please enter a name.", ephemeral=True)
+            await interaction.response.send_message(t(self.lang, "tv.renameEmpty"), ephemeral=True)
             return
         try:
             await self.channel.edit(name=name, reason="Temp-Voice panel")
-            await interaction.response.send_message(f"✏️ Renamed to **{name}**.", ephemeral=True)
+            await interaction.response.send_message(t(self.lang, "tv.renamed", name=name), ephemeral=True)
         except Exception as exc:
-            await interaction.response.send_message(f"Could not rename: {str(exc)[:80]}", ephemeral=True)
+            await interaction.response.send_message(t(self.lang, "tv.renameFailed", error=str(exc)[:80]), ephemeral=True)
 
 
 class TempVoice(commands.Cog):
@@ -247,8 +250,10 @@ class TempVoice(commands.Cog):
 
     async def _send_panel(self, channel, owner, settings):
         dest = settings.get("panel_destination") or "voice"
-        embed = build_panel_embed(channel, owner)
-        view = build_panel_view(channel.id)
+        color = await general_config.get_embed_color(self.backend_url, self.api_key, channel.guild.id, fallback=PANEL_COLOR)
+        lang = await lang_for(self.backend_url, self.api_key, channel.guild.id)
+        embed = build_panel_embed(channel, owner, color=color, lang=lang)
+        view = build_panel_view(channel.id, lang=lang)
         try:
             if dest == "dm":
                 await owner.send(embed=embed, view=view)
@@ -288,9 +293,11 @@ class TempVoice(commands.Cog):
                 if (settings.get("panel_destination") or "voice") == "dm":
                     await self._send_panel(channel, new_owner, settings)
                 else:
+                    notice_color = await general_config.get_embed_color(self.backend_url, self.api_key, channel.guild.id, fallback=PANEL_COLOR)
+                    notice_lang = await lang_for(self.backend_url, self.api_key, channel.guild.id)
                     await channel.send(
                         content=new_owner.mention,
-                        embed=discord.Embed(description=f"👑 {new_owner.mention} is now the owner of this channel.", color=PANEL_COLOR),
+                        embed=discord.Embed(description=t(notice_lang, "tv.newOwner", user=new_owner.mention), color=notice_color),
                     )
             except Exception as exc:
                 print(f"[tempvoice] owner-transfer notice failed: {exc}")
@@ -310,15 +317,16 @@ class TempVoice(commands.Cog):
         _, action, ch_id = parts
         if not ch_id.isdigit():
             return
+        lang = await lang_for(self.backend_url, self.api_key, interaction.guild_id) if interaction.guild_id else "en"
         channel = self.bot.get_channel(int(ch_id))
         if not isinstance(channel, discord.VoiceChannel):
-            await self._respond(interaction, "This channel no longer exists.")
+            await self._respond(interaction, t(lang, "tv.noChannel"))
             return
         try:
-            await self._handle_action(interaction, action, channel)
+            await self._handle_action(interaction, action, channel, lang)
         except Exception as exc:
             print(f"[tempvoice] panel action '{action}' failed: {exc}")
-            await self._respond(interaction, "Something went wrong.")
+            await self._respond(interaction, t(lang, "tv.somethingWrong"))
 
     async def _respond(self, interaction, message):
         try:
@@ -338,7 +346,7 @@ class TempVoice(commands.Cog):
             setattr(ow, key, value)
         await channel.set_permissions(target, overwrite=ow, reason="Temp-Voice panel")
 
-    async def _handle_action(self, interaction, action, channel):
+    async def _handle_action(self, interaction, action, channel, lang="en"):
         guild = channel.guild
         everyone = guild.default_role
 
@@ -347,10 +355,10 @@ class TempVoice(commands.Cog):
             owner_id = self._owners.get(channel.id)
             owner_present = any(m.id == owner_id for m in channel.members)
             if owner_present:
-                await self._respond(interaction, "The owner is still here — you can't claim this channel.")
+                await self._respond(interaction, t(lang, "tv.claimOwnerHere"))
                 return
             if interaction.user not in channel.members:
-                await self._respond(interaction, "You must be in the channel to claim it.")
+                await self._respond(interaction, t(lang, "tv.claimMustBeIn"))
                 return
             self._owners[channel.id] = interaction.user.id
             await bot_post(
@@ -358,40 +366,40 @@ class TempVoice(commands.Cog):
                 f"/api/bot/guilds/{guild.id}/tempvoice/channels",
                 {"channel_id": str(channel.id), "owner_id": str(interaction.user.id)},
             )
-            await self._respond(interaction, "👑 You are now the owner of this channel.")
+            await self._respond(interaction, t(lang, "tv.claimed"))
             return
 
         # All other actions are owner-only.
         if not self._is_owner(interaction, channel):
-            await self._respond(interaction, "Only the channel owner can use this.")
+            await self._respond(interaction, t(lang, "tv.ownerOnly"))
             return
 
         if action == "lock":
             await self._set_overwrite(channel, everyone, connect=False)
-            await self._respond(interaction, "🔒 Channel locked — no one new can join.")
+            await self._respond(interaction, t(lang, "tv.locked"))
         elif action == "unlock":
             await self._set_overwrite(channel, everyone, connect=None)
-            await self._respond(interaction, "🔓 Channel unlocked.")
+            await self._respond(interaction, t(lang, "tv.unlocked"))
         elif action == "hide":
             await self._set_overwrite(channel, everyone, view_channel=False)
-            await self._respond(interaction, "🙈 Channel hidden.")
+            await self._respond(interaction, t(lang, "tv.hidden"))
         elif action == "show":
             await self._set_overwrite(channel, everyone, view_channel=None)
-            await self._respond(interaction, "👁️ Channel visible again.")
+            await self._respond(interaction, t(lang, "tv.shown"))
         elif action == "limit":
-            await interaction.response.send_modal(LimitModal(channel))
+            await interaction.response.send_modal(LimitModal(channel, lang=lang))
         elif action == "rename":
-            await interaction.response.send_modal(RenameModal(channel))
+            await interaction.response.send_modal(RenameModal(channel, lang=lang))
         elif action == "invite":
             await interaction.response.send_message(
-                "Select who may join this channel:",
-                view=build_user_select_view(f"tv:invitesel:{channel.id}", "Select users to invite…"),
+                t(lang, "tv.inviteSelect"),
+                view=build_user_select_view(f"tv:invitesel:{channel.id}", t(lang, "tv.inviteSelPlaceholder")),
                 ephemeral=True,
             )
         elif action == "kick":
             await interaction.response.send_message(
-                "Select who to remove from this channel:",
-                view=build_user_select_view(f"tv:kicksel:{channel.id}", "Select users to remove…"),
+                t(lang, "tv.kickSelect"),
+                view=build_user_select_view(f"tv:kicksel:{channel.id}", t(lang, "tv.kickSelPlaceholder")),
                 ephemeral=True,
             )
         elif action == "invitesel":
@@ -413,11 +421,12 @@ class TempVoice(commands.Cog):
                 done.append(member)
             except Exception as exc:
                 print(f"[tempvoice] invite failed: {exc}")
+        lang = await lang_for(self.backend_url, self.api_key, guild.id)
         if done:
             names = ", ".join(m.mention for m in done)
-            await interaction.followup.send(f"➕ Allowed: {names}", ephemeral=True)
+            await interaction.followup.send(t(lang, "tv.invited", names=names), ephemeral=True)
         else:
-            await interaction.followup.send("No changes made.", ephemeral=True)
+            await interaction.followup.send(t(lang, "tv.noChanges"), ephemeral=True)
 
     async def _apply_kick(self, interaction, channel):
         await interaction.response.defer(ephemeral=True)
@@ -435,11 +444,12 @@ class TempVoice(commands.Cog):
                 done.append(member)
             except Exception as exc:
                 print(f"[tempvoice] kick failed: {exc}")
+        lang = await lang_for(self.backend_url, self.api_key, guild.id)
         if done:
             names = ", ".join(m.mention for m in done)
-            await interaction.followup.send(f"➖ Removed: {names}", ephemeral=True)
+            await interaction.followup.send(t(lang, "tv.removed", names=names), ephemeral=True)
         else:
-            await interaction.followup.send("No changes made.", ephemeral=True)
+            await interaction.followup.send(t(lang, "tv.noChanges"), ephemeral=True)
 
     async def _delete_channel(self, channel):
         self._temp_channels.discard(channel.id)

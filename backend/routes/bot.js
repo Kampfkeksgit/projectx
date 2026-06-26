@@ -31,6 +31,7 @@ import {
   upsertStarboardEntry,
   deleteStarboardEntry,
   getSuggestionSettings,
+  getGeneralSettings,
   getBirthdaySettings,
   setBirthday,
   getTodaysBirthdays,
@@ -848,6 +849,17 @@ router.get('/guilds/:guild_id/settings/suggestions', requireBotToken, async (req
   } catch (error) {
     console.error('Bot get suggestion settings error:', error.message)
     res.status(500).json({ error: 'Failed to fetch suggestion settings' })
+  }
+})
+
+// General dashboard settings (v36) — raw object, no envelope.
+router.get('/guilds/:guild_id/settings/general', requireBotToken, async (req, res) => {
+  try {
+    const settings = await getGeneralSettings(req.params.guild_id)
+    return res.json(settings)
+  } catch (error) {
+    console.error('Bot get general settings error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch general settings' })
   }
 })
 

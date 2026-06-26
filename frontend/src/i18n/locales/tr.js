@@ -266,6 +266,7 @@ export default {
     sectionServer: 'Sunucu',
     switchServer: 'Sunucu değiştir',
     linkOverview: 'Genel Bakış',
+    linkGeneral: 'Genel',
     linkWelcome: 'Karşılama',
     linkLeave: 'Ayrılış',
     linkAutoRole: 'Otomatik Rol',
@@ -346,6 +347,8 @@ export default {
   overview: {
     eyebrow: 'Genel Bakış',
     sub: 'ProjectX\'in sunucunuzda nasıl davranacağını yapılandırın.',
+    generalTitle: 'Genel',
+    generalDesc: 'Dil, saat dilimi, varsayılan gömme rengi ve panel teması.',
     welcomeTitle: 'Karşılama mesajları',
     welcomeDesc: 'Sunucunuza katılan her yeni üyeyi karşılayın.',
     leaveTitle: 'Ayrılış bildirimleri',
@@ -1333,6 +1336,23 @@ export default {
     selfStarLabel: 'Kendi yıldızlarına izin ver',
     selfStarHint: 'Yazarın kendi yıldız tepkisini say.',
     loadError: 'Yıldız panosu ayarları yüklenemedi'
+  },
+  general: {
+    eyebrow: 'Yapılandırma',
+    title: 'Genel ayarlar',
+    sub: 'ProjectX genelinde geçerli olan sunucu çapındaki tercihler.',
+    languageLabel: 'Dil',
+    languageHint: 'Bu sunucudaki bot yanıtları için varsayılan dil.',
+    timezoneLabel: 'Saat dilimi',
+    timezoneHint: 'Zamanlanmış mesajlar, kayıtlar ve zaman damgaları için kullanılır.',
+    embedColorLabel: 'Varsayılan gömme rengi',
+    embedColorHint: 'Bu sunucudaki botun gömmelerinde kullanılan vurgu rengi.',
+    themeLabel: 'Panel teması',
+    themeHint: 'Panelin görünümü. Anında uygulanır.',
+    theme_dark: 'Koyu',
+    theme_light: 'Açık',
+    usageNote: 'Bu ayarlar tüm sunucu için geçerlidir. Panel teması bu cihazda hatırlanır.',
+    loadError: 'Genel ayarlar yüklenemedi'
   },
   suggestions: {
     eyebrow: 'Etkileşim',

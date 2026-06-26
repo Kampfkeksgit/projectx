@@ -19,6 +19,8 @@ from discord.ext import commands, tasks
 
 import config
 from utils.backend import bot_get, bot_put
+from utils import general_config
+from utils.bot_i18n import t, lang_for
 
 
 POLL_SECONDS = 60
@@ -81,14 +83,14 @@ def parse_emoji(value):
         return None
 
 
-def build_menu_view(menu):
+def build_menu_view(menu, lang="en"):
     options = menu.get("options") or []
     view = discord.ui.View(timeout=None)
     if menu.get("menu_type") == "select":
         select_options = []
         for o in options[:25]:
             select_options.append(discord.SelectOption(
-                label=(o.get("label") or "Role")[:100],
+                label=(o.get("label") or t(lang, "rm.roleFallback"))[:100],
                 value=str(o.get("role_id")),
                 emoji=parse_emoji(o.get("emoji")),
             ))
@@ -96,7 +98,7 @@ def build_menu_view(menu):
             exclusive = bool(menu.get("exclusive"))
             view.add_item(discord.ui.Select(
                 custom_id="rrselect",
-                placeholder="Pick a role…" if exclusive else "Pick your roles…",
+                placeholder=t(lang, "rm.pickOne") if exclusive else t(lang, "rm.pickMany"),
                 min_values=0,
                 max_values=1 if exclusive else len(select_options),
                 options=select_options,
@@ -105,7 +107,7 @@ def build_menu_view(menu):
         for o in options[:25]:
             view.add_item(discord.ui.Button(
                 style=discord.ButtonStyle.secondary,
-                label=(o.get("label") or "Role")[:80],
+                label=(o.get("label") or t(lang, "rm.roleFallback"))[:80],
                 custom_id=f"rr:{o.get('role_id')}",
                 emoji=parse_emoji(o.get("emoji")),
             ))
@@ -150,24 +152,25 @@ class RoleMenus(commands.Cog):
         if channel is None or not (menu.get("options") or []):
             return
 
+        lang = await lang_for(self.backend_url, self.api_key, guild.id)
         if menu.get("use_embed"):
             embed = build_custom_embed(menu.get("embed"), guild)
             # Empty custom embed → still show something meaningful.
             if not (embed.title or embed.description or embed.fields or embed.author.name):
-                embed.title = menu.get("name") or "Role Menu"
-                embed.description = "Pick a role below."
+                embed.title = menu.get("name") or t(lang, "rm.menuFallback")
+                embed.description = t(lang, "rm.pickBelow")
         else:
             lines = []
             for o in menu["options"]:
                 emoji = o.get("emoji") or ""
                 lines.append(f"{emoji} {o.get('label') or ''}".strip())
             embed = discord.Embed(
-                title=menu.get("name") or "Role Menu",
-                description="\n".join(lines) or "Pick a role below.",
-                color=MENU_COLOR,
+                title=menu.get("name") or t(lang, "rm.menuFallback"),
+                description="\n".join(lines) or t(lang, "rm.pickBelow"),
+                color=await general_config.get_embed_color(self.backend_url, self.api_key, guild.id, fallback=MENU_COLOR),
             )
         try:
-            msg = await channel.send(embed=embed, view=build_menu_view(menu))
+            msg = await channel.send(embed=embed, view=build_menu_view(menu, lang=lang))
         except discord.Forbidden:
             print(f"[rolemenus] missing permission to post in {channel.id}")
             return
@@ -234,10 +237,11 @@ class RoleMenus(commands.Cog):
             parts.append("➕ " + ", ".join(added))
         if removed:
             parts.append("➖ " + ", ".join(removed))
+        lang = await lang_for(self.backend_url, self.api_key, interaction.guild.id)
         if failed and not parts:
-            msg_text = "I couldn't change your roles (missing permission / role too high)."
+            msg_text = t(lang, "rm.roleFailed")
         elif not parts:
-            msg_text = "No changes."
+            msg_text = t(lang, "rm.noChanges")
         else:
             msg_text = " · ".join(parts)
         await interaction.followup.send(msg_text, ephemeral=True)
@@ -269,10 +273,11 @@ class RoleMenus(commands.Cog):
             parts.append("➕ " + ", ".join(added))
         if removed:
             parts.append("➖ " + ", ".join(removed))
+        lang = await lang_for(self.backend_url, self.api_key, interaction.guild.id)
         if failed and not parts:
-            msg = "I couldn't change your roles (missing permission / role too high)."
+            msg = t(lang, "rm.roleFailed")
         elif not parts:
-            msg = "No changes."
+            msg = t(lang, "rm.noChanges")
         else:
             msg = " · ".join(parts)
         await interaction.followup.send(msg, ephemeral=True)

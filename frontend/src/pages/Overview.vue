@@ -25,6 +25,27 @@
     <div class="overview__grid" :class="{ 'is-dimmed': !botPresent }">
       <article class="config-card">
         <div class="config-card__head">
+          <div class="config-card__icon config-card__icon--general">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </div>
+          <div>
+            <h3 class="config-card__title">{{ t('overview.generalTitle') }}</h3>
+            <p class="config-card__desc">{{ t('overview.generalDesc') }}</p>
+          </div>
+        </div>
+        <div class="config-card__meta">
+          <span class="status status--on">
+            <span class="status__dot"></span>
+            {{ extraEnabled.generalLanguage.toUpperCase() }}
+          </span>
+        </div>
+        <div class="config-card__cta">
+          <AppButton tag="router-link" :to="`/dashboard/${guildId}/general`" variant="gradient">{{ t('common.configure') }}</AppButton>
+        </div>
+      </article>
+
+      <article class="config-card">
+        <div class="config-card__head">
           <div class="config-card__icon config-card__icon--welcome">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>
           </div>
@@ -694,6 +715,7 @@ const leaveChannel = computed(() => {
 })
 
 const extraEnabled = reactive({
+  generalLanguage: 'en',
   autorole: false,
   logs: false,
   moderation: false,
@@ -740,7 +762,8 @@ async function fetchExtraStatus() {
   const id = guildId.value
   if (!id) return
   const endpoints = ['autorole', 'logs', 'moderation', 'leveling']
-  const [autorole, logs, moderation, leveling, rr, cmds, social, stats, tempvoice, starboard, suggestions, birthday, scheduled, antiraid, verification, rolemenus, tickets, giveaways, counting, polls, invitetracking, applications, economy, games, backups] = await Promise.all([
+  const [general, autorole, logs, moderation, leveling, rr, cmds, social, stats, tempvoice, starboard, suggestions, birthday, scheduled, antiraid, verification, rolemenus, tickets, giveaways, counting, polls, invitetracking, applications, economy, games, backups] = await Promise.all([
+    api.get(`/guilds/${id}/general`).then(r => r.data).catch(() => null),
     api.get(`/guilds/${id}/settings/autorole`).then(r => r.data).catch(() => null),
     api.get(`/guilds/${id}/settings/logs`).then(r => r.data).catch(() => null),
     api.get(`/guilds/${id}/settings/moderation`).then(r => r.data).catch(() => null),
@@ -768,6 +791,7 @@ async function fetchExtraStatus() {
     api.get(`/guilds/${id}/backups`).then(r => r.data).catch(() => null)
   ])
   void endpoints
+  extraEnabled.generalLanguage = (general?.success && general.settings?.language) ? general.settings.language : 'en'
   extraEnabled.autorole = !!(autorole?.success && autorole.settings?.enabled)
   extraEnabled.logs = !!(logs?.success && logs.settings?.enabled)
   extraEnabled.moderation = !!(moderation?.success && moderation.settings?.enabled)
@@ -954,6 +978,7 @@ watch(() => guildId.value, fetchExtraStatus)
   flex-shrink: 0;
 }
 
+.config-card__icon--general { background: linear-gradient(135deg, #64748b, #94a3b8); }
 .config-card__icon--welcome { background: linear-gradient(135deg, #5865f2, #a78bfa); }
 .config-card__icon--leave { background: linear-gradient(135deg, #f472b6, #a78bfa); }
 .config-card__icon--autorole { background: linear-gradient(135deg, #22d3ee, #5865f2); }
