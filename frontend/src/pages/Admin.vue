@@ -220,6 +220,35 @@
         </div>
       </div>
 
+      <!-- ANALYTICS (growth & adoption) -->
+      <div v-else-if="tab === 'analytics'">
+        <div class="charts-grid">
+          <StatsChart :title="t('admin.anServers')" :points="metrics" :lines="serverLines" :empty-text="t('admin.anEmpty')" />
+          <StatsChart :title="t('admin.anUsers')" :points="metrics" :lines="userLines" :empty-text="t('admin.anEmpty')" />
+          <StatsChart :title="t('admin.anPremium')" :points="metrics" :lines="premiumLines" :empty-text="t('admin.anEmpty')" />
+          <StatsChart :title="t('admin.anAdoption')" :points="adoptionPoints" :lines="adoptionLines" :empty-text="t('admin.anEmpty')" />
+        </div>
+
+        <div class="panel">
+          <div class="panel__head-row">
+            <h3 class="panel__title">{{ t('admin.anTopGuilds') }}</h3>
+            <div class="seg">
+              <button class="seg__btn" :class="{ 'is-active': topBy === 'modules' }" @click="setTopBy('modules')">{{ t('admin.anByModules') }}</button>
+              <button class="seg__btn" :class="{ 'is-active': topBy === 'activity' }" @click="setTopBy('activity')">{{ t('admin.anByActivity') }}</button>
+            </div>
+          </div>
+          <p v-if="!topGuilds.length" class="panel__empty">{{ t('admin.anTopEmpty') }}</p>
+          <ul v-else class="mini-rows">
+            <li v-for="(g, i) in topGuilds" :key="g.id" class="mini-row">
+              <span class="mini-row__rank">{{ i + 1 }}</span>
+              <GuildAvatar :name="g.guild_name || g.id" :icon-url="g.guild_icon_url" size="sm" />
+              <span class="mini-row__name">{{ g.guild_name || g.id }}</span>
+              <span class="pill">{{ topBy === 'activity' ? t('admin.anEvents', { n: g.score }) : t('admin.anModules', { n: g.score }) }}</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+
       <!-- HEALTH (bot monitoring) -->
       <div v-else-if="tab === 'health' && health">
         <div class="cards">
@@ -398,6 +427,7 @@ import AppButton from '../components/AppButton.vue'
 import AppToggle from '../components/AppToggle.vue'
 import GuildAvatar from '../components/GuildAvatar.vue'
 import LoadingPage from '../components/LoadingPage.vue'
+import StatsChart from '../components/StatsChart.vue'
 import { useToast } from '../composables/useToast.js'
 import { useAuth } from '../stores/auth.js'
 import { useI18n } from '../i18n/index.js'
@@ -407,7 +437,7 @@ const router = useRouter()
 const toast = useToast()
 const auth = useAuth()
 
-const tabs = ['overview', 'health', 'users', 'guilds', 'audit', 'jobs', 'errors', 'system']
+const tabs = ['overview', 'analytics', 'health', 'users', 'guilds', 'audit', 'jobs', 'errors', 'system']
 const tab = ref('overview')
 const search = ref('')
 const loading = ref(true)
@@ -434,6 +464,11 @@ const savingPremium = ref(false)
 
 const maintenance = ref({ enabled: false, message: '' })
 const savingMaintenance = ref(false)
+
+// Analytics (Kat. 2)
+const metrics = ref([])
+const topGuilds = ref([])
+const topBy = ref('modules')
 
 // Monitoring (Kat. 1)
 const health = ref(null)
@@ -472,6 +507,29 @@ const adoptionList = computed(() => {
     .sort((a, b) => b.count - a.count)
 })
 const maxAdoption = computed(() => Math.max(1, ...adoptionList.value.map((m) => m.count)))
+
+// --- Analytics chart data ---
+const ADOPTION_COLORS = ['#5865f2', '#22d3ee', '#f472b6', '#facc15', '#34d399']
+// Top 5 modules by the latest snapshot's adoption → trend lines.
+const adoptionLines = computed(() => {
+  const last = metrics.value[metrics.value.length - 1]
+  if (!last || !last.adoption) return []
+  return Object.entries(last.adoption)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([key], i) => ({ key, label: prettyKey(key), color: ADOPTION_COLORS[i % ADOPTION_COLORS.length] }))
+})
+// Flatten each snapshot's adoption map onto the point so StatsChart can read p[key].
+const adoptionPoints = computed(() => metrics.value.map((m) => ({ ts: m.ts, ...(m.adoption || {}) })))
+const serverLines = computed(() => [
+  { key: 'guilds', label: t('admin.anLineGuilds'), color: '#5865f2' },
+  { key: 'present', label: t('admin.anLinePresent'), color: '#22c55e' }
+])
+const userLines = computed(() => [{ key: 'users', label: t('admin.anLineUsers'), color: '#22d3ee' }])
+const premiumLines = computed(() => [
+  { key: 'basic', label: t('premium.tiers.basic.name'), color: '#a78bfa' },
+  { key: 'pro', label: t('premium.tiers.pro.name'), color: '#ec4899' }
+])
 
 onMounted(() => load())
 
@@ -541,6 +599,13 @@ async function load() {
       const { data } = await api.get('/admin/audit', { params: { action: auditAction.value, target: search.value, limit: PAGE, offset: 0 } })
       audit.value = data.entries || []
       total.value = data.total || 0
+    } else if (tab.value === 'analytics') {
+      const [m, tg] = await Promise.all([
+        api.get('/admin/metrics', { params: { days: 30 } }),
+        api.get('/admin/top-guilds', { params: { by: topBy.value } })
+      ])
+      metrics.value = m.data.snapshots || []
+      topGuilds.value = tg.data.guilds || []
     } else if (tab.value === 'health') {
       const { data } = await api.get('/admin/health')
       health.value = { bot: data.bot, backend: data.backend }
@@ -591,6 +656,17 @@ async function loadMore() {
     toast.error(t('admin.loadFailed'))
   } finally {
     loadingMore.value = false
+  }
+}
+
+async function setTopBy(by) {
+  if (topBy.value === by) return
+  topBy.value = by
+  try {
+    const { data } = await api.get('/admin/top-guilds', { params: { by } })
+    topGuilds.value = data.guilds || []
+  } catch (err) {
+    toast.error(t('admin.loadFailed'))
   }
 }
 
@@ -829,6 +905,12 @@ function goBack() { router.push('/dashboard') }
 .job-status--running { background: rgba(245, 158, 11, 0.18); color: #fbbf24; }
 .job-status--done { background: rgba(34, 197, 94, 0.18); color: #4ade80; }
 .job-status--failed { background: rgba(239, 68, 68, 0.18); color: #f87171; }
+.charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-5); }
+.panel__head-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-4); flex-wrap: wrap; }
+.seg { display: inline-flex; border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow: hidden; }
+.seg__btn { padding: 0.35rem 0.8rem; font-size: 0.8rem; font-weight: 600; color: var(--color-text-soft); background: var(--color-bg-elevated); }
+.seg__btn.is-active { background: var(--color-primary-soft); color: var(--color-text); }
+.mini-row__rank { width: 1.4rem; text-align: center; font-weight: 700; color: var(--color-text-soft); font-size: 0.85rem; flex-shrink: 0; }
 .tier-select { padding: 0.4rem 0.6rem; border-radius: var(--radius-md); border: 1px solid var(--color-border); background: var(--color-bg-elevated); color: var(--color-text); font-size: 0.8rem; font-weight: 600; cursor: pointer; }
 .tier-select:focus { outline: none; border-color: var(--color-primary); }
 .tier-select--basic { border-color: rgba(99, 102, 241, 0.5); color: #a5b4fc; }

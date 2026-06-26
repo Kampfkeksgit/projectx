@@ -772,6 +772,23 @@ function initializeDatabase() {
       }
     });
 
+    // ----- Daily admin metrics snapshots (v38) -----
+    db.run(`
+      CREATE TABLE IF NOT EXISTS admin_metrics_snapshots (
+        day             INTEGER PRIMARY KEY,
+        users_total     INTEGER DEFAULT 0,
+        guilds_total    INTEGER DEFAULT 0,
+        guilds_present  INTEGER DEFAULT 0,
+        premium_basic   INTEGER DEFAULT 0,
+        premium_pro     INTEGER DEFAULT 0,
+        module_adoption TEXT DEFAULT '{}',
+        created_at      INTEGER
+      )
+    `, (err) => {
+      if (err) console.error('Error creating admin_metrics_snapshots table:', err);
+      else console.log('✓ Admin metrics snapshots table initialized');
+    });
+
     // ----- Batch 2 modules (v13): Birthday / Scheduled / Anti-Raid -----
 
     db.run(`
@@ -7429,6 +7446,121 @@ export function clearErrorLog() {
   return new Promise((resolve, reject) => {
     db.run('DELETE FROM error_log', [], function (err) { if (err) reject(err); else resolve(this.changes); });
   });
+}
+
+// ============================================================
+// Admin analytics (v38) — daily growth/adoption snapshots + top guilds
+// ============================================================
+
+/** Compute the current module-adoption map (guilds with each module active). */
+async function computeModuleAdoption() {
+  const adoption = {};
+  await Promise.all([
+    ...FLAG_MODULE_TABLES.map(async (m) => {
+      const row = await dbGet(`SELECT COUNT(*) AS n FROM ${m.table} WHERE enabled = 1`);
+      adoption[m.key] = row?.n || 0;
+    }),
+    ...COUNT_MODULE_TABLES.map(async (m) => {
+      const w = m.where ? ` WHERE ${m.where}` : '';
+      const row = await dbGet(`SELECT COUNT(DISTINCT guild_id) AS n FROM ${m.table}${w}`);
+      adoption[m.key] = row?.n || 0;
+    }),
+    (async () => {
+      const w = await dbGet('SELECT COUNT(*) AS n FROM guild_settings WHERE welcome_enabled = 1');
+      adoption['welcome'] = w?.n || 0;
+      const l = await dbGet('SELECT COUNT(*) AS n FROM guild_settings WHERE leave_enabled = 1');
+      adoption['leave'] = l?.n || 0;
+    })()
+  ]);
+  return adoption;
+}
+
+/**
+ * Capture today's metrics snapshot (upsert, one row per UTC day). Best-effort —
+ * called from a backend interval (server.js). Premium counts are expiry-aware.
+ */
+export async function captureMetricsSnapshot() {
+  const now = Math.floor(Date.now() / 1000);
+  const day = Math.floor(now / 86400) * 86400;
+  const [u, g, p] = await Promise.all([
+    dbGet('SELECT COUNT(*) AS n FROM users'),
+    dbGet('SELECT COUNT(*) AS total, SUM(CASE WHEN bot_present = 1 THEN 1 ELSE 0 END) AS present FROM guilds'),
+    dbGet(`SELECT
+        SUM(CASE WHEN premium_tier = 'basic' AND (premium_until IS NULL OR premium_until > ${now}) THEN 1 ELSE 0 END) AS basic,
+        SUM(CASE WHEN premium_tier = 'pro'   AND (premium_until IS NULL OR premium_until > ${now}) THEN 1 ELSE 0 END) AS pro
+      FROM guilds`)
+  ]);
+  const adoption = await computeModuleAdoption();
+  await new Promise((resolve, reject) => {
+    db.run(
+      `INSERT INTO admin_metrics_snapshots (day, users_total, guilds_total, guilds_present, premium_basic, premium_pro, module_adoption, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(day) DO UPDATE SET
+         users_total = excluded.users_total,
+         guilds_total = excluded.guilds_total,
+         guilds_present = excluded.guilds_present,
+         premium_basic = excluded.premium_basic,
+         premium_pro = excluded.premium_pro,
+         module_adoption = excluded.module_adoption,
+         created_at = excluded.created_at`,
+      [day, u?.n || 0, g?.total || 0, g?.present || 0, p?.basic || 0, p?.pro || 0, JSON.stringify(adoption), now],
+      (err) => (err ? reject(err) : resolve())
+    );
+  });
+  return { day };
+}
+
+/** Owner admin: daily snapshots for the last `days` days (oldest first). */
+export function getMetricsSnapshots(days = 30) {
+  const d = clampRange(days, 1, 365, 30);
+  const since = Math.floor(Date.now() / 1000) - d * 86400;
+  return dbAll('SELECT * FROM admin_metrics_snapshots WHERE day >= ? ORDER BY day ASC', [since]).then((rows) =>
+    rows.map((r) => {
+      let adoption = {};
+      try { adoption = JSON.parse(r.module_adoption || '{}'); } catch { adoption = {}; }
+      return {
+        ts: r.day,
+        users: r.users_total || 0,
+        guilds: r.guilds_total || 0,
+        present: r.guilds_present || 0,
+        basic: r.premium_basic || 0,
+        pro: r.premium_pro || 0,
+        premium: (r.premium_basic || 0) + (r.premium_pro || 0),
+        adoption
+      };
+    })
+  );
+}
+
+/**
+ * Owner admin: top guilds by `by` ∈ {modules|activity}.
+ *   modules  — number of active feature modules configured in the guild.
+ *   activity — audit-log entries in the last 30 days (a rough activity proxy).
+ */
+export async function getTopGuilds({ by = 'modules', limit = 15 } = {}) {
+  const lim = clampRange(limit, 1, 50, 15);
+  if (by === 'activity') {
+    return dbAll(
+      `SELECT a.guild_id AS id, g.guild_name, g.guild_icon_url, COUNT(*) AS score
+         FROM audit_log a JOIN guilds g ON g.id = a.guild_id
+        WHERE a.guild_id IS NOT NULL AND a.created_at >= datetime('now', '-30 day')
+        GROUP BY a.guild_id ORDER BY score DESC, g.guild_name ASC LIMIT ?`,
+      [lim]
+    );
+  }
+  // modules: union of per-module guild ids, counted per guild.
+  const parts = [];
+  for (const m of FLAG_MODULE_TABLES) parts.push(`SELECT guild_id FROM ${m.table} WHERE enabled = 1`);
+  for (const m of COUNT_MODULE_TABLES) parts.push(`SELECT DISTINCT guild_id FROM ${m.table}${m.where ? ' WHERE ' + m.where : ''}`);
+  parts.push('SELECT guild_id FROM guild_settings WHERE welcome_enabled = 1');
+  parts.push('SELECT guild_id FROM guild_settings WHERE leave_enabled = 1');
+  const union = parts.join(' UNION ALL ');
+  return dbAll(
+    `SELECT u.guild_id AS id, g.guild_name, g.guild_icon_url, COUNT(*) AS score
+       FROM (${union}) u JOIN guilds g ON g.id = u.guild_id
+      GROUP BY u.guild_id ORDER BY score DESC, g.guild_name ASC LIMIT ?`,
+    [lim]
+  );
 }
 
 // ============================================================

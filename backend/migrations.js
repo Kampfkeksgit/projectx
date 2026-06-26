@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 37;
+const CURRENT_SCHEMA_VERSION = 38;
 
 /**
  * Initialize schema version tracking
@@ -96,7 +96,8 @@ async function applyMigrations(fromVersion, toVersion) {
     34: migrationV34,
     35: migrationV35,
     36: migrationV36,
-    37: migrationV37
+    37: migrationV37,
+    38: migrationV38
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -1942,6 +1943,30 @@ function migrationV37() {
       created_at INTEGER
     )`,
     `CREATE INDEX IF NOT EXISTS idx_error_log_created ON error_log(created_at DESC)`
+  ]);
+}
+
+/**
+ * Migration V38: Daily admin metrics snapshots (Owner admin → Analytics).
+ *   - admin_metrics_snapshots: one row per UTC day with user/guild/premium
+ *     totals + a module-adoption JSON blob, so the dashboard can chart growth
+ *     and module-adoption trends over time. `day` is the UTC-midnight unix-
+ *     seconds value (PK → upsert keeps one row per day).
+ * Idempotent; mirrored in initializeDatabase(). Captured by a backend interval
+ * (see server.js → captureMetricsSnapshot).
+ */
+function migrationV38() {
+  return runSchemaBatch(38, [
+    `CREATE TABLE IF NOT EXISTS admin_metrics_snapshots (
+      day             INTEGER PRIMARY KEY,
+      users_total     INTEGER DEFAULT 0,
+      guilds_total    INTEGER DEFAULT 0,
+      guilds_present  INTEGER DEFAULT 0,
+      premium_basic   INTEGER DEFAULT 0,
+      premium_pro     INTEGER DEFAULT 0,
+      module_adoption TEXT DEFAULT '{}',
+      created_at      INTEGER
+    )`
   ]);
 }
 
