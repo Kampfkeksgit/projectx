@@ -21,6 +21,7 @@ from discord.ext import commands
 
 import config
 from utils.backend import fetch_bot_settings, bot_post
+from utils.bot_i18n import t, lang_for
 
 
 SETTINGS_TTL_SECONDS = 60
@@ -100,10 +101,11 @@ class Counting(commands.Cog):
             pass
         if result.get("reset"):
             reached = max((result.get("expected") or 1) - 1, 0)
+            lang = await lang_for(self.backend_url, self.api_key, message.guild.id)
             if reason == "double_count":
-                txt = f"💥 {message.author.mention} you can't count twice in a row! The count is back to **1**."
+                txt = t(lang, "count.double", user=message.author.mention)
             else:
-                txt = f"💥 {message.author.mention} ruined it at **{reached}**! The next number was **{result.get('expected')}**. Back to **1**."
+                txt = t(lang, "count.ruined", user=message.author.mention, reached=reached, expected=result.get("expected"))
             try:
                 await message.channel.send(txt)
             except Exception:

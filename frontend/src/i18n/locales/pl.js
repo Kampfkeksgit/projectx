@@ -266,6 +266,7 @@ export default {
     sectionServer: 'Serwer',
     switchServer: 'Zmień serwer',
     linkOverview: 'Przegląd',
+    linkGeneral: 'Ogólne',
     linkWelcome: 'Powitanie',
     linkLeave: 'Odejście',
     linkAutoRole: 'Auto-Rola',
@@ -346,6 +347,8 @@ export default {
   overview: {
     eyebrow: 'Przegląd',
     sub: 'Skonfiguruj, jak ProjectX zachowuje się na Twoim serwerze.',
+    generalTitle: 'Ogólne',
+    generalDesc: 'Język, strefa czasowa, domyślny kolor osadzenia i motyw panelu.',
     welcomeTitle: 'Wiadomości powitalne',
     welcomeDesc: 'Przywitaj każdego nowego członka dołączającego do serwera.',
     leaveTitle: 'Powiadomienia o odejściu',
@@ -1333,6 +1336,23 @@ export default {
     selfStarLabel: 'Zezwól na samogwiazdki',
     selfStarHint: 'Licz własną reakcję gwiazdką autora.',
     loadError: 'Nie udało się załadować ustawień starboarda'
+  },
+  general: {
+    eyebrow: 'Konfiguracja',
+    title: 'Ustawienia ogólne',
+    sub: 'Preferencje obowiązujące na całym serwerze w ProjectX.',
+    languageLabel: 'Język',
+    languageHint: 'Domyślny język odpowiedzi bota na tym serwerze.',
+    timezoneLabel: 'Strefa czasowa',
+    timezoneHint: 'Używana do zaplanowanych wiadomości, logów i znaczników czasu.',
+    embedColorLabel: 'Domyślny kolor osadzenia',
+    embedColorHint: 'Kolor akcentu używany w osadzeniach bota na tym serwerze.',
+    themeLabel: 'Motyw panelu',
+    themeHint: 'Wygląd panelu. Zmiana stosowana natychmiast.',
+    theme_dark: 'Ciemny',
+    theme_light: 'Jasny',
+    usageNote: 'Te ustawienia obowiązują na całym serwerze. Motyw panelu jest zapamiętywany na tym urządzeniu.',
+    loadError: 'Nie udało się załadować ustawień ogólnych'
   },
   suggestions: {
     eyebrow: 'Zaangażowanie',

@@ -17,6 +17,7 @@ from discord.ext import commands
 
 import config
 from utils.backend import fetch_bot_settings, bot_post
+from utils.bot_i18n import t, lang_for
 
 
 SPAM_WINDOW_SECONDS = 10.0
@@ -77,9 +78,10 @@ class Moderation(commands.Cog):
             # --- Content filters (first match wins) ---
             violation = self._detect_violation(content, message, settings)
             if violation:
-                reason, action = violation
+                reason_key, action = violation
+                lang = await lang_for(self.backend_url, config.BOT_API_KEY, message.guild.id)
                 await self._safe_delete(message)
-                await self._apply_action(member, action, settings, reason)
+                await self._apply_action(member, action, settings, reason_key, lang)
                 await self._record_warn(message.guild, member, settings)
                 return
 
@@ -90,20 +92,24 @@ class Moderation(commands.Cog):
             print(f"[moderation] on_message error: {exc}")
 
     def _detect_violation(self, content, message, settings):
-        """Return (reason, action) for the first matching filter, else None."""
+        """Return (reason_key, action) for the first matching filter, else None.
+
+        reason_key is an i18n key suffix (mod.reason_<key>): bannedword | invite |
+        link | mention | caps — localized for the user DM, English for audit logs.
+        """
         content_lc = content.lower()
 
         banned_words = settings.get("banned_words") or []
         if banned_words and any(w and w in content_lc for w in banned_words):
-            return ("banned word", settings.get("banned_word_action") or "delete")
+            return ("bannedword", settings.get("banned_word_action") or "delete")
 
         filter_action = settings.get("filter_action") or "delete"
 
         if settings.get("anti_invite") and INVITE_RE.search(content):
-            return ("Discord invite link", filter_action)
+            return ("invite", filter_action)
 
         if settings.get("anti_link") and URL_RE.search(content):
-            return ("external link", filter_action)
+            return ("link", filter_action)
 
         if settings.get("anti_mention"):
             try:
@@ -112,10 +118,10 @@ class Moderation(commands.Cog):
                 max_mentions = 5
             mention_count = len(message.mentions) + len(message.role_mentions)
             if mention_count > max_mentions:
-                return ("mass mention", filter_action)
+                return ("mention", filter_action)
 
         if settings.get("anti_caps") and self._is_excessive_caps(content, settings):
-            return ("excessive caps", filter_action)
+            return ("caps", filter_action)
 
         return None
 
@@ -134,12 +140,16 @@ class Moderation(commands.Cog):
     # Actions
     # ------------------------------------------------------------------ #
 
-    async def _apply_action(self, member, action, settings, reason):
-        """Apply a per-message filter action. The offending message is already deleted."""
+    async def _apply_action(self, member, action, settings, reason_key, lang):
+        """Apply a per-message filter action. The offending message is already deleted.
+
+        reason_key → localized reason for the user DM, English for the audit log.
+        """
+        reason = t("en", f"mod.reason_{reason_key}")  # English label for audit reasons
         guild = member.guild if isinstance(member, discord.Member) else None
         try:
             if action == "warn":
-                await self._dm(member, f"Your message was removed: {reason}.")
+                await self._dm(member, t(lang, "mod.dmRemoved", reason=t(lang, f"mod.reason_{reason_key}")))
             elif action == "mute":
                 await self._apply_mute_role(member, settings, reason)
             elif action == "timeout":
@@ -242,10 +252,11 @@ class Moderation(commands.Cog):
             window.popleft()
 
         if len(window) > limit:
+            lang = await lang_for(self.backend_url, config.BOT_API_KEY, message.guild.id)
             await self._safe_delete(message)
             await self._dm(
                 message.author,
-                f"You are sending messages too quickly in {message.guild.name}. Please slow down.",
+                t(lang, "mod.dmSpam", guild=message.guild.name),
             )
 
     # ------------------------------------------------------------------ #

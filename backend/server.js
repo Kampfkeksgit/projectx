@@ -31,6 +31,7 @@ import applicationsRoutes from './routes/applications.js'
 import economyRoutes from './routes/economy.js'
 import gamesRoutes from './routes/games.js'
 import backupRoutes from './routes/backup.js'
+import generalRoutes from './routes/general.js'
 import publicRoutes from './routes/public.js'
 import adminRoutes from './routes/admin.js'
 import premiumRoutes from './routes/premium.js'
@@ -129,6 +130,7 @@ app.use('/api/guilds/:guild_id/applications', requirePremiumModule('applications
 app.use('/api/guilds/:guild_id/economy', requirePremiumModule('economy'), economyRoutes)
 app.use('/api/guilds/:guild_id/games', requirePremiumModule('games'), gamesRoutes)
 app.use('/api/guilds/:guild_id/backups', requirePremiumModule('backup'), backupRoutes)
+app.use('/api/guilds/:guild_id/general', generalRoutes)
 app.use('/api/guilds/:guild_id', resourcesRoutes)
 app.use('/api/public', publicRoutes)
 app.use('/api/admin', adminRoutes)

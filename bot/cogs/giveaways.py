@@ -25,6 +25,8 @@ from discord.ext import commands, tasks
 
 import config
 from utils.backend import bot_get, bot_post, bot_put
+from utils import general_config
+from utils.bot_i18n import t, lang_for
 
 
 GIVEAWAY_COLOR = 0xF59E0B
@@ -69,15 +71,16 @@ class Giveaways(commands.Cog):
     @commands.has_permissions(administrator=True)
     @commands.guild_only()
     async def gstart(self, ctx, duration: str = None, winners: int = None, *, prize: str = None):
+        lang = await lang_for(self.backend_url, self.api_key, ctx.guild.id)
         if not duration or winners is None or not prize:
-            await ctx.reply("Usage: `!gstart <duration> <winners> <prize>` — e.g. `!gstart 10m 1 Nitro`", mention_author=False)
+            await ctx.reply(t(lang, "giveaway.usage"), mention_author=False)
             return
         seconds = parse_duration(duration)
         if seconds is None:
-            await ctx.reply("Invalid duration. Use e.g. `30s`, `10m`, `2h`, `1d`.", mention_author=False)
+            await ctx.reply(t(lang, "giveaway.invalidDuration"), mention_author=False)
             return
         if winners < 1 or winners > 50:
-            await ctx.reply("Winners must be between 1 and 50.", mention_author=False)
+            await ctx.reply(t(lang, "giveaway.winnersRange"), mention_author=False)
             return
 
         ends_at = int(time.time()) + seconds
@@ -87,48 +90,50 @@ class Giveaways(commands.Cog):
             {"channel_id": str(ctx.channel.id), "prize": prize[:256], "winners_count": winners, "ends_at": ends_at},
         )
         if not created or not created.get("id"):
-            await ctx.reply("Couldn't start the giveaway right now.", mention_author=False)
+            await ctx.reply(t(lang, "giveaway.startFailed"), mention_author=False)
             return
         gid = created["id"]
 
-        embed = self._build_embed(prize, winners, ends_at)
+        color = await general_config.get_embed_color(self.backend_url, self.api_key, ctx.guild.id, fallback=GIVEAWAY_COLOR)
+        embed = self._build_embed(prize, winners, ends_at, color=color, lang=lang)
         try:
             msg = await ctx.send(embed=embed, view=build_enter_view(gid))
         except discord.Forbidden:
-            await ctx.reply("I can't post in this channel.", mention_author=False)
+            await ctx.reply(t(lang, "giveaway.cantPost"), mention_author=False)
             return
         await bot_put(self.backend_url, self.api_key, f"/api/bot/guilds/{ctx.guild.id}/giveaways/{gid}/message", {"message_id": str(msg.id)})
 
-    def _build_embed(self, prize, winners, ends_at, ended=False):
-        embed = discord.Embed(title="🎉 Giveaway", color=GIVEAWAY_COLOR)
-        embed.add_field(name="Prize", value=str(prize), inline=False)
-        embed.add_field(name="Winners", value=str(winners), inline=True)
+    def _build_embed(self, prize, winners, ends_at, ended=False, color=GIVEAWAY_COLOR, lang="en"):
+        embed = discord.Embed(title=t(lang, "giveaway.title"), color=color)
+        embed.add_field(name=t(lang, "giveaway.prize"), value=str(prize), inline=False)
+        embed.add_field(name=t(lang, "giveaway.winners"), value=str(winners), inline=True)
         if ended:
-            embed.add_field(name="Status", value="Ended", inline=True)
+            embed.add_field(name=t(lang, "giveaway.status"), value=t(lang, "giveaway.ended"), inline=True)
         else:
-            embed.add_field(name="Ends", value=f"<t:{ends_at}:R>", inline=True)
-            embed.set_footer(text="Click Enter to join!")
+            embed.add_field(name=t(lang, "giveaway.ends"), value=f"<t:{ends_at}:R>", inline=True)
+            embed.set_footer(text=t(lang, "giveaway.joinFooter"))
         return embed
 
     @commands.command(name="greroll")
     @commands.has_permissions(administrator=True)
     @commands.guild_only()
     async def greroll(self, ctx, giveaway_id: str = None):
+        lang = await lang_for(self.backend_url, self.api_key, ctx.guild.id)
         if not giveaway_id:
-            await ctx.reply("Usage: `!greroll <giveaway_id>` (find the id in the dashboard).", mention_author=False)
+            await ctx.reply(t(lang, "giveaway.rerollUsage"), mention_author=False)
             return
         data = await bot_get(self.backend_url, self.api_key, f"/api/bot/guilds/{ctx.guild.id}/giveaways/{giveaway_id}")
         gv = (data or {}).get("giveaway")
         if not gv:
-            await ctx.reply("Giveaway not found.", mention_author=False)
+            await ctx.reply(t(lang, "giveaway.notFound"), mention_author=False)
             return
         ent = await bot_get(self.backend_url, self.api_key, f"/api/bot/guilds/{ctx.guild.id}/giveaways/{giveaway_id}/entries")
         user_ids = (ent or {}).get("user_ids") or []
         if not user_ids:
-            await ctx.reply("No entries to reroll.", mention_author=False)
+            await ctx.reply(t(lang, "giveaway.noEntries"), mention_author=False)
             return
         winner = random.choice(user_ids)
-        await ctx.send(f"🎉 Reroll! New winner for **{gv.get('prize')}**: <@{winner}>!")
+        await ctx.send(t(lang, "giveaway.reroll", prize=gv.get("prize"), winner=winner))
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction):
@@ -141,17 +146,18 @@ class Giveaways(commands.Cog):
         # Backend-Call vor der Antwort — sofort deferren, sonst riskiert ein
         # langsamer Round-Trip den abgelaufenen Interaction-Token (10062).
         await interaction.response.defer(ephemeral=True)
+        lang = await lang_for(self.backend_url, self.api_key, interaction.guild.id)
         result = await bot_post(
             self.backend_url, self.api_key,
             f"/api/bot/guilds/{interaction.guild.id}/giveaways/{gid}/entries",
             {"user_id": str(interaction.user.id)},
         )
         if result and result.get("added"):
-            await interaction.followup.send("🎉 You're entered. Good luck!", ephemeral=True)
+            await interaction.followup.send(t(lang, "giveaway.entered"), ephemeral=True)
         elif result is not None:
-            await interaction.followup.send("You're already entered.", ephemeral=True)
+            await interaction.followup.send(t(lang, "giveaway.alreadyEntered"), ephemeral=True)
         else:
-            await interaction.followup.send("Couldn't register your entry. Try again.", ephemeral=True)
+            await interaction.followup.send(t(lang, "giveaway.entryFailed"), ephemeral=True)
 
     @tasks.loop(seconds=30)
     async def draw_loop(self):
@@ -183,14 +189,15 @@ class Giveaways(commands.Cog):
         ent = await bot_get(self.backend_url, self.api_key, f"/api/bot/guilds/{g['guild_id']}/giveaways/{g['id']}/entries")
         user_ids = (ent or {}).get("user_ids") or []
 
+        lang = await lang_for(self.backend_url, self.api_key, g["guild_id"])
         if not user_ids:
-            await channel.send(f"🎉 Giveaway for **{g.get('prize')}** ended — no valid entries, no winner.")
+            await channel.send(t(lang, "giveaway.noWinner", prize=g.get("prize")))
             return
 
         count = min(int(g.get("winners_count") or 1), len(user_ids))
         winners = random.sample(user_ids, count)
         mentions = ", ".join(f"<@{uid}>" for uid in winners)
-        await channel.send(f"🎉 Congratulations {mentions}! You won **{g.get('prize')}**!")
+        await channel.send(t(lang, "giveaway.won", mentions=mentions, prize=g.get("prize")))
 
 
 async def setup(bot):

@@ -7,9 +7,13 @@ import App from './App.vue'
 import { useAuth } from './stores/auth.js'
 import { initNative } from './native/capacitor.js'
 import { applyMobileClass } from './mobile/platform.js'
+import { initDashboardTheme } from './composables/useDashboardTheme.js'
 
 // Markiert <html> mit .mobile-ui in der nativen App / bei ?mobile=1.
 applyMobileClass()
+
+// Wendet das zuletzt gewählte Dashboard-Theme (dark|light) früh an — kein Flash.
+initDashboardTheme()
 
 // Kick off the /auth/me probe immediately so the router guards can resolve.
 // We do NOT await it — the guard awaits internally while pages show loading.
