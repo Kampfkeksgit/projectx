@@ -256,6 +256,11 @@ async def setup_hook():
         print('✅​ Server-Backup cog loaded')
     except Exception as e:
         print(f'❌ Failed to load Server-Backup cog: {e}')
+    try:
+        await bot.load_extension('cogs.admin_broadcast')
+        print('✅​ Admin-Broadcast cog loaded')
+    except Exception as e:
+        print(f'❌ Failed to load Admin-Broadcast cog: {e}')
 
     # Sync application (slash) commands. setup_hook runs once, so no guard needed.
     try:

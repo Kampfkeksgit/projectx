@@ -1,6 +1,6 @@
 import express from 'express'
 import { getPublicStats } from '../state/botStats.js'
-import { PLAN_CATALOG, getMaintenanceState } from '../db.js'
+import { PLAN_CATALOG, getMaintenanceState, getAnnouncementState } from '../db.js'
 
 const router = express.Router()
 
@@ -45,6 +45,17 @@ router.get('/maintenance', async (req, res) => {
     res.json(state)
   } catch (error) {
     res.json({ enabled: false, message: '' })
+  }
+})
+
+/** Public global announcement banner — no auth. Polled by AnnouncementBanner.vue. */
+router.get('/announcement', async (req, res) => {
+  res.set('Cache-Control', 'public, max-age=15')
+  try {
+    const state = await getAnnouncementState()
+    res.json(state)
+  } catch (error) {
+    res.json({ enabled: false, message: '', level: 'info' })
   }
 })
 

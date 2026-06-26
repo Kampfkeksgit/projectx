@@ -97,7 +97,9 @@ import {
   getDueBackupJobs,
   updateBackupJob,
   createBackup,
-  logError
+  logError,
+  getDueBroadcast,
+  updateBroadcast
 } from '../db.js'
 import { requireBotToken } from '../middleware/session.js'
 import { setBotStats } from '../state/botStats.js'
@@ -867,6 +869,37 @@ router.get('/guilds/:guild_id/settings/suggestions', requireBotToken, async (req
   } catch (error) {
     console.error('Bot get suggestion settings error:', error.message)
     res.status(500).json({ error: 'Failed to fetch suggestion settings' })
+  }
+})
+
+/**
+ * Bot-only: owner broadcast queue (Owner admin → Kommunikation).
+ *   GET /api/bot/broadcasts/due → { broadcast } | { broadcast: null }
+ *   PUT /api/bot/broadcasts/:id  body { status?, sent_count?, total? }
+ */
+router.get('/broadcasts/due', requireBotToken, async (req, res) => {
+  try {
+    const broadcast = await getDueBroadcast()
+    return res.json({ broadcast: broadcast || null })
+  } catch (error) {
+    console.error('Bot get due broadcast error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch broadcast' })
+  }
+})
+
+router.put('/broadcasts/:id', requireBotToken, async (req, res) => {
+  try {
+    const { status, sent_count, total } = req.body || {}
+    const changes = await updateBroadcast(req.params.id, {
+      status,
+      sent_count: sent_count !== undefined ? Number(sent_count) : undefined,
+      total: total !== undefined ? Number(total) : undefined
+    })
+    if (changes === 0) return res.status(404).json({ error: 'Broadcast not found' })
+    return res.json({ success: true })
+  } catch (error) {
+    console.error('Bot update broadcast error:', error.message)
+    res.status(500).json({ error: 'Failed to update broadcast' })
   }
 })
 

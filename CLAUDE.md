@@ -51,7 +51,7 @@ Doku-Index: [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md)
 ```
 projectx/
 ├── bot/                        # Python Discord-Bot
-│   ├── main.py                 # Entry-Point, lädt 34 Cogs in setup_hook (läuft 1× beim Start — NICHT in on_ready, das bei jedem Reconnect feuert → sonst „Extension already loaded")
+│   ├── main.py                 # Entry-Point, lädt 35 Cogs in setup_hook (läuft 1× beim Start — NICHT in on_ready, das bei jedem Reconnect feuert → sonst „Extension already loaded")
 │   │                           # Danach in setup_hook: bot.tree.sync() für Slash-Commands. on_ready loggt nur noch die Verbindung.
 │   │                           # command_prefix = async _resolve_prefix (per-Guild via command_config, Cache, Mention immer aktiv)
 │   │                           # Globale Gates: @bot.check (Prefix) + bot.tree.interaction_check (Slash) sperren deaktivierte Befehle
@@ -171,6 +171,8 @@ projectx/
 │                               # mode=mirror gleicht zusätzlich an + löscht Channels UND Rollen die NICHT im Snapshot sind
 │                               # (Rollen-Löschung nur wenn parts.roles; nie @everyone/managed/über Bot-Top-Rolle);
 │                               # Server-Name/-Icon nur mit MANAGE_GUILD. asyncio.sleep zwischen Creates (Rate-Limit).
+│       └── admin_broadcast.py  # Owner-Broadcast (Owner-Admin): @tasks.loop(30s) pollt GET /api/bot/broadcasts/due,
+│                               # claimt (status=sending), DMt die Nachricht an jeden eindeutigen Guild-Owner, meldet done {sent,total}.
 ├── backend/                    # Node.js / Express API
 │   ├── server.js               # App-Init, CORS+cookies, Migration-Bootstrap, Route-Mounts, Warnings
 │   ├── db.js                   # SQLite-Connection + Query-Helper (inkl. updateUserTokens,
@@ -298,6 +300,8 @@ projectx/
 │       │   ├── CookieBanner.vue # Cookie-Consent-Banner (bottom-right, localStorage projectx_cookie_consent)
 │       │   ├── MaintenanceBanner.vue # Globaler Wartungs-Banner; pollt GET /api/public/maintenance (60s), rendert nur bei enabled
 │       │   │                       # (Normal-Flow oben in beiden Shells — App.vue + MobileShell.vue)
+│       │   ├── AnnouncementBanner.vue # Globaler Ankündigungs-Banner; pollt GET /api/public/announcement (60s); level info(blau)/warning(gelb)
+│       │   │                       # (oben in beiden Shells, unter dem Wartungs-Banner)
 │       │   ├── ChipInput.vue   # Reusable Chip-Input — nur noch für Banned-Words in Moderation
 │       │   ├── ChannelSelector.vue # Searchable Dropdown (single) — :types filter (text/voice/category/...)
 │       │   ├── RoleSelector.vue    # Searchable Dropdown — single oder :multiple, Color-Dots, Hierarchie
@@ -366,7 +370,8 @@ projectx/
 │           │                       # Overview (Metrik-Karten + Premium-läuft-ab + Modul-Adoption), Health (Bot-Live-Status: online/Latenz/Uptime/
 │           │                       # Server/Version aus /admin/health), Users/Guilds (Sperren mit Temp-Ban-Dauer, Tier-Select, CSV-Export,
 │           │                       # Guild-Inspektor-Modal), Audit (filterbarer Log), Jobs (Backup-Job-Queue aller Guilds + Retry),
-│           │                       # Errors (zentrales Fehler-Log, Filter Quelle/Stufe + Leeren), System (Wartungsmodus-Toggle)
+│           │                       # Errors (zentrales Fehler-Log, Filter Quelle/Stufe + Leeren), System (Wartungsmodus +
+│           │                       # Ankündigungs-Banner info/warning + Owner-Broadcast an alle Server-Owner mit Status-Liste)
 │           ├── AuthCallback.vue     # /auth/callback (OAuth-Return → /dashboard)
 │           └── legal/
 │               ├── LegalLayout.vue  # Shared Typography-Wrapper (TOC, Sections, Last-Updated)
@@ -663,6 +668,7 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - `GET /api/admin/guilds/:guild_id/inspect` → `{ success, inspect: { id, guild_name, guild_icon_url, bot_present, blocked, blocked_reason, blocked_until, premium_tier, premium_source, premium_until, premium_effective, dashboard_members, created_at, modules:[{key,kind,enabled,configured,count?}] } }`. Read-only Modul-/Premium-/Presence-Snapshot (Support-Tool). 404 wenn Guild unbekannt. `getGuildInspect`.
 - `GET /api/admin/maintenance` → `{ success, enabled, message }`. `PUT /api/admin/maintenance` body `{ enabled, message? }` → `{ success, enabled, message }`. Globaler Wartungsmodus. Audit `ADMIN_MAINTENANCE`. `getMaintenanceState`/`setMaintenanceState`.
 - `GET /api/admin/users/export` + `GET /api/admin/guilds/export` → CSV-Download (`text/csv`, UTF-8 BOM). `getUsersForExport`/`getGuildsForExport`.
+- **Kommunikation (Kat. 3):** `GET/PUT /api/admin/announcement` (Body `{ enabled, message?, level? }`, Audit `ADMIN_ANNOUNCEMENT`) — globales Banner. `POST /api/admin/broadcast` body `{ message }` → reiht eine Owner-DM-Rundsendung ein (Audit `ADMIN_BROADCAST`); `GET /api/admin/broadcasts` → letzte Rundsendungen + Status. Öffentlich: `GET /api/public/announcement` → `{ enabled, message, level }` (Cache 15s, vom `AnnouncementBanner` gepollt). Bot (`X-Bot-Token`): `GET /api/bot/broadcasts/due` → `{ broadcast | null }`; `PUT /api/bot/broadcasts/:id` body `{ status, sent_count?, total? }`.
 - **Analytics (Kat. 2):** `GET /api/admin/metrics?days=` → `{ success, snapshots: [{ ts, users, guilds, present, basic, pro, premium, adoption }] }` (tägliche Snapshots für Wachstums-/Adoptions-Charts). `GET /api/admin/top-guilds?by=modules|activity` → `{ success, by, guilds: [{ id, guild_name, guild_icon_url, score }] }` (Top-Server nach aktiven Modulen bzw. Audit-Aktivität 30d).
 - **Monitoring (Kat. 1):** `GET /api/admin/health` → `{ success, bot: { online, guild_count, user_count, started_at, uptime_seconds, last_seen_seconds_ago, latency_ms, version, ... }, backend: { version, node, uptime_seconds } }` (Bot-Detail aus `botStats.getBotHealth()`). `GET /api/admin/errors?source=&level=&limit=&offset=` → `{ success, entries, total }` (zentrales Fehler-Log); `DELETE /api/admin/errors` → leert es (Audit `ADMIN_CLEAR_ERRORS`). `GET /api/admin/jobs?status=&limit=&offset=` → `{ success, jobs, total }` (alle `guild_backup_jobs` über alle Guilds, mit `guild_name`); `POST /api/admin/jobs/:id/retry` → fehlgeschlagenen Job auf `pending` zurücksetzen (Audit `ADMIN_RETRY_JOB`).
 
@@ -791,9 +797,9 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - Engine: **SQLite3** (Datei via `DATABASE_URL`, default `./data/bot.db`)
 - Connection: [backend/db.js](backend/db.js)
 - Migrations: [backend/migrations.js](backend/migrations.js)
-  - **Aktuelle Schema-Version: `38`**
+  - **Aktuelle Schema-Version: `39`**
   - `CURRENT_SCHEMA_VERSION` Konstante steuert Upgrades.
-  - `applyMigrations(from, to)` mappt Versionsnummern → Migration-Funktionen (`migrationV1`, …, `migrationV38`). v23–v38 nutzen den `runSchemaBatch(version, statements)`-Helper.
+  - `applyMigrations(from, to)` mappt Versionsnummern → Migration-Funktionen (`migrationV1`, …, `migrationV39`). v23–v39 nutzen den `runSchemaBatch(version, statements)`-Helper.
   - Versionstabelle: `schema_version (version PK, applied_at)`.
   - `migrationV2` fügt `users.token_expires_at INTEGER` hinzu (idempotent).
   - `migrationV3` legt `guild_autorole_settings`, `guild_log_settings`, `guild_moderation_settings` an (`CREATE TABLE IF NOT EXISTS` — idempotent; werden parallel auch im `initializeDatabase()`-Pfad erzeugt, damit Fresh-DBs auch ohne Migrations-Run funktionieren).
@@ -834,6 +840,7 @@ Mount-Points aus [backend/server.js](backend/server.js):
   - `migrationV36` (Allgemeine Dashboard-Einstellungen, Free): legt `guild_general_settings` an (`guild_id PK`, `language` Default `'en'`, `timezone` Default `'UTC'`, `embed_color` Default `'#5865F2'`, `dashboard_theme` Default `'dark'`; **kein `enabled`-Toggle** — immer aktiv). Idempotent + Mirror in `initializeDatabase()`. `GENERAL_LANGUAGES` (`en|de|tr|ru|pl`) / `GENERAL_THEMES` (`dark|light`) / `GENERAL_TIMEZONES` (kuratierte IANA-Liste, Frontend-Spiegel) / `GENERAL_DEFAULTS` in [db.js](backend/db.js) sind Single Source; `getGeneralSettings`/`upsertGeneralSettings` validieren/fallbacken (Sprache→en, Zeitzone→UTC, Farbe via `sanitizeColor`, Theme→dark). Neuer Cookie-Router [general.js](backend/routes/general.js) (`/api/guilds/:id/general` GET/PUT, Audit `UPDATE_GENERAL_SETTINGS`) + Bot-GET `/api/bot/guilds/:id/settings/general`. `MODULE_TIERS.general = 'free'`, in `MODULE_DEFAULTS`.
   - `migrationV37` (Zentrales Fehler-Log, Owner-Admin → Monitoring): legt `error_log` an (`id` AUTOINCREMENT, `source ∈ {bot|backend}`, `level ∈ {error|warning}`, `context`, `message`, `stack`, `guild_id`, `created_at` unix-seconds; Index `idx_error_log_created`). Idempotent + Mirror in `initializeDatabase()`. Helfer in [db.js](backend/db.js): `logError` (best-effort, wirft nie; Retention `ERROR_LOG_MAX = 2000`), `getErrorLog`/`clearErrorLog`, `ERROR_LOG_SOURCES`/`ERROR_LOG_LEVELS`. Plus (kein Schema) `getAllBackupJobs({status,limit,offset})` + `retryBackupJob` für den Job-Monitor.
   - `migrationV38` (Admin-Analytics-Snapshots, Owner-Admin → Analytics): legt `admin_metrics_snapshots` an (`day PK` = UTC-Mitternacht-unix-seconds, `users_total`/`guilds_total`/`guilds_present`/`premium_basic`/`premium_pro`, `module_adoption` JSON; idempotent + Mirror). Helfer in [db.js](backend/db.js): `captureMetricsSnapshot()` (Upsert pro Tag, expiry-aware Premium + Modul-Adoption), `getMetricsSnapshots(days)`, `getTopGuilds({by ∈ modules|activity})`. [server.js](backend/server.js) ruft `captureMetricsSnapshot()` beim Start + alle 6h (best-effort).
+  - `migrationV39` (Owner-Broadcast-Queue, Owner-Admin → Kommunikation): legt `admin_broadcasts` an (`id` UUID, `message`, `status ∈ {pending|sending|done|failed}`, `sent_count`/`total`, `created_by`, `created_at`/`updated_at`; idempotent + Mirror). Helfer in [db.js](backend/db.js): `createBroadcast`/`getDueBroadcast`/`updateBroadcast`/`getRecentBroadcasts` + `BROADCAST_STATUSES`. Plus (kein Schema) **Announcement-Banner** über `system_settings`-Key `announcement` (JSON `{enabled,message,level ∈ {info|warning}}`): `getAnnouncementState`/`setAnnouncementState` + `ANNOUNCEMENT_LEVELS`.
   - `migrationV18` (Ticket-Überarbeitung, idempotente ALTERs + neue Tabelle + Mirror): `guild_ticket_settings` +10 Spalten (`panel_type ∈ {dropdown|buttons}`, `panel_embed`/`welcome_embed` JSON, `ping_role_id`, `naming_template`, `claim_enabled`, `close_confirm`, `rating_enabled`, `rating_mode ∈ {channel|dm|both}`, `log_channel_id`); `guild_tickets` +8 Spalten (`ticket_category_id`, `number`, `claimed_by`, `rating`, `rating_comment`, `closed_by`, `closed_at`, `extra_user_ids` JSON); neue Tabelle `guild_ticket_categories` (`id` UUID, `idx_ticket_categories_guild`, FK CASCADE) — Ticket-Typen mit Label/Emoji/Desc + Kategorie-/Support-Rollen-/Ping-Rollen-Override, Welcome-Text, `button_style`, Position, Enabled.
 
 **Kern-Tabellen** (Details: [backend/DATABASE_SCHEMA.md](backend/DATABASE_SCHEMA.md), [backend/DATABASE_FUNCTIONS.md](backend/DATABASE_FUNCTIONS.md))
@@ -884,6 +891,7 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - `guild_games_settings` (eine Row, geteilter `games_channel_id` + pro-Spiel-Toggle inkl. `poker_enabled` + `poker_table_theme` Filz-Design + `games_language` In-Game-Sprache) + `guild_game_scores` (`(guild_id, user_id, game)`, `wins`/`plays`) — Games-Kategorie (Basic): Tic-Tac-Toe/RPS/Trivia/Connect-Four/Hangman/Poker
 - `guild_backups` (`id` UUID, `name`, `guild_name`/`guild_icon_url`, `channels_count`/`roles_count`, `data` JSON-Blob mit `{server,roles,channels}`, `created_at`; Retention max 15/Guild) + `guild_backup_jobs` (`id` UUID, `type ∈ {snapshot|restore}`, `status`, `backup_id`, `mode ∈ {missing|mirror}`, `parts` (JSON-Teil-Auswahl, NULL=alle), `message`, `created_at`/`updated_at`) — Server-Backup & Restore (Pro)
 - `marketplace_templates` (`id` UUID, `owner_user_id`, `source_guild_id`, `name`/`description`/`category`, `guild_name`/`guild_icon_url`, `channels_count`/`roles_count`, `data` JSON-Blob, `status`, `uses`, `created_at`) — Template-Marketplace (Owner veröffentlicht, jede Pro-Guild wendet an; `backup_id` eines Restore-Jobs kann auf diese Tabelle zeigen)
+- `admin_broadcasts` — Owner-Broadcast-Queue (DM an alle Server-Owner): `id` UUID, `message`, `status ∈ {pending|sending|done|failed}`, `sent_count`/`total`, vom Bot-Cog `admin_broadcast` abgearbeitet. (Announcement-Banner liegt dagegen in `system_settings` unter Key `announcement`.)
 - `admin_metrics_snapshots` — tägliche System-Metriken (`day PK`, User-/Guild-/Premium-Totals + `module_adoption` JSON) für die Admin-Analytics-Charts (Wachstum + Modul-Adoption-Trend). Vom Backend-Intervall (`captureMetricsSnapshot`, 6h) befüllt.
 - `error_log` — zentrales Fehler-/Exception-Log (`source ∈ {bot|backend}`, `level`, `context`, `message`, `stack`, `guild_id`, `created_at`), gefüllt von Bot (`POST /api/bot/errors`) + Backend (globaler Error-Handler), gelesen vom Owner-Admin → Monitoring. Retention 2000 Zeilen.
 - `schema_version` — Migrations-Tracking
@@ -1046,6 +1054,12 @@ Empfehlung aus [README.md](README.md): SQLite → PostgreSQL für Multi-Instance
 
 ## 14. Letzte Aktualisierung
 
+- **Datum:** 2026-06-26
+- **Admin-Bereich → Kommunikation (Schema v39):** Zwei Owner-Funktionen, beide im System-Tab.
+  - **Globales Ankündigungs-Banner** — wie der Wartungsmodus über `system_settings` (Key `announcement`, JSON `{enabled,message,level}`), blockt aber **keine** Writes. Neue Komponente [AnnouncementBanner.vue](frontend/src/components/AnnouncementBanner.vue) (pollt `GET /api/public/announcement` alle 60s, level info=blau/warning=gelb), in [App.vue](frontend/src/App.vue) + [MobileShell.vue](frontend/src/mobile/MobileShell.vue) unter dem Wartungs-Banner. `getAnnouncementState`/`setAnnouncementState` in [db.js](backend/db.js), `GET/PUT /api/admin/announcement` (Audit `ADMIN_ANNOUNCEMENT`).
+  - **Owner-Broadcast** — DM an **alle Server-Owner**. Owner reiht via `POST /api/admin/broadcast` eine Nachricht ein → Tabelle `admin_broadcasts` (Migration v39). Neues Bot-Cog [admin_broadcast.py](bot/cogs/admin_broadcast.py) (35 Cogs gesamt) pollt `GET /api/bot/broadcasts/due` (30s), claimt (status=sending), DMt jeden eindeutigen `guild.owner_id` (1s-Pause gegen Rate-Limit), meldet `done {sent,total}` via `PUT /api/bot/broadcasts/:id`. Admin sieht die letzten Rundsendungen mit Live-Status (`GET /api/admin/broadcasts`).
+  - **Frontend:** [Admin.vue](frontend/src/pages/Admin.vue) System-Tab um Banner- + Broadcast-Panel (Status-Liste) erweitert. i18n: 15 neue `admin.ann*`/`admin.bc*`-Keys in **allen 5 Sprachen** (Parität 1433/Locale).
+  - Verifiziert: Migration v39 + DB-Smoke (Announcement set/level-fallback, Broadcast create→due→sending→done→recent) grün, Backend-Syntax OK, Bot kompiliert (`compileall`), Frontend-Build grün, i18n-Parität 1433/Locale.
 - **Datum:** 2026-06-26
 - **Admin-Bereich → Wachstum & Analytics (Schema v38):** Neuer Tab „Analytics" im Owner-Admin.
   - **Wachstums-Charts** — Server/Nutzer/Premium über Zeit, gerendert mit dem vorhandenen [StatsChart.vue](frontend/src/components/StatsChart.vue) (getrennte Charts, da Skalen stark differieren). Datenbasis: tägliche Snapshots in `admin_metrics_snapshots` (Migration v38), befüllt von `captureMetricsSnapshot()` beim Backend-Start + alle 6h (Upsert pro UTC-Tag).

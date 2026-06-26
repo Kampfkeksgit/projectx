@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 38;
+const CURRENT_SCHEMA_VERSION = 39;
 
 /**
  * Initialize schema version tracking
@@ -97,7 +97,8 @@ async function applyMigrations(fromVersion, toVersion) {
     35: migrationV35,
     36: migrationV36,
     37: migrationV37,
-    38: migrationV38
+    38: migrationV38,
+    39: migrationV39
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -1966,6 +1967,28 @@ function migrationV38() {
       premium_pro     INTEGER DEFAULT 0,
       module_adoption TEXT DEFAULT '{}',
       created_at      INTEGER
+    )`
+  ]);
+}
+
+/**
+ * Migration V39: Owner broadcast queue (Owner admin → Kommunikation).
+ *   - admin_broadcasts: a DM blast to all server owners. The owner enqueues one,
+ *     the bot polls the oldest pending job, DMs every unique guild owner, and
+ *     reports progress. `status` ∈ {pending|sending|done|failed}.
+ * Idempotent; mirrored in initializeDatabase().
+ */
+function migrationV39() {
+  return runSchemaBatch(39, [
+    `CREATE TABLE IF NOT EXISTS admin_broadcasts (
+      id         TEXT PRIMARY KEY,
+      message    TEXT,
+      status     TEXT DEFAULT 'pending',
+      sent_count INTEGER DEFAULT 0,
+      total      INTEGER DEFAULT 0,
+      created_by TEXT,
+      created_at INTEGER,
+      updated_at INTEGER
     )`
   ]);
 }

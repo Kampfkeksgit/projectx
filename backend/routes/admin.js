@@ -27,7 +27,12 @@ import {
   getErrorLog,
   clearErrorLog,
   getMetricsSnapshots,
-  getTopGuilds
+  getTopGuilds,
+  getAnnouncementState,
+  setAnnouncementState,
+  ANNOUNCEMENT_LEVELS,
+  createBroadcast,
+  getRecentBroadcasts
 } from '../db.js'
 import { getBotHealth } from '../state/botStats.js'
 import { requireSession, requireOwner, isOwner } from '../middleware/session.js'
@@ -321,6 +326,61 @@ router.post('/jobs/:id/retry', async (req, res) => {
   } catch (error) {
     console.error('Admin retry job error:', error.message)
     res.status(500).json({ error: 'Failed to retry job' })
+  }
+})
+
+/**
+ * GET /api/admin/announcement — current global announcement banner.
+ * PUT /api/admin/announcement  Body: { enabled, message?, level? } — set it.
+ */
+router.get('/announcement', async (req, res) => {
+  try {
+    const state = await getAnnouncementState()
+    res.json({ success: true, ...state })
+  } catch (error) {
+    console.error('Admin get announcement error:', error.message)
+    res.status(500).json({ error: 'Failed to load announcement' })
+  }
+})
+
+router.put('/announcement', async (req, res) => {
+  try {
+    const enabled = !!req.body?.enabled
+    const message = typeof req.body?.message === 'string' ? req.body.message : ''
+    const level = ANNOUNCEMENT_LEVELS.includes(req.body?.level) ? req.body.level : 'info'
+    await setAnnouncementState({ enabled, message, level })
+    await logAuditAction(req.user.id, null, 'ADMIN_ANNOUNCEMENT', { enabled, level, message: message || null })
+    res.json({ success: true, enabled, message, level })
+  } catch (error) {
+    console.error('Admin set announcement error:', error.message)
+    res.status(500).json({ error: 'Failed to update announcement' })
+  }
+})
+
+/**
+ * POST /api/admin/broadcast  Body: { message } — enqueue a DM to all server owners.
+ * GET  /api/admin/broadcasts — recent broadcasts + their status.
+ */
+router.post('/broadcast', async (req, res) => {
+  try {
+    const message = typeof req.body?.message === 'string' ? req.body.message.trim() : ''
+    if (!message) return res.status(400).json({ error: 'message required' })
+    const { id } = await createBroadcast(message, req.user.id)
+    await logAuditAction(req.user.id, null, 'ADMIN_BROADCAST', { broadcast_id: id, message: message.slice(0, 200) })
+    res.json({ success: true, id })
+  } catch (error) {
+    console.error('Admin broadcast error:', error.message)
+    res.status(500).json({ error: 'Failed to enqueue broadcast' })
+  }
+})
+
+router.get('/broadcasts', async (req, res) => {
+  try {
+    const broadcasts = await getRecentBroadcasts(20)
+    res.json({ success: true, broadcasts })
+  } catch (error) {
+    console.error('Admin broadcasts list error:', error.message)
+    res.status(500).json({ error: 'Failed to load broadcasts' })
   }
 })
 
