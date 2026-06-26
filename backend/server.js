@@ -3,7 +3,7 @@ import cors from 'cors'
 import cookieParser from 'cookie-parser'
 import dotenv from 'dotenv'
 import { initializeSchemaVersion, checkAndApplyMigrations } from './migrations.js'
-import { whenDbReady, logError } from './db.js'
+import { whenDbReady, logError, captureMetricsSnapshot } from './db.js'
 import authRoutes from './routes/auth.js'
 import guildRoutes from './routes/guilds.js'
 import settingsRoutes from './routes/settings.js'
@@ -72,6 +72,12 @@ whenDbReady
   .then(() => {
     dbReady = true
     console.log('✅​ Database ready')
+    // Owner admin → Analytics: capture a daily metrics snapshot (upsert per UTC
+    // day). Run once on boot, then every 6h so a long-running process records
+    // growth even without anyone visiting the dashboard. Best-effort.
+    const capture = () => captureMetricsSnapshot().catch((e) => console.error('Metrics snapshot failed:', e.message))
+    capture()
+    setInterval(capture, 6 * 60 * 60 * 1000)
   })
   .catch((err) => {
     console.error('Failed to initialize database:', err)

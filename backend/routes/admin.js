@@ -25,7 +25,9 @@ import {
   getAllBackupJobs,
   retryBackupJob,
   getErrorLog,
-  clearErrorLog
+  clearErrorLog,
+  getMetricsSnapshots,
+  getTopGuilds
 } from '../db.js'
 import { getBotHealth } from '../state/botStats.js'
 import { requireSession, requireOwner, isOwner } from '../middleware/session.js'
@@ -319,6 +321,34 @@ router.post('/jobs/:id/retry', async (req, res) => {
   } catch (error) {
     console.error('Admin retry job error:', error.message)
     res.status(500).json({ error: 'Failed to retry job' })
+  }
+})
+
+/**
+ * GET /api/admin/metrics?days= — daily growth/adoption snapshots (Analytics).
+ */
+router.get('/metrics', async (req, res) => {
+  try {
+    const days = Number(req.query.days) || 30
+    const snapshots = await getMetricsSnapshots(days)
+    res.json({ success: true, snapshots })
+  } catch (error) {
+    console.error('Admin metrics error:', error.message)
+    res.status(500).json({ error: 'Failed to load metrics' })
+  }
+})
+
+/**
+ * GET /api/admin/top-guilds?by=modules|activity — leaderboard for Analytics.
+ */
+router.get('/top-guilds', async (req, res) => {
+  try {
+    const by = req.query.by === 'activity' ? 'activity' : 'modules'
+    const guilds = await getTopGuilds({ by, limit: 15 })
+    res.json({ success: true, by, guilds })
+  } catch (error) {
+    console.error('Admin top-guilds error:', error.message)
+    res.status(500).json({ error: 'Failed to load top guilds' })
   }
 })
 
