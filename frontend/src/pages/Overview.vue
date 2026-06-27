@@ -654,6 +654,8 @@ import AppButton from '../components/AppButton.vue'
 import api from '../services/api.js'
 import { useGuildSettings } from '../stores/guildSettings.js'
 import { usePremium } from '../stores/premium.js'
+import { useTour } from '../composables/useTour.js'
+import { isMobileUI } from '../mobile/platform.js'
 import { useI18n } from '../i18n/index.js'
 
 const { t } = useI18n()
@@ -661,6 +663,20 @@ const { t } = useI18n()
 const route = useRoute()
 const store = useGuildSettings()
 const premium = usePremium()
+const tour = useTour()
+
+// First-visit guided tour through the dashboard. Steps highlight the sidebar
+// navigation, a module card, the premium link and the server switcher. Shown
+// once per browser (persisted in localStorage by useTour). Desktop shell only —
+// the mobile shell has its own layout and doesn't mount TourOverlay.
+const TOUR_STEPS = [
+  { selector: null, placement: 'center', titleKey: 'tour.welcomeTitle', bodyKey: 'tour.welcomeBody' },
+  { selector: '.sidebar__nav', placement: 'right', titleKey: 'tour.navTitle', bodyKey: 'tour.navBody' },
+  { selector: '.overview__grid .config-card', placement: 'bottom', titleKey: 'tour.modulesTitle', bodyKey: 'tour.modulesBody' },
+  { selector: '.sidebar__premium', placement: 'right', titleKey: 'tour.premiumTitle', bodyKey: 'tour.premiumBody' },
+  { selector: '.sidebar__switch', placement: 'right', titleKey: 'tour.switchTitle', bodyKey: 'tour.switchBody' },
+  { selector: null, placement: 'center', titleKey: 'tour.doneTitle', bodyKey: 'tour.doneBody' }
+]
 
 /** Is a premium module locked for the current tier? (false for free modules) */
 function isLocked(moduleKey) {
@@ -831,6 +847,13 @@ async function fetchExtraStatus() {
 
 onMounted(fetchExtraStatus)
 watch(() => guildId.value, fetchExtraStatus)
+
+// Kick off the onboarding tour on the first dashboard visit (desktop shell only).
+// Small delay so the sidebar + grid have laid out before we measure targets.
+onMounted(() => {
+  if (isMobileUI.value) return
+  setTimeout(() => tour.maybeStart(TOUR_STEPS), 600)
+})
 </script>
 
 <style scoped>

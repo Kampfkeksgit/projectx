@@ -16,6 +16,8 @@
     </main>
     <AppFooter />
     <CookieBanner />
+    <!-- Onboarding-Rundtour (nur Desktop-Shell; wird beim ersten Dashboard-Besuch ausgelöst). -->
+    <TourOverlay />
   </div>
 
   <!-- Toasts global über beiden Shells. -->
@@ -29,6 +31,7 @@ import MaintenanceBanner from './components/MaintenanceBanner.vue'
 import AnnouncementBanner from './components/AnnouncementBanner.vue'
 import AppFooter from './components/AppFooter.vue'
 import CookieBanner from './components/CookieBanner.vue'
+import TourOverlay from './components/TourOverlay.vue'
 import MobileShell from './mobile/MobileShell.vue'
 import { isMobileUI } from './mobile/platform.js'
 </script>
