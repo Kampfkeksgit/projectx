@@ -288,6 +288,7 @@ projectx/
 │       │       └── pl.js       # Polski (Polnisch)
 │       ├── composables/
 │       │   ├── useToast.js     # Toast-System-Composable
+│       │   ├── useTour.js      # Onboarding-Rundtour-State (active/stepIndex/steps) + maybeStart()/next()/prev()/finish(); 1×/Browser via localStorage projectx_tour_done_v1
 │       │   ├── useDashboardTheme.js # applyDashboardTheme(dark|light) setzt data-app-theme auf <html> + spiegelt nach localStorage; initDashboardTheme() in main.js (Boot, kein Flash)
 │       │   └── useGuildResources.js # Per-Guild-Cache (channels + roles) mit 5min stale-while-revalidate
 │       │                       # Wird von ChannelSelector + RoleSelector gemeinsam genutzt
@@ -300,6 +301,7 @@ projectx/
 │       │   ├── AppToast.vue
 │       │   ├── AppFooter.vue   # Globaler Footer (Brand/©/Version, Legal-Links, GitHub)
 │       │   ├── CookieBanner.vue # Cookie-Consent-Banner (bottom-right, localStorage projectx_cookie_consent)
+│       │   ├── TourOverlay.vue # Globale Onboarding-Rundtour (Teleport, Spotlight-Hole + Tooltip-Karte); nur Desktop-Shell (App.vue), getrieben von useTour, ausgelöst beim 1. Overview-Besuch
 │       │   ├── MaintenanceBanner.vue # Globaler Wartungs-Banner; pollt GET /api/public/maintenance (60s), rendert nur bei enabled
 │       │   │                       # (Normal-Flow oben in beiden Shells — App.vue + MobileShell.vue)
 │       │   ├── AnnouncementBanner.vue # Globaler Ankündigungs-Banner; pollt GET /api/public/announcement (60s); level info(blau)/warning(gelb)
@@ -1060,6 +1062,12 @@ Empfehlung aus [README.md](README.md): SQLite → PostgreSQL für Multi-Instance
 
 ## 14. Letzte Aktualisierung
 
+- **Datum:** 2026-06-27
+- **Onboarding-Rundtour beim ersten Dashboard-Login (kein Schema-Change):** Beim ersten Besuch der Server-Übersicht startet eine geführte Tour, die die wichtigsten Bereiche per Spotlight erklärt (Seitenleisten-Navigation → Modul-Karte → Premium/Tarif → Server-Wechsel), mit Intro- und Abschluss-Karte.
+  - **Eigenbau, vanilla (kein UI-Kit):** neues Composable [useTour.js](frontend/src/composables/useTour.js) (reaktiver State `active`/`stepIndex`/`steps`, `maybeStart()`/`next()`/`prev()`/`finish()`; 1×/Browser persistiert in `localStorage.projectx_tour_done_v1`) + globale Komponente [TourOverlay.vue](frontend/src/components/TourOverlay.vue) (Teleport nach body, Spotlight-„Hole" via `box-shadow: 0 0 0 9999px` um das Ziel-Element, Tooltip-Karte mit Platzierung top/bottom/left/right/center + Viewport-Clamping, recompute bei resize/scroll, `scrollIntoView` pro Schritt; fehlt/verborgen das Ziel → zentrierte Karte als Fallback).
+  - **Verdrahtung:** `<TourOverlay />` in der Desktop-Shell [App.vue](frontend/src/App.vue) (NICHT in MobileShell — die Mobile-UI hat eigenes Layout). Trigger in [Overview.vue](frontend/src/pages/Overview.vue) `onMounted` (nur wenn `!isMobileUI`, 600ms Delay fürs Layout) mit 6 Schritten (Selektoren `.sidebar__nav`/`.overview__grid .config-card`/`.sidebar__premium`/`.sidebar__switch`).
+  - **i18n:** neuer Namespace `tour` (18 Keys: step/skip/back/next/done + 6×Title/Body) in **allen 5 Sprachen** (Key-Parität verifiziert 1474/Locale).
+  - Verifiziert: i18n-Parität 1474/Locale grün, Frontend-Build grün (TourOverlay im Haupt-Bundle).
 - **Datum:** 2026-06-26
 - **Admin-Bereich → Premium & Business (Schema v40):** Drei Funktionen.
   - **Promo-/Trial-Codes** — Owner generiert im neuen Admin-Tab „Premium" einen Code (Tier/Dauer/Max-Nutzungen) → Tabelle `premium_codes` (Migration v40). Ein Guild-Admin löst ihn auf der [Premium.vue](frontend/src/pages/Premium.vue)-Seite ein (`POST /api/guilds/:id/premium/redeem`) → zeitlich begrenztes Premium (Quelle `'code'`, von der SKU-Sync unberührt). `createPremiumCode`/`redeemPremiumCode`/… in [db.js](backend/db.js); Admin-CRUD in [admin.js](backend/routes/admin.js).

@@ -195,6 +195,25 @@ export default {
   language: {
     label: 'Language'
   },
+  tour: {
+    step: 'Step {current} of {total}',
+    skip: 'Skip',
+    back: 'Back',
+    next: 'Next',
+    done: "Let's go",
+    welcomeTitle: 'Welcome to your dashboard 👋',
+    welcomeBody: "Glad you're here! Let's take a few seconds to show you where everything is.",
+    navTitle: 'Your modules',
+    navBody: 'The sidebar holds every feature, neatly grouped by category.',
+    modulesTitle: 'Set up features',
+    modulesBody: 'Each card is a feature. The status shows what\'s active — hit “Configure” to get started.',
+    premiumTitle: 'Premium & plans',
+    premiumBody: 'Some features are part of Basic or Pro. Here you can see your plan and upgrade anytime.',
+    switchTitle: 'Switch server',
+    switchBody: 'This link takes you back to the server picker to manage a different server.',
+    doneTitle: "You're all set! 🎉",
+    doneBody: "That's it. Have fun setting up your server!"
+  },
   landing: {
     pill: 'Everything for your community — in one place',
     titleStart: 'Get more out of your',

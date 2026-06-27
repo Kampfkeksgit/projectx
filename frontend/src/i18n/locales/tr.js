@@ -195,6 +195,25 @@ export default {
   language: {
     label: 'Dil'
   },
+  tour: {
+    step: 'Adım {current} / {total}',
+    skip: 'Atla',
+    back: 'Geri',
+    next: 'İleri',
+    done: 'Başlayalım',
+    welcomeTitle: 'Panele hoş geldiniz 👋',
+    welcomeBody: 'Burada olmanıza sevindik! Birkaç saniyede her şeyin nerede olduğunu gösterelim.',
+    navTitle: 'Modülleriniz',
+    navBody: 'Kenar çubuğunda tüm özellikler kategorilere göre düzenli şekilde yer alır.',
+    modulesTitle: 'Özellikleri ayarlayın',
+    modulesBody: 'Her kart bir özelliktir. Durum neyin aktif olduğunu gösterir — başlamak için “Yapılandır”a tıklayın.',
+    premiumTitle: 'Premium ve planlar',
+    premiumBody: 'Bazı özellikler Basic veya Pro kapsamındadır. Planınızı buradan görebilir ve istediğiniz zaman yükseltebilirsiniz.',
+    switchTitle: 'Sunucu değiştir',
+    switchBody: 'Bu bağlantı sizi sunucu seçimine geri götürür ve başka bir sunucuyu yönetmenizi sağlar.',
+    doneTitle: 'Hazırsınız! 🎉',
+    doneBody: 'Hepsi bu kadar. Sunucunuzu ayarlarken iyi eğlenceler!'
+  },
   landing: {
     pill: 'Topluluğunuz için her şey — tek bir yerde',
     titleStart: 'Discord sunucunuzdan',

@@ -195,6 +195,25 @@ export default {
   language: {
     label: 'Język'
   },
+  tour: {
+    step: 'Krok {current} z {total}',
+    skip: 'Pomiń',
+    back: 'Wstecz',
+    next: 'Dalej',
+    done: 'Zaczynamy',
+    welcomeTitle: 'Witaj w panelu 👋',
+    welcomeBody: 'Miło Cię widzieć! Pokażemy Ci w kilka sekund, gdzie wszystko znajdziesz.',
+    navTitle: 'Twoje moduły',
+    navBody: 'Na pasku bocznym znajdziesz wszystkie funkcje, uporządkowane według kategorii.',
+    modulesTitle: 'Konfiguracja funkcji',
+    modulesBody: 'Każda karta to jedna funkcja. Status pokazuje, co jest aktywne — kliknij „Konfiguruj”, aby zacząć.',
+    premiumTitle: 'Premium i plany',
+    premiumBody: 'Niektóre funkcje należą do planu Basic lub Pro. Tutaj zobaczysz swój plan i w każdej chwili możesz go ulepszyć.',
+    switchTitle: 'Zmień serwer',
+    switchBody: 'Ten link przeniesie Cię z powrotem do wyboru serwera, aby zarządzać innym serwerem.',
+    doneTitle: 'Gotowe! 🎉',
+    doneBody: 'To wszystko. Miłej konfiguracji Twojego serwera!'
+  },
   landing: {
     pill: 'Wszystko dla Twojej społeczności — w jednym miejscu',
     titleStart: 'Wyciśnij więcej ze swojego',

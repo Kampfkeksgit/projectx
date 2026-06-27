@@ -195,6 +195,25 @@ export default {
   language: {
     label: 'Sprache'
   },
+  tour: {
+    step: 'Schritt {current} von {total}',
+    skip: 'Überspringen',
+    back: 'Zurück',
+    next: 'Weiter',
+    done: 'Los geht\'s',
+    welcomeTitle: 'Willkommen im Dashboard 👋',
+    welcomeBody: 'Schön, dass du da bist! In ein paar Sekunden zeigen wir dir, wo du alles findest.',
+    navTitle: 'Deine Module',
+    navBody: 'In der Seitenleiste findest du alle Funktionen — übersichtlich nach Kategorien sortiert.',
+    modulesTitle: 'Funktionen einrichten',
+    modulesBody: 'Jede Karte ist eine Funktion. Der Status zeigt, was aktiv ist — klick auf „Konfigurieren", um loszulegen.',
+    premiumTitle: 'Premium & Tarife',
+    premiumBody: 'Einige Funktionen gehören zu Basic oder Pro. Hier siehst du deinen Tarif und kannst jederzeit upgraden.',
+    switchTitle: 'Server wechseln',
+    switchBody: 'Über diesen Link kommst du zurück zur Server-Auswahl und kannst einen anderen Server verwalten.',
+    doneTitle: 'Fertig! 🎉',
+    doneBody: 'Das war\'s schon. Viel Spaß beim Einrichten deines Servers!'
+  },
   landing: {
     pill: 'Alles für deine Community — an einem Ort',
     titleStart: 'Hol mehr aus deinem',
