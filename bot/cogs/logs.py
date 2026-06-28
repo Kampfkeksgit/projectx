@@ -7,6 +7,7 @@ from discord.ext import commands
 
 import config
 from utils.backend import fetch_bot_settings
+from utils.ratelimit import safe_send
 
 
 COLOR_GREEN = 0x2ECC71
@@ -56,7 +57,10 @@ class ServerLogs(commands.Cog):
 
     async def _post(self, channel, embed):
         try:
-            await channel.send(embed=embed)
+            # Paced through the per-channel rate-limit cache so bulk events
+            # (e.g. a backup restore creating many channels/roles) don't flood
+            # the log channel and trigger 429s.
+            await safe_send(channel, embed=embed)
         except discord.Forbidden:
             print(f"[logs] missing permissions in #{channel}")
         except discord.HTTPException as exc:
