@@ -75,14 +75,19 @@ projectx/
 │   │   │                       # game_i18n.make_translator; verdrahtet in 14 Cogs: suggestions/verification/polls/
 │   │   │                       # giveaways/economy/applications/tickets/moderation/antiraid/birthday/counting/rolemenus/
 │   │   │                       # slash_utils/tempvoice (alle member-sichtbaren Strings; logs = Admin-Audit bleibt EN)
-│   │   └── game_i18n.py        # make_translator(strings)/lang_of(settings)/normalize_lang — Übersetzungs-Helper
-│   │                           # für die Games-Cogs (per-Guild games_language, Fallback EN→key, .format-safe)
+│   │   ├── game_i18n.py        # make_translator(strings)/lang_of(settings)/normalize_lang — Übersetzungs-Helper
+│   │   │                       # für die Games-Cogs (per-Guild games_language, Fallback EN→key, .format-safe)
+│   │   └── ratelimit.py        # In-Memory Discord-Rate-Limit-Cache: ChannelRateLimiter (Sliding-Window pro
+│   │                           # channel_id, ~5 msgs/5s) + safe_send(channel,**kw) — pacet proaktiv, damit Bulk-
+│   │                           # Events (z. B. Backup-Restore → Logs-Cog) den Channel nicht mit 429 fluten
 │   └── cogs/
 │       ├── welcome_leave.py    # Event-Handler + /welcome_test Command
 │       ├── autorole.py         # on_member_join → Rollen aus role_ids zuweisen (skipt Bots wenn !apply_to_bots)
 │       ├── logs.py             # join/leave/ban/unban/message_edit/message_delete/member_update
 │       │                       # /channel_*/role_*/voice_state → Embed in log_channel_id;
-│       │                       # log_ignored_channel_ids schließt Channels vom Message-Logging aus
+│       │                       # log_ignored_channel_ids schließt Channels vom Message-Logging aus.
+│       │                       # Zentrale Sendestelle _post nutzt safe_send (utils/ratelimit) → pro-Channel
+│       │                       # gepaced, damit Bulk-Events (Backup-Restore) den Log-Channel nicht mit 429 fluten
 │       ├── moderation.py       # on_message → Banned-Words + Anti-Invite/Link/Mass-Mention/Caps +
 │       │                       # Anti-Spam (sliding window); Aktionen delete/warn/mute/kick/timeout;
 │       │                       # Whitelist (exempt_role_ids/ignored_channel_ids); Warn-Eskalation
@@ -1062,6 +1067,8 @@ Empfehlung aus [README.md](README.md): SQLite → PostgreSQL für Multi-Instance
 
 ## 14. Letzte Aktualisierung
 
+- **Datum:** 2026-06-29
+- **Discord-Rate-Limit-Cache fürs Logging (kein Schema-Change):** Neues Util [bot/utils/ratelimit.py](bot/utils/ratelimit.py) — `ChannelRateLimiter` (Sliding-Window pro `channel_id`, Default ~5 Nachrichten / 5 s, eigener Bucket je Channel) + `safe_send(channel, **kwargs)`. Pacet **proaktiv** vor dem Senden (statt nur auf 429-Retry-After zu warten). Hintergrund: Ein Backup-Restore erstellt zig Kanäle/Rollen → das Logs-Cog ([logs.py](bot/cogs/logs.py)) postet pro Event ein Embed → ~100 Nachrichten fluten den Log-Channel → 429-Warnungs-Spam. Verdrahtet in der zentralen Sendestelle `ServerLogs._post` (alle Log-Posts laufen darüber); wiederverwendbar in weiteren Cogs mit Bursts. Verifiziert: kompiliert sauber, Pacing-Smoke-Test grün (12 Sends @ 5/1s → ~2 s, kein Burst; fremder Channel = eigener Bucket).
 - **Datum:** 2026-06-27
 - **Onboarding-Rundtour beim ersten Dashboard-Login (kein Schema-Change):** Beim ersten Besuch der Server-Übersicht startet eine geführte Tour, die die wichtigsten Bereiche per Spotlight erklärt (Seitenleisten-Navigation → Modul-Karte → Premium/Tarif → Server-Wechsel), mit Intro- und Abschluss-Karte.
   - **Eigenbau, vanilla (kein UI-Kit):** neues Composable [useTour.js](frontend/src/composables/useTour.js) (reaktiver State `active`/`stepIndex`/`steps`, `maybeStart()`/`next()`/`prev()`/`finish()`; 1×/Browser persistiert in `localStorage.projectx_tour_done_v1`) + globale Komponente [TourOverlay.vue](frontend/src/components/TourOverlay.vue) (Teleport nach body, Spotlight-„Hole" via `box-shadow: 0 0 0 9999px` um das Ziel-Element, Tooltip-Karte mit Platzierung top/bottom/left/right/center + Viewport-Clamping, recompute bei resize/scroll, `scrollIntoView` pro Schritt; fehlt/verborgen das Ziel → zentrierte Karte als Fallback).
