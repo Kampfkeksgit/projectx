@@ -287,14 +287,29 @@ class ServerBackup(commands.Cog):
         # 1) Roles → build old_id -> live discord.Role map. We always build the
         #    map (so channel overwrites can reference existing roles by name), but
         #    only CREATE missing roles when the user selected the roles part.
-        role_map = await self._restore_roles(guild, data.get("roles") or [], notes, create=do_roles, mode=mode)
+        role_map, roles_created, roles_errors = await self._restore_roles(
+            guild, data.get("roles") or [], notes, create=do_roles, mode=mode)
 
         # 2) Categories first (so channels can attach), then non-category channels.
+        chan_created = chan_errors = 0
         if do_channels:
-            await self._restore_channels(guild, data.get("channels") or [], role_map, mode, notes)
+            chan_created, chan_errors = await self._restore_channels(
+                guild, data.get("channels") or [], role_map, mode, notes)
 
         # 3) Server style (name + icon), each independently selectable.
         await self._restore_server_style(guild, data.get("server") or {}, notes, do_name, do_icon)
+
+        # If roles/channels were requested but EVERY create failed (e.g. the bot is
+        # missing Manage Roles/Manage Channels, or its role sits too low), report a
+        # real failure instead of a silent "done" — otherwise the dashboard shows a
+        # green success while nothing appears in Discord.
+        total_created = roles_created + chan_created
+        total_errors = roles_errors + chan_errors
+        if total_errors and total_created == 0:
+            raise Exception(_safe_msg(
+                "Restore fehlgeschlagen — nichts erstellt (fehlen dem Bot die Rechte "
+                "Rollen/Kanäle verwalten, oder steht seine Rolle zu weit unten?). "
+                + " | ".join(notes)))
 
         if not notes:
             notes.append("Restore complete (no changes needed).")
@@ -347,13 +362,14 @@ class ServerBackup(commands.Cog):
                 to_create.append(sr)
 
         if not create:
-            return role_map
+            return role_map, 0, 0
 
         # Create missing roles, highest snapshot position first: each new role
         # lands just above @everyone, so creating top-down yields roughly the
         # original ordering (highest roles end up highest).
         to_create.sort(key=lambda s: int(s.get("position", 0) or 0), reverse=True)
         created = 0
+        errors = 0
         for sr in to_create:
             old_id = str(sr.get("id"))
             try:
@@ -378,8 +394,10 @@ class ServerBackup(commands.Cog):
                 created += 1
                 await asyncio.sleep(0.3)  # pace role creation (rate limits)
             except discord.Forbidden:
+                errors += 1
                 notes.append(f"No permission to create role '{sr.get('name')}'")
             except Exception as exc:
+                errors += 1
                 notes.append(f"Role '{sr.get('name')}' failed: {str(exc)[:80]}")
 
         if created:
@@ -409,7 +427,7 @@ class ServerBackup(commands.Cog):
             if deleted:
                 notes.append(f"Mirror removed {deleted} role(s) not in snapshot")
 
-        return role_map
+        return role_map, created, errors
 
     def _build_overwrites(self, guild, snapshot_overwrites, role_map):
         """Build a {target_obj: PermissionOverwrite} dict from snapshot overwrites.
@@ -452,6 +470,7 @@ class ServerBackup(commands.Cog):
         cat_map = {}
 
         created = 0
+        errors = 0
 
         # --- categories ---
         for c in categories:
@@ -476,8 +495,10 @@ class ServerBackup(commands.Cog):
                 created += 1
                 await asyncio.sleep(0.5)  # pace bulk channel creation (rate limits)
             except discord.Forbidden:
+                errors += 1
                 notes.append(f"No permission to create category '{c.get('name')}'")
             except Exception as exc:
+                errors += 1
                 notes.append(f"Category '{c.get('name')}' failed: {str(exc)[:80]}")
 
         # --- non-category channels ---
@@ -499,8 +520,10 @@ class ServerBackup(commands.Cog):
                 created += 1
                 await asyncio.sleep(0.5)  # pace bulk channel creation (rate limits)
             except discord.Forbidden:
+                errors += 1
                 notes.append(f"No permission to create channel '{c.get('name')}'")
             except Exception as exc:
+                errors += 1
                 notes.append(f"Channel '{c.get('name')}' failed: {str(exc)[:80]}")
 
         if created:
@@ -520,6 +543,8 @@ class ServerBackup(commands.Cog):
                     notes.append(f"Could not delete '{name}': {str(exc)[:60]}")
             if deleted:
                 notes.append(f"Mirror removed {deleted} channel(s) not in snapshot")
+
+        return created, errors
 
     async def _create_channel(self, guild, c, parent, overwrites, notes):
         """Create a single channel of the snapshot's type. Channel type is

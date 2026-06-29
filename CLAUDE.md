@@ -178,6 +178,9 @@ projectx/
 │                               # mode=mirror gleicht zusätzlich an + löscht Channels UND Rollen die NICHT im Snapshot sind
 │                               # (Rollen-Löschung nur wenn parts.roles; nie @everyone/managed/über Bot-Top-Rolle);
 │                               # Server-Name/-Icon nur mit MANAGE_GUILD. asyncio.sleep zwischen Creates (Rate-Limit).
+│                               # Restore zählt erstellte vs. fehlgeschlagene Creates: wenn Rollen/Kanäle angefragt
+│                               # waren, aber JEDER Create scheiterte (created=0, errors>0 → fehlende Manage-Rechte /
+│                               # Rolle zu tief), wird der Job als FAILED gemeldet statt als stilles „done".
 │       └── admin_broadcast.py  # Owner-Broadcast (Owner-Admin): @tasks.loop(30s) pollt GET /api/bot/broadcasts/due,
 │                               # claimt (status=sending), DMt die Nachricht an jeden eindeutigen Guild-Owner, meldet done {sent,total}.
 ├── backend/                    # Node.js / Express API
@@ -1066,6 +1069,7 @@ Empfehlung aus [README.md](README.md): SQLite → PostgreSQL für Multi-Instance
 ## 14. Letzte Aktualisierung
 
 - **Datum:** 2026-06-29
+- **Restore meldet echten Fehlschlag statt stillem „done" (kein Schema-Change):** Im Backup/Restore-Cog ([server_backup.py](bot/cogs/server_backup.py)) zählen `_restore_roles`/`_restore_channels` jetzt erstellte **vs.** fehlgeschlagene Creates und geben `(…, created, errors)` zurück. In `_do_restore` gilt: waren Rollen/Kanäle angefragt, scheiterte aber **jeder** Create (`created == 0 and errors > 0` — typischer Fall: dem Bot fehlen **Manage Roles/Manage Channels** oder seine Rolle steht zu tief), wird eine Exception geworfen → `_handle_job` meldet den Job als **`failed`** (roter Toast mit Grund) statt als grünen „done", hinter dem im Discord nichts passiert. Behebt das verwirrende „Vorlage angewendet, aber nichts zu sehen". Teil-Erfolge (einige Creates ok, andere fehlgeschlagen) bleiben `done` und listen die Fehler in der Message. Verifiziert: kompiliert sauber, keine weiteren Aufrufer der geänderten Signaturen.
 - **Discord-Rate-Limit-Cache fürs Logging (kein Schema-Change):** Neues Util [bot/utils/ratelimit.py](bot/utils/ratelimit.py) — `ChannelRateLimiter` (Sliding-Window pro `channel_id`, Default ~5 Nachrichten / 5 s, eigener Bucket je Channel) + `safe_send(channel, **kwargs)`. Pacet **proaktiv** vor dem Senden (statt nur auf 429-Retry-After zu warten). Hintergrund: Ein Backup-Restore erstellt zig Kanäle/Rollen → das Logs-Cog ([logs.py](bot/cogs/logs.py)) postet pro Event ein Embed → ~100 Nachrichten fluten den Log-Channel → 429-Warnungs-Spam. Verdrahtet in der zentralen Sendestelle `ServerLogs._post` (alle Log-Posts laufen darüber); wiederverwendbar in weiteren Cogs mit Bursts. Verifiziert: kompiliert sauber, Pacing-Smoke-Test grün (12 Sends @ 5/1s → ~2 s, kein Burst; fremder Channel = eigener Bucket).
 - **Datum:** 2026-06-27
 - **Onboarding-Rundtour beim ersten Dashboard-Login (kein Schema-Change):** Beim ersten Besuch der Server-Übersicht startet eine geführte Tour, die die wichtigsten Bereiche per Spotlight erklärt (Seitenleisten-Navigation → Modul-Karte → Premium/Tarif → Server-Wechsel), mit Intro- und Abschluss-Karte.
