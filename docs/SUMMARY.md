@@ -1,7 +1,7 @@
-# Table of contents
+# Inhaltsverzeichnis
 
-* [Introduction](README.md)
-* [Getting Started](getting-started.md)
-* [Modules](modules.md)
-* [Premium & Plans](premium.md)
-* [FAQ](faq.md)
+* [Einführung](README.md)
+* [Erste Schritte](getting-started.md)
+* [Module](modules.md)
+* [Premium & Tarife](premium.md)
+* [Häufige Fragen](faq.md)

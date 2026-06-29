@@ -1,25 +1,28 @@
-# Premium & Plans
+# Premium & Tarife
 
-ProjectX is free to start. Premium plans unlock the engagement and automation modules. **Every plan is per server.**
+projectx gibt es in drei Tarifen. Du kannst dauerhaft kostenlos starten und erst dann upgraden, wenn du mehr Module brauchst.
 
-## Plans
+## Übersicht
 
-| Plan | Price | Unlocks |
+| Tarif | Preis | Schaltet frei |
 |---|---|---|
-| **Free** | €0 | Welcome & Leave, Auto-Role, Moderation, Server Logs, Reaction Roles, Verification, Suggestions, Custom Commands |
-| **Basic** | €2.99 / mo | Everything in Free **+** Leveling, Starboard, Temp Voice, Birthdays, Role Menus, Anti-Raid |
-| **Pro** | €5.99 / mo | Everything in Basic **+** Social Notifications, Statistics, Tickets, Giveaways, Scheduled Announcements |
+| **Free** | **0 € / Monat** | Alle Free-Module |
+| **Basic** | **2,99 € / Monat** | Alle Free-Module **+** alle Basic-Module |
+| **Pro** | **5,99 € / Monat** | Alle Free-, Basic- **und** Pro-Module |
 
-## How premium works
+Höhere Tarife enthalten immer alles aus den niedrigeren. Welche Module zu welchem Tarif gehören, steht unter [Module](modules.md).
 
-- Premium is a **per-server** subscription managed through Discord.
-- Once active, the matching modules unlock automatically in the dashboard — usually within a minute.
-- The server owner can also be **granted** a plan manually by the ProjectX team.
+## Wie Premium funktioniert
 
-## If a subscription ends
+- **Pro Server:** Premium gilt jeweils für einen einzelnen Server, nicht für deinen Account.
+- **Über Discord:** Premium wird über Discord aktiviert.
+- **Promo- & Trial-Codes:** Hast du einen Code erhalten, kannst du ihn auf der Premium-Seite deines Servers im Dashboard einlösen – das schaltet den jeweiligen Tarif für die angegebene Dauer frei.
+- **Manuelle Freischaltung:** Der Betreiber kann einen Server bei Bedarf auch manuell freischalten.
 
-Your configuration is kept, but premium modules stop running and lock again in the dashboard. Re-subscribe any time to pick up exactly where you left off.
+## Was beim Ablauf passiert
 
-## Locked modules
+- Deine **Einstellungen bleiben erhalten** – es geht nichts verloren.
+- Module oberhalb deines aktuellen Tarifs **sperren sich wieder**, bis du erneut upgradest oder verlängerst.
+- Gesperrte Module bleiben im Dashboard **sichtbar und mit einem Tarif-Hinweis (Badge) markiert** – du siehst also jederzeit, was ein Upgrade freischalten würde. Sobald wieder Premium aktiv ist, laufen die Module mit deinen alten Einstellungen weiter.
 
-Locked modules stay visible in the dashboard with a tier badge and a lock. Open one to see what it does and which plan unlocks it.
+➡️ Fragen offen? Siehe [Häufige Fragen](faq.md)

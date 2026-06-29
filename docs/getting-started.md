@@ -1,28 +1,26 @@
-# Getting Started
+# Erste Schritte
 
-Get ProjectX running on your server in under a minute.
+In vier Schritten ist projectx auf deinem Server einsatzbereit.
 
-## 1. Invite the bot
+## 1. Bot einladen
 
-Use the invite link from the dashboard (or the landing page). When prompted, keep the requested permissions enabled — they cover everything the modules need:
+Lade projectx über den Einladungslink auf deinen Discord-Server ein. Bestätige dabei die abgefragten Berechtigungen – der Bot braucht sie, um Nachrichten zu senden, Rollen zu vergeben, Kanäle zu verwalten und Mitglieder zu moderieren.
 
-- View channels, send messages, manage messages
-- Manage roles & manage channels
-- Kick & ban members
-- Move members (for Temp Voice)
+Damit alle Funktionen sauber laufen, sollte der Bot außerdem die **privilegierten Intents** nutzen dürfen: das **Server-Mitglieder-Intent** (für Beitritts-/Verlasse-Funktionen) und das **Präsenz-Intent** (für Online-/Offline-Statistiken). Beim Einladen über den offiziellen Link ist das bereits vorbereitet.
 
-> The bot also needs the **Presence Intent** and **Server Members Intent** enabled in the Discord Developer Portal for member/online statistics.
+## 2. Mit Discord anmelden
 
-## 2. Sign in with Discord
+Öffne das Dashboard und melde dich mit deinem Discord-Account an. projectx fragt dabei nur deine **Identität** und deine **Server-Liste** ab – **kein Passwort** und keine Nachrichteninhalte. Du kannst die Anmeldung jederzeit über Discord widerrufen.
 
-Open the dashboard and click **Login with Discord**. ProjectX only requests your identity and the list of servers you manage — it never sees your password or DMs.
+## 3. Server wählen
 
-## 3. Pick a server
+Nach dem Login siehst du alle Server, auf denen du **Inhaber oder Administrator** bist. Wähle den Server aus, den du einrichten möchtest. Server ohne ausreichende Rechte werden nicht angezeigt.
 
-The dashboard lists every server where you are **owner or administrator**. Select one to open its configuration.
+## 4. Konfigurieren & speichern
 
-## 4. Configure & save
+Jedes Modul hat eine eigene Seite mit klaren Optionen. Stelle alles nach deinen Wünschen ein und klicke auf **Speichern**.
 
-Each module has its own page with toggles, dropdowns and a live preview. Save your changes — the bot applies them within seconds (some background features refresh on a short interval).
+- Sichtbare Aktionen (z. B. Begrüßungsnachrichten) übernimmt der Bot **innerhalb von Sekunden**.
+- Hintergrund-Funktionen (z. B. Statistiken oder geplante Nachrichten) greifen über kurze, regelmäßige Intervalle – manche Änderungen werden also erst nach einer kleinen Verzögerung wirksam.
 
-That's it. Head to [Modules](modules.md) to see everything you can configure.
+➡️ Alle Funktionen im Überblick: [Module](modules.md)

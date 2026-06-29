@@ -1,360 +1,134 @@
-# Database Function Reference
+# DB-Funktions-Referenz — projectx
 
-## Quick API Reference
+> Referenz der wichtigsten in [db.js](db.js) exportierten Helfer (+ [migrations.js](migrations.js) für Schema-Funktionen). Gruppiert nach Thema. Pro Eintrag: Signatur + 1 Satz Zweck. Schema-Details (Tabellen/Spalten) in [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md).
 
-### Guild Operations
-
-#### `getGuild(guildId)`
-Get a single guild by ID.
-- **Parameters:** `guildId` (string)
-- **Returns:** Promise<Guild|undefined>
-- **Example:** `const guild = await getGuild('123456789012345678');`
-
-#### `getAllGuilds()`
-Get all enabled guilds.
-- **Parameters:** none
-- **Returns:** Promise<Guild[]>
-- **Example:** `const guilds = await getAllGuilds();`
-
-#### `createGuild(guildId, guildName, guildIconUrl)`
-Create a new guild.
-- **Parameters:** 
-  - `guildId` (string) - Discord Guild ID
-  - `guildName` (string) - Display name
-  - `guildIconUrl` (string) - URL to guild icon
-- **Returns:** Promise<number> - lastID
-- **Example:** `await createGuild('123456789012345678', 'My Guild', 'https://...icon.png');`
-
-#### `updateGuild(guildId, updates)`
-Update guild information.
-- **Parameters:**
-  - `guildId` (string) - Guild ID
-  - `updates` (object) - Fields to update {guild_name, guild_icon_url, enabled, etc.}
-- **Returns:** Promise<number> - Number of changes
-- **Example:** `await updateGuild('123456789012345678', { guild_name: 'New Name' });`
-
-#### `deleteGuild(guildId)`
-Delete a guild and all related data (cascade delete).
-- **Parameters:** `guildId` (string)
-- **Returns:** Promise<number> - Number of changes
-- **Example:** `await deleteGuild('123456789012345678');`
+Konventionen: Settings-Module folgen meist dem Muster `getXxxSettings(guildId)` / `upsertXxxSettings(guildId, settings)` und liefern bei leerer Row die `XXX_DEFAULTS`. Alle Schreibpfade mit mehreren Statements laufen über `runInTransaction`.
 
 ---
 
-### Guild Settings
+## Kritische Helfer (zuerst lesen)
 
-#### `getGuildSettings(guildId)`
-Get settings for a specific guild.
-- **Parameters:** `guildId` (string)
-- **Returns:** Promise<GuildSettings|undefined>
-- **Example:** `const settings = await getGuildSettings('123456789012345678');`
-
-#### `upsertGuildSettings(guildId, settings)`
-Create or update guild settings.
-- **Parameters:**
-  - `guildId` (string) - Guild ID
-  - `settings` (object) - Settings to upsert
-    - `welcome_enabled` (boolean)
-    - `welcome_channel_id` (string)
-    - `welcome_message` (string) - Supports {user} placeholder
-    - `leave_enabled` (boolean)
-    - `leave_channel_id` (string)
-    - `leave_message` (string) - Supports {user} placeholder
-- **Returns:** Promise<number> - lastID
-- **Example:** 
-```javascript
-await upsertGuildSettings('123456789012345678', {
-  welcome_enabled: true,
-  welcome_channel_id: '111111111111111111',
-  welcome_message: 'Welcome {user}!'
-});
-```
+- **`runInTransaction(work)`** — Führt `work` in **einem** `BEGIN IMMEDIATE`/`COMMIT` aus (Rollback bei Fehler). **Serialisiert alle Transaktionen über eine interne Promise-Queue (`_txChain`)** — sqlite3 nutzt nur eine Connection, überlappende `BEGIN IMMEDIATE` würden „cannot start a transaction within a transaction" werfen. **Pflicht für jeden Bulk-Write** — niemals eigene `BEGIN`-Blöcke.
+- **`grantXp(guildId, userId, now)`** — Leveling-Kern: Cooldown-Check, XP würfeln, Row schreiben, Level-Up + Reward-Roles berechnen — alles in einem `BEGIN IMMEDIATE` gegen Double-Grant bei parallelen Messages.
+- **`syncBotPresence(presentGuildIds)`** — Bulk-Update in einer Transaktion: `bot_present = 1` für alle übergebenen Guild-IDs, `= 0` für alle anderen.
+- **`addModerationWarning(guildId, userId, now)`** — Erhöht den persistenten Warn-Zähler atomar, prüft `warn_threshold`; bei Erreichen Reset + `escalation_action` zurück.
+- **`effectiveTier(row)` / `tierFilterSql(minTier, col?)` / `moduleUnlockMap(tier)`** — Premium-Kern: effektiver Tier (expiry-aware), SQL-Filter „effektiver Tier ≥ minTier" (für Loop-Cog-Queries), Modul-Unlock-Map fürs Dashboard.
 
 ---
 
-### User Operations
+## User / Auth
 
-#### `getUser(userId)`
-Get a user by Discord ID.
-- **Parameters:** `userId` (string) - Discord User ID
-- **Returns:** Promise<User|undefined>
-- **Example:** `const user = await getUser('987654321098765432');`
+- `getUser(discordId)` — User-Row inkl. Tokens lesen.
+- `upsertUser(discordId, userData)` — User anlegen/aktualisieren (inkl. `token_expires_at`).
+- `updateUserTokens(discordId, accessToken, refreshToken, tokenExpiresAt)` — Tokens nach `/auth/refresh-guilds` aktualisieren.
+- `getUserGuilds(userId)` — alle Memberships des Users.
+- `getUserManageableGuilds(userId)` — nur Guilds mit `owner=1 OR admin=1` (inkl. `blocked`-Flag) — für `GET /api/guilds`.
+- `addUserToGuild(userId, guildId, owner, admin)` — Membership setzen (beide Bits).
+- `removeUserFromGuild(userId, guildId)` / `removeUserGuildsNotIn(userId, keepGuildIds)` — Reconcile beim Login (parameterisiertes `NOT IN`, korrekt für leere Liste).
+- `userHasGuildAccess(userId, guildId)` — beliebige Membership (intern).
+- `userIsGuildAdmin(userId, guildId)` — Owner/Admin-Check (von `requireGuildAccess` genutzt).
+- `deleteUser(discordId)` — User löschen (CASCADE).
 
-#### `upsertUser(userId, userData)`
-Create or update a user.
-- **Parameters:**
-  - `userId` (string) - Discord User ID
-  - `userData` (object) - User data:
-    - `username` (string)
-    - `email` (string)
-    - `avatar_url` (string)
-    - `access_token` (string)
-    - `refresh_token` (string)
-- **Returns:** Promise<number> - lastID
-- **Example:**
-```javascript
-await upsertUser('987654321098765432', {
-  username: 'TestUser',
-  email: 'user@example.com',
-  avatar_url: 'https://...avatar.png',
-  access_token: 'token_123',
-  refresh_token: 'refresh_456'
-});
-```
+## Guilds / Presence
 
-#### `deleteUser(userId)`
-Delete a user and all related data.
-- **Parameters:** `userId` (string) - Discord User ID
-- **Returns:** Promise<number> - Number of changes
-- **Example:** `await deleteUser('987654321098765432');`
+- `getGuild(guildId)` / `getAllGuilds()` — Guild-Row(s) lesen.
+- `createGuild(guildId, name, iconUrl)` / `upsertGuildRow(...)` — Guild anlegen/seeden (FK-Schutz vor Channel-/Role-Replace).
+- `updateGuild(guildId, updates)` / `deleteGuild(guildId)` — Guild ändern/löschen.
+- `syncBotPresence(presentGuildIds)` — Bot-Präsenz-Bulk-Update (siehe kritische Helfer).
+- `replaceGuildChannels(guildId, channels, guildMeta?)` / `replaceGuildRoles(guildId, roles, guildMeta?)` — Vollständiges Replace (DELETE + Bulk-INSERT in einer Transaktion), optionaler Guild-Seed.
+- `getGuildChannels(guildId)` / `getGuildRoles(guildId, {includeDefault, includeManaged})` — sortierte Listen für Dashboard-Dropdowns.
 
----
+## Welcome / Leave
 
-### User-Guild Relationships
+- `getGuildSettings(guildId)` — volle erweiterte Shape (parst `welcome_embed`/`leave_embed`-JSON); Defaults aus `WELCOME_LEAVE_DEFAULTS`.
+- `upsertGuildSettings(guildId, settings)` — Single Source der Validierung (Längen-Caps, Hex-Color-Regex, URL-Form, Delete-After-Clamp 0..600, JSON-Stringify der Embeds).
+- Konstante: `WELCOME_LEAVE_DEFAULTS`.
 
-#### `getUserGuilds(userId)`
-Get all guilds for a user with role information.
-- **Parameters:** `userId` (string)
-- **Returns:** Promise<Guild[]> - Guilds with owner/admin flags
-- **Example:** `const guilds = await getUserGuilds('987654321098765432');`
+## Allgemein / Auto-Role / Logs / Moderation
 
-#### `addUserToGuild(userId, guildId, owner, admin)`
-Add or update a user in a guild.
-- **Parameters:**
-  - `userId` (string)
-  - `guildId` (string)
-  - `owner` (boolean) - Is guild owner
-  - `admin` (boolean) - Is guild admin
-- **Returns:** Promise<number> - lastID
-- **Example:** `await addUserToGuild('987654321098765432', '123456789012345678', false, true);`
+- `getGeneralSettings` / `upsertGeneralSettings` — Sprache/Zeitzone/Embed-Farbe/Theme (validiert/fallbackt). Konstanten `GENERAL_LANGUAGES`/`GENERAL_THEMES`/`GENERAL_TIMEZONES`/`GENERAL_DEFAULTS`.
+- `getAutoroleSettings` / `upsertAutoroleSettings` — JSON-Parse/Stringify für `role_ids`.
+- `getLogSettings` / `upsertLogSettings` — Boolean-Coercion aller Event-Flags, JSON für `log_ignored_channel_ids`.
+- `getModerationSettings` / `upsertModerationSettings` — JSON für `banned_words`/`exempt_role_ids`/`ignored_channel_ids`, Bounds-Checks + Enum-Validation. Konstanten `MOD_ACTIONS`/`MOD_ESCALATION_ACTIONS`.
+- `addModerationWarning(guildId, userId, now)` — atomarer Warn-Zähler + Eskalation (siehe kritische Helfer).
 
-#### `removeUserFromGuild(userId, guildId)`
-Remove a user from a guild.
-- **Parameters:**
-  - `userId` (string)
-  - `guildId` (string)
-- **Returns:** Promise<number> - Number of changes
-- **Example:** `await removeUserFromGuild('987654321098765432', '123456789012345678');`
+## Engagement — Reaction-Roles / Leveling / Custom-Commands
 
-#### `userHasGuildAccess(userId, guildId)`
-Check if user has access to a guild.
-- **Parameters:**
-  - `userId` (string)
-  - `guildId` (string)
-- **Returns:** Promise<boolean>
-- **Example:** `const hasAccess = await userHasGuildAccess('987654321098765432', '123456789012345678');`
+- Reaction-Roles: `getReactionRoleMessages`, `createReactionRoleMessage`, `updateReactionRoleMessage` (Mappings-Replace in Transaktion), `deleteReactionRoleMessage`, `findReactionRoleByMessage`.
+- Level-Math (exportiert): `totalXpForLevel(n)` (MEE6-Curve), `levelFromXp(xp)`, `xpForNextLevel(currentLevel)`.
+- Leveling: `getLevelingSettings` / `upsertLevelingSettings`, `getLevelingRewards` / `setLevelingRewards` (Bulk-Replace), `getLevelingUser`, **`grantXp`** (Kern, siehe oben), `getLeaderboard(guildId, limit, offset)`, `countLeaderboardUsers`.
+- Custom-Commands: `getCustomCommands`, `createCustomCommand` (UNIQUE→Route 409), `updateCustomCommand`, `deleteCustomCommand`.
+- Command-Manager: `BUILTIN_COMMANDS` (Katalog, Single Source), `sanitizeCommandPrefix`, `getCommandPrefix`/`setCommandPrefix`, `getCommandSettings`/`setCommandEnabled`, `getCommandConfigForBot(guildId)`.
 
-#### `userIsGuildAdmin(userId, guildId)`
-Check if user is guild owner or admin.
-- **Parameters:**
-  - `userId` (string)
-  - `guildId` (string)
-- **Returns:** Promise<boolean>
-- **Example:** `const isAdmin = await userIsGuildAdmin('987654321098765432', '123456789012345678');`
+## Social / Statistics
 
----
+- Social: `getSocialSubscriptions` (Dashboard), `getAllEnabledSocialSubscriptions` (Bot, alle Guilds), `createSocialSubscription`/`updateSocialSubscription`/`deleteSocialSubscription` (UUID, Account-Normalisierung, UNIQUE→409, State-Reset bei Plattform-/Account-Wechsel), `updateSocialSubscriptionState(subId, state, now)`. Konstanten `SOCIAL_PLATFORMS`/`SOCIAL_DEFAULTS`.
+- Statistics: `getStatsSettings`/`upsertStatsSettings` (clamp `update_interval`), `setStatsCategory`, `getStatsCounters`/`createStatsCounter`/`updateStatsCounter`/`deleteStatsCounter`, `setStatsCounterChannel`, `getAllEnabledStatsConfigs` (Bot), `insertStatsSnapshot` (Insert + Prune >90 Tage in einer Transaktion), `getStatsSnapshots`. Konstanten `STATS_COUNTER_TYPES`/`STATS_DEFAULTS`.
 
-### Audit Logging
+## Community-Module (settings-zentriert)
 
-#### `logAuditAction(userId, guildId, action, changes)`
-Log an action to the audit log.
-- **Parameters:**
-  - `userId` (string) - User who performed action (nullable)
-  - `guildId` (string) - Affected guild (nullable)
-  - `action` (string) - Action description
-  - `changes` (object) - What changed (optional)
-- **Returns:** Promise<number> - lastID
-- **Example:**
-```javascript
-await logAuditAction('987654321098765432', '123456789012345678', 'update_settings', {
-  welcome_message: 'old message',
-  welcome_message_new: 'new message'
-});
-```
+- Temp-Voice: `getTempVoiceSettings`/`upsertTempVoiceSettings`, `addTempVoiceChannel`/`removeTempVoiceChannel`/`getAllTempVoiceChannels` (Bot-Tracking). Konstanten `TEMPVOICE_PANEL_DESTINATIONS`/`TEMPVOICE_DEFAULTS`.
+- Starboard: `getStarboardSettings`/`upsertStarboardSettings`, `getStarboardEntry`/`upsertStarboardEntry`/`deleteStarboardEntry`. Konstante `STARBOARD_DEFAULTS`.
+- Suggestions: `getSuggestionSettings`/`upsertSuggestionSettings`. Konstante `SUGGESTION_DEFAULTS`.
+- Birthday: `getBirthdaySettings`/`upsertBirthdaySettings`, `setBirthday`, `getGuildBirthdays`, `removeBirthday`, `getTodaysBirthdays(month, day)`, `getBirthdayRoleGuilds`. Konstante `BIRTHDAY_DEFAULTS`.
+- Scheduled: `getScheduledMessages`, `createScheduledMessage`/`updateScheduledMessage`/`deleteScheduledMessage`, `getDueScheduledMessages(now)`, `markScheduledRan(id, now)` (rechnet next/disable). Konstante `SCHEDULED_TYPES`.
+- Anti-Raid: `getAntiRaidSettings`/`upsertAntiRaidSettings`. Konstanten `ANTIRAID_ACTIONS`/`ANTIRAID_DEFAULTS`.
+- Verification: `getVerificationSettings`/`upsertVerificationSettings`, `setVerificationPanelMessage`. Konstante `VERIFICATION_DEFAULTS`.
+- Role-Menus: `getRoleMenus`, `getPendingRoleMenus` (Bot), `createRoleMenu`/`updateRoleMenu`/`deleteRoleMenu` (Options-Replace in Transaktion), `getRoleMenuByMessage`, `setRoleMenuMessage`. Konstante `ROLE_MENU_TYPES`.
+- Tickets: `getTicketSettings`/`upsertTicketSettings`, `setTicketPanelMessage`, Kategorie-CRUD (`getTicketCategories`/`createTicketCategory`/`updateTicketCategory`/`deleteTicketCategory`), `getTicketConfig` (Settings + enabled Kategorien für Bot), `createTicket` (mit Nummer), `getOpenTicketForUser`, `getTicketByChannel`, `closeTicketByChannel`, `claimTicket`, `setTicketRating`, `updateTicketExtraUsers`, `getGuildTickets`. Konstanten `TICKET_PANEL_TYPES`/`TICKET_RATING_MODES`/`TICKET_BUTTON_STYLES`/`TICKET_DEFAULTS`.
+- Giveaways: `createGiveaway`, `setGiveawayMessage`, `addGiveawayEntry`, `getGiveawayEntries`, `getDueGiveaways(now)`, `markGiveawayEnded`, `getGuildGiveaways`, `getGiveawayById`, `deleteGiveaway`.
+- Counting: `getCountingSettings`/`upsertCountingSettings`, `recordCount(guildId, userId, number)` (atomare Validierung). Konstante `COUNTING_DEFAULTS`.
+- Polls: `createPoll`, `setPollMessage`, `getPoll`, `votePoll`, `getDuePolls(now)`, `markPollEnded`, `getGuildPolls`, `deletePoll`.
+- Invite-Tracking: `getInviteSettings`/`upsertInviteSettings`, `replaceGuildInvites`, `getGuildInvitesCache`, `recordMemberInvite`, `getInviteLeaderboard`. Konstante `INVITE_DEFAULTS`.
+- Applications: `getApplicationForms`/`getEnabledApplicationForms`/`getApplicationForm`, `createApplicationForm`/`updateApplicationForm`/`deleteApplicationForm`, `setApplicationPanelMessage`, `createApplication`, `reviewApplication`, `getApplications`.
+- Economy: `getEconomySettings`/`upsertEconomySettings`, `getEconomyBalance`, `economyDaily`/`economyWork`/`economyPay`/`economyBuy` (transaktional), `getEconomyLeaderboard`, Shop-CRUD (`getEconomyShop`/`createShopItem`/`updateShopItem`/`deleteShopItem`). Konstante `ECONOMY_DEFAULTS`.
+- Games: `getGamesSettings`/`upsertGamesSettings` (Partial-Merge), `recordGameScore(guildId, userId, game, win)`, `getGameLeaderboard(guildId, game, limit)`. Konstanten `GAME_KEYS`/`POKER_THEMES`/`GAME_LANGUAGES`/`GAMES_DEFAULTS`.
 
-#### `getGuildAuditLog(guildId, limit)`
-Get audit log entries for a guild.
-- **Parameters:**
-  - `guildId` (string)
-  - `limit` (number) - Max entries (default: 100)
-- **Returns:** Promise<AuditEntry[]>
-- **Example:** `const logs = await getGuildAuditLog('123456789012345678', 50);`
+## Premium / Tiers
 
----
+- `effectiveTier(row)` — abgelaufenes `premium_until` → `'free'`.
+- `moduleUnlocked(tier, key)` / `moduleUnlockMap(tier)` — Modul-Unlock für einen Tier.
+- `tierRank(tier)` — numerischer Rang (free<basic<pro).
+- `tierFilterSql(minTier, column?)` — SQL-Fragment „effektiver Tier ≥ minTier" (expiry-aware) für Bulk-Bot-Queries.
+- `getGuildPremium(guildId)` — rohe Premium-Felder.
+- `setGuildPremium(guildId, {tier, source, until})` — Tier setzen (`source ∈ manual|sku|code`; `free` löscht).
+- `syncSkuEntitlements(entitlements)` — Bot/SKU-Bulk-Sync + Downgrade abgelaufener SKU-Premiums (lässt `manual` unberührt), in `runInTransaction`.
+- Codes: `createPremiumCode`, `getPremiumCodes`, `deletePremiumCode`, `redeemPremiumCode(rawCode, guildId)` (Quelle `'code'`, Fehler-`reason` invalid|expired|exhausted).
+- `getRevenue()` — geschätzte MRR aus aktiven Premium-Counts × `PLAN_CATALOG`.
+- `getExpiringPremiumGuilds(days?)` / `markPremiumReminded(guildId)` — Ablauf-Reminder (Bot, Dedupe via `premium_reminded_at`).
+- Konstanten: `PREMIUM_TIERS`, `MODULE_TIERS` (Single Source Modul→Tier), `PLAN_CATALOG`.
 
-### Database Utilities
+## Owner-Admin / System
 
-#### `getDbStats()`
-Get database statistics (row counts).
-- **Parameters:** none
-- **Returns:** Promise<{guilds, guild_settings, users, user_guilds, audit_log}>
-- **Example:** `const stats = await getDbStats();`
+- Sperren: `isUserBlocked(discordId)` / `isGuildBlocked(guildId)` (temp-ban-aware), `getAdminUsers({search,limit,offset})` / `getAdminGuilds(...)`, `setUserBlocked(id, blocked, reason?, until?)` / `setGuildBlocked(id, blocked, reason?, until?)`.
+- Übersicht/Audit: `getAdminOverview()`, `getAuditLogEntries({action,target,limit,offset})`, `getAuditActions()`, `getGuildInspect(guildId)`.
+- Audit-Schreiben: `logAuditAction(userId, guildId, action, changes?)`, `getGuildAuditLog(guildId, limit?)`.
+- System-Settings: `getSystemSetting`/`setSystemSetting`, `getMaintenanceState`/`setMaintenanceState`, `getAnnouncementState`/`setAnnouncementState` (Konstante `ANNOUNCEMENT_LEVELS`).
+- Broadcasts: `createBroadcast`, `getDueBroadcast` (Bot), `updateBroadcast`, `getRecentBroadcasts`. Konstante `BROADCAST_STATUSES`.
+- Export: `getUsersForExport()` / `getGuildsForExport()` (CSV).
+- Analytics: `captureMetricsSnapshot()` (Upsert pro UTC-Tag), `getMetricsSnapshots(days)`, `getTopGuilds({by ∈ modules|activity})`.
+- Fehler-Log: `logError({source,level,context,message,stack,guild_id})` (best-effort, Retention `ERROR_LOG_MAX`), `getErrorLog({source,level,limit,offset})`, `clearErrorLog()`. Konstanten `ERROR_LOG_SOURCES`/`ERROR_LOG_LEVELS`.
 
-#### `closeDb()`
-Close database connection gracefully.
-- **Parameters:** none
-- **Returns:** Promise<void>
-- **Example:** `await closeDb();`
+## Server-Backup & Marketplace
+
+- Backups: `createBackup`, `getBackups`, `getBackup`, `deleteBackup` (Retention `BACKUP_MAX_PER_GUILD` = 15).
+- Job-Queue: `createBackupJob({type,backup_id?,mode?,parts?})`, `getActiveBackupJobs`, `getDueBackupJobs` (Bot; joint Snapshot-`data` via `COALESCE` über `guild_backups`/`marketplace_templates`, gefiltert `tierFilterSql('pro')` + `blocked`), `updateBackupJob`, `getAllBackupJobs` (Admin), `retryBackupJob`.
+- Marketplace: `createMarketplaceTemplate`, `getMarketplaceTemplates`, `getMarketplaceTemplate`, `getAdminMarketplaceTemplates`, `deleteMarketplaceTemplate`, `setMarketplaceTemplateStatus`, `incrementMarketplaceUses`.
+- Konstanten: `BACKUP_JOB_TYPES`, `BACKUP_JOB_STATUSES`, `RESTORE_MODES`, `RESTORE_PARTS`, `MARKETPLACE_STATUSES`.
+
+## Transaktion / Infrastruktur
+
+- `runInTransaction(work)` — siehe kritische Helfer (oben).
+- `whenDbReady` — Promise, das auflöst, sobald die Connection steht.
+- `getDbStats()` — Zeilen-Counts der Kern-Tabellen.
+- `closeDb()` — Connection schließen.
+
+## Schema / Migrations ([migrations.js](migrations.js))
+
+- `initializeSchemaVersion()` — `schema_version`-Tabelle anlegen.
+- `checkAndApplyMigrations()` — fehlende Migrationen bis `CURRENT_SCHEMA_VERSION` (= 40) anwenden.
+- `seedDatabase()` / `clearAllData()` / `getDbStats()` — Dev-/Test-Helfer.
 
 ---
 
-## Helper Functions (dbHelper.js)
-
-### Query Building
-
-#### `buildUpdateQuery(table, fields, whereClause, whereValues)`
-Build a dynamic UPDATE query.
-- **Returns:** `{query: string, values: array}`
-
-#### `buildInsertQuery(table, data)`
-Build a dynamic INSERT query.
-- **Returns:** `{query: string, values: array}`
-
-#### `buildSelectQuery(table, columns, whereClause, whereValues, options)`
-Build a dynamic SELECT query with pagination.
-- **Options:** `{orderBy, limit, offset}`
-- **Returns:** `{query: string, values: array}`
-
-### Error Handling
-
-#### `handleDbError(error, context, details)`
-Parse and format database errors with context.
-- **Returns:** `{message, code, originalError, context, details}`
-- **Detects:** UNIQUE, FOREIGN KEY, NOT NULL, table errors
-
-### Validators
-
-#### `isValidGuildId(guildId)`
-Validate Discord Guild ID format (15-21 digits).
-- **Returns:** boolean
-
-#### `isValidUserId(userId)`
-Validate Discord User ID format (15-21 digits).
-- **Returns:** boolean
-
-#### `isValidChannelId(channelId)`
-Validate Discord Channel ID format (15-21 digits).
-- **Returns:** boolean
-
-### Utilities
-
-#### `formatTimestamp(date)`
-Format date to ISO 8601 string.
-- **Parameters:** date (optional, default: now)
-- **Returns:** string (ISO format)
-
-#### `safeJsonParse(jsonString, fallback)`
-Parse JSON with fallback on error.
-- **Parameters:**
-  - jsonString (string)
-  - fallback (any, default: null)
-- **Returns:** parsed object or fallback
-
-#### `sanitizeInput(input)`
-Remove potentially harmful characters from input.
-- **Returns:** sanitized string
-
-#### `logQuery(query, values, executionTime)`
-Log SQL query with parameters (redacted).
-- **Parameters:**
-  - query (string)
-  - values (array, optional)
-  - executionTime (number, optional)
-
----
-
-## Database Schema
-
-### Tables
-
-1. **guilds**
-   - `id` (TEXT, PRIMARY KEY)
-   - `guild_name` (TEXT)
-   - `guild_icon_url` (TEXT)
-   - `enabled` (BOOLEAN)
-   - `created_at` (DATETIME)
-   - `updated_at` (DATETIME)
-
-2. **guild_settings**
-   - `id` (INTEGER, PRIMARY KEY)
-   - `guild_id` (TEXT, UNIQUE, FK → guilds)
-   - `welcome_enabled` (BOOLEAN)
-   - `welcome_channel_id` (TEXT)
-   - `welcome_message` (TEXT)
-   - `leave_enabled` (BOOLEAN)
-   - `leave_channel_id` (TEXT)
-   - `leave_message` (TEXT)
-   - `created_at` (DATETIME)
-   - `updated_at` (DATETIME)
-
-3. **users**
-   - `discord_id` (TEXT, PRIMARY KEY)
-   - `username` (TEXT)
-   - `email` (TEXT)
-   - `avatar_url` (TEXT)
-   - `access_token` (TEXT)
-   - `refresh_token` (TEXT)
-   - `created_at` (DATETIME)
-   - `updated_at` (DATETIME)
-
-4. **user_guilds**
-   - `id` (INTEGER, PRIMARY KEY)
-   - `user_id` (TEXT, FK → users)
-   - `guild_id` (TEXT, FK → guilds)
-   - `owner` (BOOLEAN)
-   - `admin` (BOOLEAN)
-   - `created_at` (DATETIME)
-   - Unique(user_id, guild_id)
-
-5. **audit_log**
-   - `id` (INTEGER, PRIMARY KEY)
-   - `user_id` (TEXT, FK → users, nullable)
-   - `guild_id` (TEXT, FK → guilds, nullable)
-   - `action` (TEXT)
-   - `changes` (TEXT, JSON)
-   - `created_at` (DATETIME)
-
----
-
-## Error Codes
-
-| Code | Description |
-|------|-------------|
-| `UNIQUE_CONSTRAINT_VIOLATION` | Record already exists |
-| `FOREIGN_KEY_CONSTRAINT_VIOLATION` | Referenced record missing |
-| `NOT_NULL_CONSTRAINT_VIOLATION` | Required field missing |
-| `TABLE_NOT_FOUND` | Table does not exist |
-| `DB_ERROR` | Generic database error |
-
----
-
-## Usage Pattern
-
-```javascript
-import * as db from './db.js';
-import * as dbHelper from './utils/dbHelper.js';
-
-try {
-  // Validate input
-  if (!dbHelper.isValidGuildId(guildId)) {
-    throw new Error('Invalid guild ID');
-  }
-
-  // Perform operation
-  const result = await db.getGuild(guildId);
-
-  // Handle result
-  if (result) {
-    console.log('Found guild:', result);
-  }
-} catch (error) {
-  // Handle error
-  const handled = dbHelper.handleDbError(error, 'getGuild', {guildId});
-  console.error(handled);
-}
-```
-
----
-
-**Last Updated:** 2026-05-18  
-**Status:** ✅ Production Ready
+> Schema-Details (Tabellen, Spalten, Indizes, Pragmas, Migrations-Übersicht) in [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md). Architektur-Kontext in [../CLAUDE.md](../CLAUDE.md) §8.
