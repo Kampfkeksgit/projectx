@@ -20,6 +20,7 @@ import {
   getBackup,
   createMarketplaceTemplate,
   getAdminMarketplaceTemplates,
+  getMarketplaceTemplate,
   deleteMarketplaceTemplate,
   setMarketplaceTemplateStatus,
   getAllBackupJobs,
@@ -559,6 +560,77 @@ router.get('/marketplace', async (req, res) => {
   } catch (error) {
     console.error('Marketplace list error:', error.message)
     res.status(500).json({ error: 'Failed to list templates' })
+  }
+})
+
+/**
+ * POST /api/admin/marketplace/upload
+ * Body: { name?, description?, category?, guild_name?, guild_icon_url?, data }
+ * Upload a template directly (no source guild needed). `data` is a snapshot blob
+ * { server, roles, channels } — either raw, or wrapped in a previously exported
+ * file ({ ..., data: {...} }). The template appears in the marketplace at once.
+ */
+router.post('/marketplace/upload', async (req, res) => {
+  try {
+    const body = req.body || {}
+    // Accept both a raw snapshot blob and a full exported file (which nests it under `data`).
+    const raw = (body.data && typeof body.data === 'object' && (body.data.data || body.data)) || body.data
+    let data = raw
+    if (typeof data === 'string') {
+      try { data = JSON.parse(data) } catch { data = null }
+    }
+    if (!data || typeof data !== 'object' || (!Array.isArray(data.roles) && !Array.isArray(data.channels))) {
+      return res.status(400).json({ error: 'invalid_template', message: 'data must contain a roles and/or channels array' })
+    }
+    if ((data.roles || []).length === 0 && (data.channels || []).length === 0) {
+      return res.status(400).json({ error: 'empty_template', message: 'template has no roles or channels' })
+    }
+    // Fall back to the snapshot's own server name / the export's guild_name for display.
+    const guildName = body.guild_name || (body.data && body.data.guild_name) || (data.server && data.server.name) || null
+    const guildIcon = body.guild_icon_url || (body.data && body.data.guild_icon_url) || (data.server && data.server.icon_url) || null
+    const tpl = await createMarketplaceTemplate(req.user.id, null, {
+      name: body.name || (body.data && body.data.name),
+      description: body.description || (body.data && body.data.description),
+      category: body.category || (body.data && body.data.category),
+      guild_name: guildName,
+      guild_icon_url: guildIcon,
+      data
+    })
+    await logAuditAction(req.user.id, null, 'MARKETPLACE_UPLOAD', { template_id: tpl.id, name: tpl.name })
+    res.json({ success: true, template: tpl })
+  } catch (error) {
+    console.error('Marketplace upload error:', error.message)
+    res.status(500).json({ error: 'Failed to upload template' })
+  }
+})
+
+/**
+ * GET /api/admin/marketplace/:id/export
+ * Download a template (incl. its full data blob) as a re-importable JSON file.
+ */
+router.get('/marketplace/:id/export', async (req, res) => {
+  try {
+    const tpl = await getMarketplaceTemplate(req.params.id)
+    if (!tpl) return res.status(404).json({ error: 'Template not found' })
+    const exported = {
+      format_version: 1,
+      name: tpl.name,
+      description: tpl.description,
+      category: tpl.category,
+      guild_name: tpl.guild_name,
+      guild_icon_url: tpl.guild_icon_url,
+      channels_count: tpl.channels_count,
+      roles_count: tpl.roles_count,
+      data: tpl.data
+    }
+    await logAuditAction(req.user.id, null, 'MARKETPLACE_EXPORT', { template_id: tpl.id })
+    const slug = String(tpl.name || 'template').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'template'
+    res.setHeader('Content-Type', 'application/json; charset=utf-8')
+    res.setHeader('Content-Disposition', `attachment; filename="template-${slug}.json"`)
+    res.send(JSON.stringify(exported, null, 2))
+  } catch (error) {
+    console.error('Marketplace export error:', error.message)
+    res.status(500).json({ error: 'Failed to export template' })
   }
 })
 
