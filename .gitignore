@@ -58,3 +58,9 @@ frontend/android/app/src/main/assets/public/
 **/*.keystore
 **/*.jks
 !debug.keystore
+
+# ---- Editor / Build-Artefakte ----
+# Gepackte VS-Code-Extensions und Vite-Watcher-Temp-Configs landen im Repo-Root
+# bzw. frontend/ und sollen nicht eingecheckt werden.
+*.vsix
+**/vite.config.js.timestamp-*.mjs
