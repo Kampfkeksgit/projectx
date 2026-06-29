@@ -1,32 +1,42 @@
-# Modules
+# Module
 
-ProjectX ships with 21+ modules, grouped by plan. Free modules are available to everyone; **Basic** and **Pro** modules unlock with a premium plan (see [Premium & Plans](premium.md)).
+projectx bietet über 34 Module, aufgeteilt auf drei Tarife: **Free** (dauerhaft kostenlos), **Basic** und **Pro**. Welche Tarife was kosten, steht unter [Premium & Tarife](premium.md).
 
-## Free
+## Free – dauerhaft kostenlos
 
-- **Welcome** — greet new members with rich embeds, ping, auto-DM and auto-delete.
-- **Leave** — a quiet farewell or a loud notification when members leave.
-- **Auto-Role** — hand new members their starter roles on join.
-- **Server Logs** — audit joins, edits, deletes, bans, roles, channels and voice into one channel.
-- **Moderation** — anti-spam, link/invite filters and a banned-words filter with five actions, plus warn escalation.
-- **Reaction Roles** — self-serve roles via emoji reactions, with an exclusive picker mode.
-- **Verification** — gate new members behind a one-click verify button.
-- **Suggestions** — collect ideas with up/down vote reactions.
-- **Custom Commands** — define trigger phrases the bot replies to, plus per-server command toggles and a custom prefix.
+- **Allgemein** – Server-Grundeinstellungen wie Sprache, Zeitzone, Standard-Embed-Farbe und Dashboard-Design.
+- **Begrüßung (Welcome)** – Heißt neue Mitglieder mit Nachricht oder Embed willkommen, optional per DM.
+- **Verabschiedung (Leave)** – Postet eine Nachricht, wenn jemand den Server verlässt.
+- **Auto-Rolle** – Vergibt neuen Mitgliedern automatisch eine oder mehrere Rollen.
+- **Server-Logs** – Protokolliert Beitritte, Bans, gelöschte/bearbeitete Nachrichten, Kanal- und Rollenänderungen u. v. m.
+- **Moderation** – Wortfilter, Anti-Spam, Anti-Link/-Invite, Anti-Caps, Massen-Erwähnungen, Warnungen mit Eskalation.
+- **Reaktionsrollen** – Rollen per Klick auf eine Reaktion an einer Nachricht zuweisen.
+- **Verifizierung** – Button-Gate, das neuen Mitgliedern nach Bestätigung eine Rolle gibt.
+- **Vorschläge** – Mitglieder reichen Ideen ein, die per Auf-/Abwärts-Reaktion bewertet werden.
+- **Eigene Befehle** – Selbst definierte Text-Befehle und Verwaltung aller eingebauten Befehle (Prefix, an/aus).
+- **Counting (Zählen)** – Gemeinsamer Zähl-Kanal, in dem der Bot jede Zahl prüft.
+- **Umfragen (Polls)** – Button-Umfragen mit Live-Auszählung.
 
 ## Basic
 
-- **Leveling** — XP per message, level-up announcements and role rewards.
-- **Starboard** — highlight the best messages once they hit a star threshold.
-- **Temp Voice** — join-to-create personal voice channels that clean themselves up.
-- **Birthdays** — daily birthday announcements and an optional birthday role.
-- **Role Menus** — self-assignable roles via buttons or dropdowns, with a custom embed.
-- **Anti-Raid** — account-age gates and join-rate bursts trigger alert, kick or ban.
+- **Leveling (XP)** – Mitglieder sammeln durch Aktivität XP, mit Level-Up-Nachrichten und Belohnungsrollen.
+- **Starboard** – Beliebte Nachrichten landen ab einer Stern-Schwelle in einem Highlight-Kanal.
+- **Temp-Voice** – „Join to Create": Mitglieder erstellen per Hub-Kanal eigene Sprachkanäle mit Steuerungspanel.
+- **Geburtstage** – Speichert Geburtstage und gratuliert automatisch, optional mit Geburtstagsrolle.
+- **Rollen-Menüs** – Selbstbedienungs-Menüs (Buttons oder Dropdown) zur Rollenvergabe.
+- **Anti-Raid** – Schützt vor Beitritts-Wellen über Konto-Alter und Beitrittsrate.
+- **Invite-Tracking** – Erkennt, wer wen eingeladen hat, mit Einlader-Bestenliste.
+- **Spiele** – Mini-Games direkt im Chat: **Tic-Tac-Toe**, **Schere-Stein-Papier**, **Trivia**, **Vier gewinnt**, **Hangman** und **Poker** (Texas Hold'em) – mit gemeinsamer Bestenliste.
 
 ## Pro
 
-- **Social Notifications** — announce new YouTube, Twitch and Kick uploads and live streams.
-- **Statistics** — live member counters as channels plus history charts in the dashboard.
-- **Tickets** — full support system: categories, claims, ratings and transcripts.
-- **Giveaways** — button-entry giveaways with automatic winner draws and rerolls.
-- **Scheduled Announcements** — one-off or recurring messages posted on your schedule.
+- **Social-Benachrichtigungen** – Kündigt neue Videos und Livestreams von YouTube, Twitch und Kick an.
+- **Statistiken** – Live-Serverzahlen als Kanalnamen (Mitglieder, Online, Booster …) plus Verlaufs-Graphen.
+- **Tickets** – Support-System mit Panel, Kategorien, Claim, Bewertung und Transkripten.
+- **Gewinnspiele (Giveaways)** – Button-Verlosungen mit automatischer Gewinner-Ziehung und Reroll.
+- **Geplante Ankündigungen** – Nachrichten einmalig oder in Intervallen automatisch posten.
+- **Bewerbungen** – Bewerbungsformulare mit Fragen, Prüfung per Annehmen/Ablehnen und Rollenvergabe.
+- **Wirtschaft (Economy)** – Server-Währung mit Daily, Work, Bezahlen, Shop und Bestenliste.
+- **Server-Backup** – Snapshots der Server-Struktur (Kanäle & Rollen) speichern und wiederherstellen, inklusive Vorlagen.
+
+➡️ Tarife und Preise: [Premium & Tarife](premium.md)

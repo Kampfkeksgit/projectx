@@ -1,27 +1,31 @@
-# FAQ
+# Häufige Fragen
 
-## Is ProjectX really free?
+## Ist projectx kostenlos?
 
-Yes. The Free plan covers welcome messages, moderation, logs, auto-role, verification, suggestions and custom commands forever, with no limits.
+Ja. Viele Module sind dauerhaft kostenlos (Tarif **Free**) – darunter Begrüßung, Moderation, Server-Logs, Reaktionsrollen, Umfragen und mehr. Für zusätzliche Module gibt es die kostenpflichtigen Tarife **Basic** und **Pro**.
 
-## How does Premium work?
+## Wie funktioniert Premium?
 
-Premium is a per-server subscription managed through Discord. Once active, Basic or Pro modules unlock automatically in the dashboard — usually within a minute.
+Premium gilt **pro Server** und schaltet je nach Tarif weitere Module frei. Aktiviert wird es über Discord; alternativ kannst du einen Promo- oder Trial-Code auf der Premium-Seite deines Servers einlösen. Details und Preise findest du unter [Premium & Tarife](premium.md).
 
-## What happens if my subscription ends?
+## Was passiert, wenn mein Premium abläuft?
 
-Your configuration is kept, but premium modules simply stop running and lock again in the dashboard. Re-subscribe any time to continue where you left off.
+Deine Einstellungen bleiben gespeichert. Module oberhalb deines aktuellen Tarifs werden gesperrt, bleiben aber sichtbar (mit Tarif-Hinweis). Verlängerst du Premium, laufen sie sofort mit den alten Einstellungen weiter.
 
-## Do I need to host anything?
+## Muss ich selbst etwas hosten oder installieren?
 
-No. Invite the bot, sign in with Discord and configure everything from the dashboard. Changes are picked up within seconds.
+Nein. projectx ist ein gehosteter Bot mit Web-Dashboard. Du lädst nur den Bot ein und konfigurierst alles im Browser – nichts zu installieren, nichts zu betreiben.
 
-## The bot isn't responding — what should I check?
+## Der Bot reagiert nicht – was soll ich prüfen?
 
-- Is the module **enabled** and is the target **channel** set?
-- Is the bot **online** and does it have permission in that channel?
-- For statistics (online/offline counts), is the **Presence Intent** enabled?
+- Ist der Bot **online** und tatsächlich auf deinem Server?
+- Ist das jeweilige **Modul aktiviert** und der richtige **Kanal/die richtige Rolle** ausgewählt?
+- Hat der Bot die nötigen **Berechtigungen** im betreffenden Kanal (z. B. Nachrichten senden, Rollen/Kanäle verwalten)?
+- Bei Funktionen, die das **Mitglieder-** oder **Präsenz-Intent** brauchen (z. B. Statistiken): ist der Bot mit den korrekten Berechtigungen eingeladen?
+- Steht das Modul in einem Tarif, der für deinen Server **freigeschaltet** ist?
 
-## Can I use ProjectX in multiple servers?
+Hintergrund-Funktionen greifen außerdem über kurze Intervalle – gib Änderungen einen kleinen Moment.
 
-Yes. Configuration and premium are per server, so you manage each one independently from the same dashboard.
+## Kann ich projectx auf mehreren Servern nutzen?
+
+Ja. Du verwaltest im Dashboard alle Server, auf denen du Inhaber oder Administrator bist. Premium wird jeweils pro Server festgelegt.

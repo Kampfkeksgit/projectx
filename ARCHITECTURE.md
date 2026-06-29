@@ -1,447 +1,290 @@
-# Discord Bot Dashboard - System Architecture
+# ARCHITECTURE.md — projectx
 
-## High-Level System Overview
+> System-Design-Übersicht für **projectx**, ein Discord-Bot-Dashboard.
+> Diese Datei ist autoritativ für **Architektur-Fragen**. Für die exakte
+> Endpoint-/Schema-/Konventions-Referenz gilt [CLAUDE.md](CLAUDE.md) als Single
+> Source of Truth.
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        User's Web Browser                            │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │  Vue.js Dashboard Frontend (Port 5173)                       │  │
-│  │  - Guild Selection                                           │  │
-│  │  - Welcome Message Configuration                            │  │
-│  │  - Leave Message Configuration                              │  │
-│  │  - Real-time Message Preview                               │  │
-│  └────────────────┬─────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────┘
-                     │
-        HTTP/HTTPS API Requests (REST)
-                     │
-┌─────────────────────┴─────────────────────────────────────────────────┐
-│         Node.js Express Backend API Server (Port 3000)                │
-│  ┌──────────────────────────────────────────────────────────────┐    │
-│  │  API Routes                                                  │    │
-│  │  - /api/health (Health Check)                               │    │
-│  │  - /api/auth/* (OAuth2 Authentication)                      │    │
-│  │  - /api/guilds (List User Guilds)                          │    │
-│  │  - /api/guilds/:id (Get Guild Details)                     │    │
-│  │  - /api/guilds/:id/settings (CRUD Settings)                │    │
-│  ├──────────────────────────────────────────────────────────────┤    │
-│  │  Middleware                                                  │    │
-│  │  - Authentication (JWT Bearer Tokens)                       │    │
-│  │  - Authorization (Guild Ownership/Admin Checks)             │    │
-│  │  - CORS (Cross-Origin Resource Sharing)                    │    │
-│  │  - Error Handling                                           │    │
-│  ├──────────────────────────────────────────────────────────────┤    │
-│  │  Services                                                    │    │
-│  │  - Discord OAuth Token Exchange                             │    │
-│  │  - Token Refresh Logic                                      │    │
-│  │  - Discord API Integration (via axios)                      │    │
-│  │  - Database Layer (SQLite3)                                 │    │
-│  │  - Audit Logging                                            │    │
-│  └────────────────┬──────────────────────────────┬──────────────┘    │
-└─────────────────────┼──────────────────────────────┼────────────────┘
-                      │                              │
-          HTTP Requests             Database Operations
-          to Discord API            (SQL Queries)
-                      │                              │
-    ┌─────────────────┘                ┌────────────┴──────────────┐
-    │                                   │                           │
-┌───┴──────────────────┐      ┌──────────┴──────────────┐    ┌──────┴──────────┐
-│  Discord API         │      │  SQLite3 Database      │    │  Discord OAuth  │
-│  - Guilds Info       │      │  - guilds table        │    │  - Token Mgmt   │
-│  - User Info         │      │  - users table         │    │  - User Creds   │
-│  - Guild Members     │      │  - guild_settings      │    │                 │
-│                      │      │  - audit_log table     │    │                 │
-└──────────────────────┘      └────────────────────────┘    └─────────────────┘
-```
+---
 
-## Discord Bot Component
+## 1. High-Level-Überblick
+
+projectx besteht aus drei Laufzeit-Komponenten plus einer dateibasierten Datenbank:
+
+| Komponente | Stack | Aufgabe |
+|---|---|---|
+| [bot/](bot/) | Python 3.8+, discord.py 2.3.2 | Reagiert auf Gateway-Events (`on_member_join`/`on_member_remove`, Reaktionen, Interaktionen, Loops), führt alle Server-Features aus |
+| [backend/](backend/) | Node.js 18+, Express 4, SQLite3 (ESM) | REST-API, Discord-OAuth2, Settings-CRUD, Audit-Log, Cookie-Session, interne Bot-API |
+| [frontend/](frontend/) | Vue 3 + Vite 4, Vue Router 4, Axios | Web-Dashboard zum Konfigurieren aller Module |
+| SQLite-Datei | via `DATABASE_URL` (`./data/bot.db`) | Persistenz; vom Backend exklusiv besessen |
+
+### Datenfluss
 
 ```
-┌────────────────────────────────────────────────────────────────┐
-│  Python Discord.py Bot (Background Process)                    │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │  Event Handlers                                          │  │
-│  │  - on_ready() - Bot initialization                      │  │
-│  │  - on_member_join() - Welcome message logic             │  │
-│  │  - on_member_remove() - Leave message logic             │  │
-│  ├──────────────────────────────────────────────────────────┤  │
-│  │  Commands                                                │  │
-│  │  - /welcome_test - Admin command to test messages       │  │
-│  ├──────────────────────────────────────────────────────────┤  │
-│  │  Integration Layer                                       │  │
-│  │  - Fetch guild settings from backend API                │  │
-│  │  - Parse message templates ({user}, {guild})            │  │
-│  │  - Send configured messages to Discord                  │  │
-│  └─────────┬──────────────────────────┬────────────────────┘  │
-└────────────┼──────────────────────────┼──────────────────────┘
-             │                          │
-        REST API Calls           Discord WebSocket
-        to Backend                Connection
-             │                          │
-    ┌────────┴──┐            ┌──────────┴─────┐
-    │            │            │                │
-    │  Backend   │            │  Discord API   │
-    │  (Fetch    │            │  - Guilds      │
-    │  Settings) │            │  - Members     │
-    │            │            │  - Messages    │
-    └────────────┘            └────────────────┘
+        ┌────────────┐   Cookie-Session (HttpOnly JWT)   ┌────────────┐
+        │  Frontend  │ <───────────────────────────────> │  Backend   │
+        │  (Vue 3)   │        /api/* (withCredentials)    │ (Express)  │
+        └────────────┘                                    └─────┬──────┘
+                                                                │ direkt
+                                                          ┌─────┴──────┐
+                                                          │  SQLite    │
+                                                          └─────┬──────┘
+        ┌────────────┐   interne API /api/bot/*                │
+        │    Bot     │ <──────────────────────────────────────┘
+        │(discord.py)│   X-Bot-Token (Shared Secret)
+        └─────┬──────┘
+              │ Gateway-Events / REST
+        ┌─────┴──────┐
+        │  Discord   │
+        └────────────┘
 ```
 
-## Data Flow Diagrams
+- **Frontend ⇄ Backend:** Cookie-Session `projectx_session` (HttpOnly-JWT,
+  `SameSite=Lax`, `Secure` nur in Production). Kein Bearer-Header, kein
+  localStorage-Token.
+- **Bot ⇄ Backend:** separate interne API unter `/api/bot/*`, abgesichert per
+  `X-Bot-Token`-Header (constant-time-Vergleich gegen `BOT_API_KEY`). Antworten
+  sind **rohe** Settings-Objekte ohne Envelope, damit der Bot direkt lesen kann.
+- **Bot ⇄ Discord:** Gateway-Events + REST-Calls über discord.py.
+- **Backend ⇄ Discord:** OAuth-Token-Exchange + User-/Guild-Lookups via axios.
 
-### 1. Authentication Flow
+Details: [CLAUDE.md](CLAUDE.md) §1.
 
-```
-User (Browser)              Frontend                Backend                  Discord
-    │                          │                       │                        │
-    ├─ Click "Login" ────────→ │                       │                        │
-    │                          │                       │                        │
-    │                          ├─ Redirect to OAuth ──────────────────────────→ │
-    │                          │  (/oauth/authorize)                            │
-    │                          │                                                │
-    │ ← Redirect to Callback ────────────────────────────────────────────────── │
-    │   (with code)                                                             │
-    │                          │                       │                        │
-    │                          ├─ Send Code ──────────→ POST /api/auth/callback │
-    │                          │                       │                        │
-    │                          │                       ├─ Exchange Code ───────→ │
-    │                          │                       │  (using Client ID/Secret)
-    │                          │                       │                        │
-    │                          │                       │ ← Access Token ─────── │
-    │                          │                       │   Refresh Token        │
-    │                          │ ← Return Tokens ───── │                        │
-    │                          │                       │                        │
-    │ ← Save tokens in localStorage                    │                        │
-```
+---
 
-### 2. Guild Settings Update Flow
+## 2. Komponenten-Architektur
 
-```
-User (Browser)              Frontend                Backend                Database
-    │                          │                       │                        │
-    ├─ Fill Form ────────────→ │                       │                        │
-    │ (Channel ID, Message)    │                       │                        │
-    │                          │                       │                        │
-    │                          ├─ PUT /api/guilds/:id/settings                  │
-    │                          │ (with Bearer token)   │                        │
-    │                          │                       ├─ Verify Token ────────→│
-    │                          │                       │                        │
-    │                          │                       │ ← Valid ──────────────│
-    │                          │                       │                        │
-    │                          │                       ├─ Update Settings ────→ │
-    │                          │                       │ (SQL UPDATE)           │
-    │                          │                       │                        │
-    │                          │                       │ ← Success ────────────│
-    │                          │                       │                        │
-    │                          │ ← Success Response ─── │                        │
-    │                          │                       │                        │
-    │ ← Show Success Message ──                        │                        │
-```
+### 2.1 Bot ([bot/main.py](bot/main.py))
 
-### 3. Member Join → Welcome Message Flow
+- **Cog-basiert:** ~34 Cogs unter [bot/cogs/](bot/cogs/) werden **einmalig** in
+  `setup_hook` per `load_extension` geladen (jeweils mit eigenem try/except),
+  danach `bot.tree.sync()` für Slash-Commands. **Nicht** in `on_ready` laden —
+  das feuert bei jedem Reconnect und würde „Extension already loaded" werfen.
+- **Intents:** default + `message_content` + `members` + `presences`
+  (presences ist privilegiert → im Dev-Portal aktivieren; nötig für die
+  Online/Offline-Statistik).
+- **Dynamischer Prefix:** `command_prefix = async _resolve_prefix` löst pro Guild
+  via [utils/command_config.py](bot/utils/command_config.py) (60s-Cache) auf;
+  Mention bleibt immer aktiv.
+- **Globale Gates:** `@bot.check` (Prefix) + `bot.tree.interaction_check` (Slash)
+  sperren pro Guild deaktivierte Befehle.
+- **Fehler-Reporting:** `on_command_error` schluckt CheckFailure/CommandNotFound,
+  meldet sonst via `report_error` → `POST /api/bot/errors`; ein globaler
+  `on_error` fängt Event-Exceptions ins zentrale `error_log`.
+- **Shared-Helfer:** Backend-Calls laufen über
+  [utils/backend.py](bot/utils/backend.py) (`fetch_bot_settings`, `bot_get/put/post/delete`).
+  Weitere Querschnitts-Helfer: [general_config.py](bot/utils/general_config.py)
+  (Embed-Farbe/Sprache/Zeitzone, 60s-Cache), [bot_i18n.py](bot/utils/bot_i18n.py)
+  + [game_i18n.py](bot/utils/game_i18n.py) (5-sprachige Bot-/Game-Strings),
+  [ratelimit.py](bot/utils/ratelimit.py) (proaktives Pacing pro Channel gegen
+  429-Fluten beim Logging/Backup-Restore).
 
-```
-New Member Joins               Discord Bot            Backend API            Database
-    │                              │                       │                    │
-    ├─ Join Event ──────────────→ │                       │                    │
-    │                              │                       │                    │
-    │                              ├─ Fetch Guild Settings                      │
-    │                              ├─ REST Call ──────────→ GET /api/guilds/:id/settings
-    │                              │                       │                    │
-    │                              │                       ├─ Query Settings ─→ │
-    │                              │                       │                    │
-    │                              │                       │ ← Settings ──────│
-    │                              │ ← Settings ─────────── │                    │
-    │                              │                       │                    │
-    │                              ├─ Check Enabled        │                    │
-    │                              │                       │                    │
-    │                              ├─ Parse Template       │                    │
-    │                              │ ({user}, {guild})      │                    │
-    │                              │                       │                    │
-    │                              ├─ Send Message ───────→ Target Channel      │
-    │                              │                       │                    │
-    │ ← Welcome Message ←────────── │                       │                    │
-```
+### 2.2 Backend ([backend/server.js](backend/server.js))
 
-## Database Schema
+- **Express, ESM** (`"type": "module"`) — `import`/`export`, kein CommonJS.
+- **Ein Router pro Modul** unter [backend/routes/](backend/routes/). Mount-Reihenfolge
+  und Schutz-Middleware werden in [server.js](backend/server.js) verdrahtet.
+- **Startup-Sequenz:** `whenDbReady` → `initializeSchemaVersion()` →
+  `checkAndApplyMigrations()`; bis dahin antwortet alles außer `/api/health` mit
+  `503`. Danach läuft alle 6h `captureMetricsSnapshot()` (Admin-Analytics).
+- **Middleware** unter [backend/middleware/](backend/middleware/):
+  - [session.js](backend/middleware/session.js) — `requireSession` (lehnt
+    gesperrte User ab, setzt `req.user.is_owner`), `requireBotToken`
+    (constant-time), `requireOwner`/`isOwner`, Cookie-Helfer.
+  - [auth.js](backend/middleware/auth.js) — `requireGuildAccess` (Owner/Admin,
+    lehnt gesperrte Guilds ab).
+  - [premium.js](backend/middleware/premium.js) — `requirePremiumModule(key)`
+    (Write-Gate, GET frei).
+  - [maintenance.js](backend/middleware/maintenance.js) — `maintenanceGate`
+    (global vor `/api/guilds`, blockt Nicht-Owner-Writes mit `503`).
+- **DB-Zugriff** ausschließlich über [db.js](backend/db.js) / [utils/dbHelper.js](backend/utils/dbHelper.js) —
+  keine inline-`sqlite3.Database` in Routes. Globaler Error-Handler bündelt 500er
+  und schreibt ins `error_log`. Bind explizit auf `0.0.0.0` (IPv4-Fix für Windows).
 
-### Tables
+### 2.3 Frontend ([frontend/src/](frontend/src/))
 
-```sql
--- Users who have logged in
-CREATE TABLE users (
-  id TEXT PRIMARY KEY,           -- Discord User ID
-  username TEXT,
-  email TEXT,
-  avatar_url TEXT,
-  last_login TIMESTAMP
-);
+- **Vue 3 Composition API** (`<script setup>`), Vanilla-CSS + Tokens
+  ([styles/tokens.css](frontend/src/styles/tokens.css)) — bewusst **kein**
+  Tailwind/Pinia/VueUse/UI-Kit.
+- **HTTP** nur über [services/api.js](frontend/src/services/api.js) (axios,
+  `withCredentials: true`, 401 → Event + Redirect). Nie ein `Authorization`-Header.
+- **State** über Singleton-Composables/Stores: [stores/auth.js](frontend/src/stores/auth.js)
+  (`useAuth()`), [stores/guildSettings.js](frontend/src/stores/guildSettings.js),
+  [stores/premium.js](frontend/src/stores/premium.js) (`usePremium().isUnlocked(key)`).
+- **Routing** zentral in [router/index.js](frontend/src/router/index.js); Guards
+  warten via `auth.waitUntilResolved()` (inkl. `requiresAuth`/`requiresOwner`).
+- **i18n** ([i18n/index.js](frontend/src/i18n/index.js)): 5 Sprachen (EN/DE/TR/RU/PL),
+  hand-gerollt, Key-Parität Pflicht, Persistenz in localStorage.
+- **Mobile/Native:** dedizierte Handy-Shell ([mobile/](frontend/src/mobile/),
+  aktiv in der Capacitor-App oder per `?mobile=1`) und Capacitor-Android-Wrapper
+  im Remote-URL-Modus ([native/capacitor.js](frontend/src/native/capacitor.js),
+  No-Op auf Web) — derselbe Code, dieselbe Session.
 
--- Discord Guilds
-CREATE TABLE guilds (
-  id TEXT PRIMARY KEY,           -- Discord Guild ID
-  name TEXT,
-  owner_id TEXT,                 -- Discord User ID (guild owner)
-  icon_url TEXT,
-  created_at TIMESTAMP
-);
+---
 
--- User-Guild membership
-CREATE TABLE user_guilds (
-  user_id TEXT,
-  guild_id TEXT,
-  is_owner BOOLEAN,
-  is_admin BOOLEAN,
-  joined_at TIMESTAMP,
-  PRIMARY KEY (user_id, guild_id),
-  FOREIGN KEY (user_id) REFERENCES users(id),
-  FOREIGN KEY (guild_id) REFERENCES guilds(id)
-);
+## 3. Wichtige Abläufe
 
--- Guild-specific settings
-CREATE TABLE guild_settings (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  guild_id TEXT NOT NULL,
-  welcome_enabled BOOLEAN DEFAULT 1,
-  welcome_channel_id TEXT,
-  welcome_message TEXT DEFAULT 'Welcome {user} to {guild}!',
-  leave_enabled BOOLEAN DEFAULT 1,
-  leave_channel_id TEXT,
-  leave_message TEXT DEFAULT '{user} has left {guild}',
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (guild_id) REFERENCES guilds(id)
-);
+### 3.1 OAuth-Login & Session
 
--- Audit log for all changes
-CREATE TABLE audit_log (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  guild_id TEXT,
-  user_id TEXT,
-  action TEXT,              -- 'update_settings', 'delete_settings', etc.
-  changes TEXT,             -- JSON of what changed
-  timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (guild_id) REFERENCES guilds(id),
-  FOREIGN KEY (user_id) REFERENCES users(id)
-);
-```
+1. Frontend ruft `useAuth().loginWithDiscord()` → Redirect auf Discord-OAuth
+   (`scope=identify email guilds`).
+2. Discord redirected nach `/auth/callback?code=…`;
+   [AuthCallback.vue](frontend/src/pages/AuthCallback.vue) sendet
+   `POST /api/auth/callback { code }`.
+3. Backend tauscht Code → Discord-Tokens, holt `/users/@me` + `/users/@me/guilds`,
+   persistiert User + Tokens (in `users`), reconciliert `user_guilds`
+   (Admin-Bit aus `permissions & 0x8`), setzt das `projectx_session`-Cookie.
+4. Antwort: `{ success, user: { id, username, avatar_url, email, is_owner } }`
+   — **keine** Discord-Tokens ans Frontend. Frontend speichert den User,
+   navigiert nach `/dashboard`.
+5. Folge-Requests laufen cookie-authentifiziert; `GET /api/auth/me` re-hydriert
+   den Auth-State, `POST /api/auth/refresh-guilds` aktualisiert serverseitig.
 
-## API Endpoints
+### 3.2 Settings speichern → Bot liest
 
-### Authentication
-- `POST /api/auth/callback` - OAuth code exchange
-- `POST /api/auth/refresh` - Token refresh
-- `GET /api/health` - Health check
+1. Dashboard-Seite sendet `PUT /api/guilds/:id/settings/<modul>` (cookie,
+   `requireSession` + `requireGuildAccess`, ggf. `requirePremiumModule`).
+2. Backend validiert/coerced (Längen-Caps, Hex/URL-Form, Enums, Clamps) in den
+   `upsert*`-Helfern von [db.js](backend/db.js) und schreibt in SQLite. Audit-Eintrag.
+3. Der Bot liest dieselben Settings **lazy** über `/api/bot/guilds/:id/settings/<modul>`
+   mit `X-Bot-Token` (rohes Objekt, meist 60s-Cache pro Cog). Dashboard-Änderungen
+   greifen also nach max. einem Cache-TTL.
 
-### Guilds
-- `GET /api/guilds` - List all user's guilds
-- `GET /api/guilds/:id` - Get guild details
-- `GET /api/guilds/:id/full` - Get guild details + settings
+### 3.3 Member-Join → Welcome-Nachricht
 
-### Settings
-- `GET /api/guilds/:id/settings` - Fetch guild settings
-- `PUT /api/guilds/:id/settings` - Update guild settings (complete)
-- `PATCH /api/guilds/:id/settings` - Update guild settings (partial)
-- `DELETE /api/guilds/:id/settings` - Reset to defaults
+1. Discord feuert `on_member_join` → das
+   [welcome_leave.py](bot/cogs/welcome_leave.py)-Cog wird aktiv.
+2. Cog holt die Welcome/Leave-Settings via `/api/bot/guilds/:id/settings`.
+3. Bei `welcome_enabled` und gesetztem Channel: Platzhalter auflösen
+   (`{user.*}`/`{guild.*}`), Plain- **oder** Embed-Nachricht bauen, optional
+   `@`-Mention als content, optional DM, optional Auto-Delete.
+4. Nachricht wird in den Ziel-Channel gesendet (Senden über das Rate-Limit-Pacing,
+   wo relevant).
 
-## Frontend Architecture
+### 3.4 Premium-Gating (3 Schichten)
 
-### Pages/Components
-- **App.vue** - Root component with navigation
-- **NavBar.vue** - User authentication status, logout button
-- **GuildSelector.vue** - Dropdown/list of user's guilds
-- **LoadingPage.vue** - Loading spinner during API calls
-- **Dashboard.vue** - Main guild dashboard
-- **Welcome.vue** - Welcome message configuration page
-- **Leave.vue** - Leave message configuration page
-- **AuthCallback.vue** - OAuth redirect handler
+`MODULE_TIERS` in [db.js](backend/db.js) ist die Single Source (Modul-Key =
+Dashboard-Route-Segment → min Tier `free|basic|pro`). Effektiver Tier ist
+expiry-aware (`effectiveTier` → abgelaufenes Premium = `free`).
 
-### State Management
-- localStorage for:
-  - Bearer token
-  - Refresh token
-  - Current guild ID
-  - User info
+1. **Frontend-Lock:** [DashboardLayout.vue](frontend/src/pages/DashboardLayout.vue)
+   rendert [PremiumLock.vue](frontend/src/components/PremiumLock.vue) statt der
+   Modul-Seite, wenn der Tier nicht reicht (+ Sidebar-Lock-Icons, Overview-Ribbons).
+2. **Backend-Write-Gate:** `requirePremiumModule(key)`
+   ([middleware/premium.js](backend/middleware/premium.js)) — GET frei,
+   PUT/POST/DELETE → `403 premium_required`.
+3. **Bot-Runtime:** Guild-übergreifende Loop-Queries filtern serverseitig via
+   `tierFilterSql(minTier)`; per-Guild Bot-GETs liefern über den
+   `PREMIUM_BOT_GATES`-Guard in [routes/bot.js](backend/routes/bot.js) eine
+   `disabled`-Shape. So gehen Premium-Features bei Tier-Verlust automatisch inert.
 
-### API Integration
-- Axios service with:
-  - Bearer token auto-injection
-  - 401 error interception
-  - Automatic token refresh on 401
-  - Base URL configuration from env
+Premium-Quellen: Discord-SKU-Entitlements (Bot-Cog
+[premium_sync.py](bot/cogs/premium_sync.py) → `PUT /api/bot/premium`),
+Owner-Override (Admin-Panel) und einlösbare Codes
+(`POST /api/guilds/:id/premium/redeem`).
 
-## Deployment Architecture
+---
 
-### Production Setup
-```
-┌─────────────────────────────────────────────────────┐
-│  Production Server (e.g., AWS EC2, VPS, Railway)   │
-├─────────────────────────────────────────────────────┤
-│                                                     │
-│  1. Backend Service (PM2/systemd)                   │
-│     - Express server on port 3000                   │
-│     - Reverse proxy (nginx) on port 80/443         │
-│     - Environment variables loaded                  │
-│                                                     │
-│  2. Bot Service (PM2/systemd)                       │
-│     - Python discord.py process                     │
-│     - Connects to Discord via WebSocket             │
-│     - Reads settings from backend API               │
-│                                                     │
-│  3. Frontend (Static Files)                         │
-│     - Vue build served by nginx                     │
-│     - CDN optional for assets                       │
-│                                                     │
-│  4. Database                                        │
-│     - SQLite3 in /data directory                    │
-│     - Regular backups to S3/cloud storage           │
-│     - Read-only replica for analytics               │
-│                                                     │
-└─────────────────────────────────────────────────────┘
-```
+## 4. API-Architektur
 
-## Security Architecture
+REST-API, Mount-Struktur und Schutzmodelle aus [server.js](backend/server.js).
+Die **vollständige Endpoint-Referenz** (Bodies, Response-Shapes, Audit-Actions)
+steht in [CLAUDE.md](CLAUDE.md) §7 — hier nur das Schema.
 
-### Authentication
-- Discord OAuth2 (industry standard)
-- JWT Bearer tokens for API auth
-- Token refresh tokens stored securely
-- HTTPS only (TLS 1.2+)
+| Mount-Präfix | Schutz |
+|---|---|
+| `GET /api/health` | offen |
+| `/api/auth/*` | gemischt (Callback offen, `me`/`logout`/`refresh-guilds` cookie) |
+| `/api/guilds/*` | `requireSession` + `requireGuildAccess` (+ `maintenanceGate`) |
+| `/api/guilds/:id/<premium-modul>` | zusätzlich `requirePremiumModule(key)` |
+| `/api/public/*` | offen (Landing-Stats, Tarif-Katalog, Maintenance, Announcement) |
+| `/api/admin/*` | `requireSession` + `requireOwner` |
+| `/api/bot/*` | `requireBotToken` (+ Guard: gesperrte Guilds → 403) |
 
-### Authorization
-- Guild ownership verification
-- Admin/permissions check from Discord API
-- Per-resource authorization on backend
+Konventionen: alle Settings-Keys sind `snake_case`. User-Routes liefern einen
+`{ success, settings }`-Envelope, `/api/bot/*` liefert das **rohe** Objekt.
 
-### Data Protection
-- Secrets stored in .env (never in version control)
-- Input validation on all endpoints
-- SQL injection prevention via parameterized queries
-- XSS prevention via Vue's template escaping
-- CORS restricted to frontend domain
+---
 
-## Performance Considerations
+## 5. Datenbank-Architektur
 
-### Caching
-- Guild list cached in frontend localStorage
-- Discord API responses cached (1 hour TTL)
-- Settings cached in memory on bot startup
+- **Engine:** SQLite3 (eine Connection, dateibasiert via `DATABASE_URL`).
+  Connection + Query-Helfer in [db.js](backend/db.js).
+- **Migrations:** versioniert in [migrations.js](backend/migrations.js),
+  `CURRENT_SCHEMA_VERSION` steuert Upgrades. **Aktuelle Schema-Version: v40.**
+  `applyMigrations(from, to)` mappt Versionen → `migrationVN`-Funktionen (alle
+  idempotent; Fresh-DBs bekommen dieselben Tabellen zusätzlich im
+  `initializeDatabase()`-Pfad gespiegelt). Tracking-Tabelle `schema_version`.
+- **Bewusste Pragmas** (gesetzt in `initializeDatabase`):
+  - `journal_mode = TRUNCATE` — **bewusst NICHT WAL.** Das Repo liegt auf einem
+    `X:`-Volume (nicht-Standard-FS); WALs memory-mapped `-shm`-Datei + Locking
+    scheitern dort mit `SQLITE_IOERR`. TRUNCATE ist reines File-I/O und läuft
+    überall.
+  - `foreign_keys = ON`, `synchronous = NORMAL`, `busy_timeout = 5000`.
+- **Transaktions-Disziplin:** Jeder Bulk-Write läuft über
+  `runInTransaction(...)` (`BEGIN IMMEDIATE`), das alle Transaktionen über eine
+  interne Promise-Queue (`_txChain`) **serialisiert** — eine einzelne sqlite3-
+  Connection erlaubt keine verschachtelten Transaktionen. Niemals eigene
+  `BEGIN`-Blöcke. Ohne Queue/Transaktion wäre ein Login mit 100+ Guilds auf
+  Windows >15s (fsync pro Row).
 
-### Rate Limiting
-- Discord API: 50 requests per second
-- Backend API: Consider rate limiting per IP
-- Bot event handlers: Debounce multiple events
+Die vollständige Tabellenliste samt Spalten steht in
+[backend/DATABASE_SCHEMA.md](backend/DATABASE_SCHEMA.md) und
+[backend/DATABASE_FUNCTIONS.md](backend/DATABASE_FUNCTIONS.md); ein kompakter
+Überblick in [CLAUDE.md](CLAUDE.md) §8.
 
-### Optimization
-- Frontend code splitting by route
-- Lazy loading of pages
-- Lazy loading of guild selector
-- API requests batched when possible
-- Database queries indexed
+---
 
-## Error Handling Strategy
+## 6. Deployment-Architektur
 
-### Frontend
-- 401: Redirect to login
-- 403: Show permission denied message
-- 4xx/5xx: Show user-friendly error message
-- Network error: Show "Connection lost" message
+- **Container-Stack:** [docker-compose.yml](docker-compose.yml) mit
+  `backend` (intern :3000, nicht published), `bot` und `frontend`
+  (nginx serviert die SPA + reverse-proxyt `/api` → backend).
+  Dockerfiles: [Dockerfile.backend](Dockerfile.backend),
+  [Dockerfile.bot](Dockerfile.bot), [Dockerfile.frontend](Dockerfile.frontend).
+- **Kein `db`-Service** — SQLite ist dateibasiert; Persistenz über das Named
+  Volume `projectx-data` an `/data`.
+- **VITE_*-Variablen sind Build-Args** (nicht Runtime). `VITE_BACKEND_URL=/api`
+  hält Frontend + API same-origin (keine CORS-/Cookie-Probleme).
+- **TLS:** Nginx Proxy Manager ([nginx-proxy-manager.yml](nginx-proxy-manager.yml),
+  eigener Stack) terminiert HTTPS und leitet die Domain auf `frontend:80`
+  (externes Docker-Netz `proxy`). **HTTPS ist Pflicht**, weil
+  `NODE_ENV=production` das Session-Cookie auf `Secure` setzt.
 
-### Backend
-- Validation errors: 400 with details
-- Auth errors: 401 Unauthorized
-- Permission errors: 403 Forbidden
-- Server errors: 500 with generic message (log details)
+Detaillierte Schritte: [PRODUCTION_SETUP.md](PRODUCTION_SETUP.md) und
+[DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md).
 
-### Bot
-- Discord API errors: Log and continue
-- Settings fetch failure: Use cached settings
-- Message send failure: Log and notify admin
+---
 
-## Monitoring & Logging
+## 7. Sicherheits-Architektur
 
-### What to Monitor
-- Backend API response times
-- Database query performance
-- Bot event processing latency
-- Discord API rate limit usage
-- Error rates by endpoint
-- User authentication success rate
+- **Session:** HttpOnly-Cookie mit signiertem JWT (`SESSION_SECRET`), Payload
+  `{ uid }`, 7 Tage. `SameSite=Lax`, `Secure` nur in Production. Kein Token im
+  Frontend-JS.
+- **Discord-Tokens** leben ausschließlich in der `users`-Tabelle und verlassen
+  den Backend-Prozess nie — sie gelangen **nie** in API-Responses ans Frontend.
+- **Bot-Auth:** Shared Secret `BOT_API_KEY` im `X-Bot-Token`-Header, verglichen
+  per `crypto.timingSafeEqual` (mit Length-Pre-Check). Fehlende Env → 500
+  (fail-closed).
+- **Autorisierung:** `requireGuildAccess` verlangt Owner/Admin (Defense-in-Depth
+  zum Listenfilter `getUserManageableGuilds`).
+- **Owner-/Block-/Maintenance-Gates:** System-Owner (`OWNER_DISCORD_ID`) kann
+  User/Guilds sperren (temp-ban-aware); gesperrte Entities werden in
+  `requireSession`/`requireGuildAccess`/`/api/bot/*` abgewiesen. Der globale
+  `maintenanceGate` blockt Nicht-Owner-Writes im Wartungsmodus.
+- **Eingabe:** parameterisierte SQL-Queries; Settings werden zentral in den
+  `upsert*`-Helfern validiert/sanitisiert; Vue escaped Templates (XSS).
 
-### Logs
-- Structured logs (JSON format)
-- Separate logs: api.log, bot.log, error.log
-- Log levels: DEBUG, INFO, WARN, ERROR
-- Centralized logging (e.g., ELK, Datadog) optional
+---
 
-## Disaster Recovery
+## 8. Verweise
 
-### Backup Strategy
-- Daily automated database backups
-- Backups stored off-server
-- Backup retention: 30 days
-- Test restore procedures monthly
-
-### Failover
-- Database replication optional for HA
-- Multiple bot instances with load balancing
-- Graceful degradation (read-only mode)
-
-## Development vs Production
-
-### Environment Differences
-```
-Development:
-- VITE_BACKEND_URL=http://localhost:3000
-- Discord OAuth redirect: http://localhost:3000
-- Verbose logging
-- Hot module reloading
-
-Production:
-- VITE_BACKEND_URL=https://api.example.com
-- Discord OAuth redirect: https://api.example.com
-- Structured logging
-- Built/minified frontend
-- NODE_ENV=production
-- SSL/TLS enforced
-```
-
-## Technology Stack Summary
-
-### Backend
-- **Runtime**: Node.js v18+
-- **Framework**: Express.js
-- **Database**: SQLite3
-- **HTTP Client**: Axios
-- **Auth**: JWT Bearer tokens
-
-### Frontend
-- **Framework**: Vue.js 3
-- **Build Tool**: Vite
-- **Routing**: Vue Router
-- **HTTP Client**: Axios
-
-### Bot
-- **Language**: Python 3.8+
-- **Framework**: discord.py
-- **HTTP**: requests, aiohttp
-- **Config**: python-dotenv
-
-### Infrastructure
-- **Hosting**: Any (VPS, Heroku, Railway, AWS, etc.)
-- **Database**: SQLite3 (can be upgraded to PostgreSQL)
-- **Reverse Proxy**: nginx
-- **Process Manager**: PM2 or systemd
-
-## Future Enhancements
-
-1. **Database Migration**: SQLite → PostgreSQL for scaling
-2. **Caching Layer**: Redis for session/token caching
-3. **Message Queue**: Bull/RabbitMQ for async tasks
-4. **Analytics**: Event tracking and user analytics
-5. **Multi-Bot**: Support multiple bots per dashboard
-6. **Role-Based Access**: Fine-grained permissions
-7. **Webhook Integration**: Custom integrations
-8. **Mobile App**: React Native/Flutter companion
-9. **Advanced Scheduling**: Scheduled messages, recurring events
-10. **Audit Trail UI**: Visual audit log viewer
+- [CLAUDE.md](CLAUDE.md) — autoritative Referenz (Tech-Stack, Auth-Vertrag,
+  API-Endpoints, DB-Schema, Konventionen, Troubleshooting).
+- [README.md](README.md) — Setup-Guide.
+- [backend/DATABASE_SCHEMA.md](backend/DATABASE_SCHEMA.md) /
+  [backend/DATABASE_FUNCTIONS.md](backend/DATABASE_FUNCTIONS.md) — DB-Detail.
+- [PRODUCTION_SETUP.md](PRODUCTION_SETUP.md) /
+  [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md) — Deployment.
+- [TEST_PLAN.md](TEST_PLAN.md) — manuelle End-to-End-Checks.
+- [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md) — Doku-Index.

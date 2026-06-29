@@ -1,464 +1,180 @@
-# Discord Bot Dashboard
+# projectx — Discord-Bot-Dashboard
 
-A complete system for managing Discord bot welcome and leave messages through a web dashboard. Includes a Discord bot, backend API, frontend dashboard, and SQLite database.
+**projectx** ist ein Discord-Bot-Dashboard, das aus drei Komponenten besteht und Server-Administratoren über ein Web-Interface ~34 Module konfigurieren lässt (Welcome/Leave, Moderation, Leveling, Tickets, Giveaways, Economy, Statistiken, Backups, Games u. v. m.).
 
-## Overview
+| Komponente | Stack | Zweck |
+|---|---|---|
+| [bot/](bot/) | Python 3.8+, discord.py 2.3.2 | Reagiert auf Discord-Gateway-Events, lädt ~35 Cogs, liest Settings aus dem Backend |
+| [backend/](backend/) | Node.js 18+, Express 4, SQLite3 | REST-API, Discord-OAuth2, Settings-CRUD, Audit-Log, Cookie-Session, interne Bot-API |
+| [frontend/](frontend/) | Vue 3 + Vite 4, Vue Router 4, Axios | Web-Dashboard zum Konfigurieren der Module |
 
-This project provides a user-friendly way to configure and manage Discord bot responses to member events:
-- **Welcome messages** when users join your Discord server
-- **Leave messages** when users leave your Discord server
-- **Real-time preview** of message templates
-- **Multi-guild support** for managing multiple servers
-- **Audit logging** of all configuration changes
+**Datenfluss:** Frontend ⇄ Backend über HTTP-only Cookie-Session (JWT); Backend ⇄ SQLite direkt; Bot ⇄ Backend über die interne API `/api/bot/*` (abgesichert per `X-Bot-Token`-Shared-Secret); Bot ⇄ Discord über das Gateway.
 
-## System Architecture
+> Die autoritative interne Referenz für Architektur, Module, API-Verträge und Konventionen ist [CLAUDE.md](CLAUDE.md). Dieses README ist der Setup-Einstieg.
 
-See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed system design, data flows, API endpoints, and deployment architecture.
+---
 
-## Project Structure
+## Tech-Stack
+
+**Bot** ([bot/requirements.txt](bot/requirements.txt)): `discord.py 2.3.2`, `python-dotenv`, `aiohttp`, `requests`, `Pillow` (optional — Poker-Karten-Rendering, fällt ohne Pillow auf Text zurück).
+
+**Backend** ([backend/package.json](backend/package.json)): ESM, `express 4`, `sqlite3`, `cors`, `dotenv`, `axios`, `cookie-parser`, `jsonwebtoken`. Dev: `nodemon` (Polling-Watch). (`express-session`/`passport*` sind Legacy und ungenutzt.)
+
+**Frontend** ([frontend/package.json](frontend/package.json)): `vue 3`, `vue-router 4`, `axios`, `vite 4`. Bewusst **ohne** Tailwind/Pinia/UI-Kit — Styling vanilla via Design-Tokens. Optional als Android-App via Capacitor 6.
+
+---
+
+## Verzeichnisstruktur (Top-Level)
 
 ```
 projectx/
-├── bot/                          # Python Discord Bot
-│   ├── main.py                  # Bot entry point
-│   ├── config.py                # Configuration loader
-│   └── cogs/
-│       └── welcome_leave.py     # Event handlers and commands
-├── backend/                      # Node.js Express API
-│   ├── server.js                # Express server setup
-│   ├── db.js                    # Database initialization
-│   ├── migrations.js            # Database schema
-│   ├── middleware/
-│   │   └── auth.js              # Authentication & authorization
-│   ├── routes/
-│   │   ├── auth.js              # OAuth & token endpoints
-│   │   ├── guilds.js            # Guild management endpoints
-│   │   └── settings.js          # Settings CRUD endpoints
-│   ├── utils/
-│   │   └── dbHelper.js          # Database utilities
-│   └── tests/
-│       ├── db.test.js           # Database tests
-│       └── verify.js            # Verification script
-├── frontend/                     # Vue.js Dashboard
-│   ├── src/
-│   │   ├── App.vue              # Root component
-│   │   ├── components/
-│   │   │   ├── NavBar.vue       # Navigation bar
-│   │   │   ├── GuildSelector.vue # Guild selection dropdown
-│   │   │   └── LoadingPage.vue  # Loading indicator
-│   │   ├── pages/
-│   │   │   ├── Dashboard.vue    # Main dashboard
-│   │   │   ├── Welcome.vue      # Welcome config page
-│   │   │   ├── Leave.vue        # Leave config page
-│   │   │   └── AuthCallback.vue # OAuth callback handler
-│   │   ├── services/
-│   │   │   └── api.js           # Axios API client
-│   │   ├── router/
-│   │   │   └── index.js         # Vue Router configuration
-│   │   └── main.js              # Vue entry point
-│   ├── vite.config.js
-│   └── package.json
-├── TEST_PLAN.md                 # Comprehensive testing checklist
-├── VERIFICATION_CHECKLIST.md    # Implementation status
-├── DEPLOYMENT_CHECKLIST.md      # Deployment preparation
-├── ARCHITECTURE.md              # System architecture documentation
-└── README.md                    # This file
+├── bot/                  # Python Discord-Bot (main.py, config.py, cogs/, utils/)
+├── backend/              # Node/Express API (server.js, db.js, migrations.js, routes/, middleware/)
+├── frontend/             # Vue 3 Dashboard (src/, vite.config.js, android/)
+├── docker-compose.yml    # backend + bot + frontend (SQLite dateibasiert, kein db-Service)
+├── Dockerfile.{backend,bot,frontend}
+├── nginx.conf            # Frontend-Container: SPA + /api-Reverse-Proxy → backend
+├── nginx-proxy-manager.yml # Separater Stack: TLS/Let's Encrypt vor dem Frontend
+├── ARCHITECTURE.md       # System-Design (autoritativ für Architektur)
+├── PRODUCTION_SETUP.md   # Production-Guide
+├── DEPLOYMENT_CHECKLIST.md
+└── CLAUDE.md             # Interne Single-Source-of-Truth-Referenz
 ```
 
-## Prerequisites
+---
 
-- **Node.js** v18+ (for backend and frontend)
-- **Python** 3.8+ (for bot)
-- **npm** or **yarn** (for dependencies)
-- **Discord Server** (for testing)
-- **Discord Application** (OAuth credentials)
+## Voraussetzungen
 
-## Quick Start
+- **Node.js** 18+ (Backend + Frontend)
+- **Python** 3.8+ (Bot)
+- **Discord-Application** mit OAuth2-Credentials + Bot-Token ([Discord Developer Portal](https://discord.com/developers/applications))
 
-### 1. Clone and Install
+Im Dev-Portal aktivieren: **Message Content Intent**, **Server Members Intent** und **Presence Intent** (privilegiert — Presence wird für Online/Offline-Statistiken benötigt).
 
-```bash
-# Backend
+---
+
+## Lokales Setup / Quick Start
+
+PowerShell-Syntax (Windows). Lege zuerst die `.env`-Dateien an (siehe nächster Abschnitt).
+
+### Backend (Port 3000)
+```powershell
 cd X:\projectx\backend
 npm install
+npm run dev          # nodemon --legacy-watch (Polling — Windows-Watch-Fix)
+# npm start          # Production
+# npm test           # node tests/db.test.js
+```
 
-# Frontend
+### Frontend (Port 5173)
+```powershell
 cd X:\projectx\frontend
 npm install
+npm run dev          # vite (server.watch.usePolling = true)
+# npm run build      # → dist/
+# npm run preview
+```
 
-# Bot (virtual environment recommended)
+### Bot
+```powershell
 cd X:\projectx\bot
 python -m venv venv
-venv\Scripts\activate
+.\venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-```
-
-### 2. Configure Discord Application
-
-1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
-2. Create a new application
-3. Go to "OAuth2" → "General"
-4. Note your **Client ID** and **Client Secret**
-5. Add Redirect URI: `http://localhost:5173/auth/callback` (for development)
-6. Go to "Bot"
-7. Click "Add Bot"
-8. Copy the **Bot Token**
-9. Enable "Message Content Intent" under "Privileged Gateway Intents"
-
-### 3. Environment Configuration
-
-Create `.env` files in each directory:
-
-**`X:\projectx\bot\.env`**
-```env
-DISCORD_TOKEN=your_bot_token_here
-DISCORD_CLIENT_ID=your_client_id_here
-DISCORD_CLIENT_SECRET=your_client_secret_here
-BACKEND_URL=http://localhost:3000
-DATABASE_URL=bot.db
-```
-
-**`X:\projectx\backend\.env`**
-```env
-PORT=3000
-DISCORD_CLIENT_ID=your_client_id_here
-DISCORD_CLIENT_SECRET=your_client_secret_here
-DISCORD_REDIRECT_URI=http://localhost:5173/auth/callback
-FRONTEND_URL=http://localhost:5173
-DATABASE_URL=./bot.db
-SESSION_SECRET=your_random_secret_here
-NODE_ENV=development
-```
-
-**`X:\projectx\frontend\.env`**
-```env
-VITE_BACKEND_URL=http://localhost:3000/api
-VITE_DISCORD_CLIENT_ID=your_client_id_here
-VITE_DISCORD_REDIRECT_URI=http://localhost:5173/auth/callback
-```
-
-### 4. Add Bot to Test Server
-
-1. Go to Discord Developer Portal → Your Application → OAuth2 → URL Generator
-2. Select scopes: `bot`
-3. Select permissions: `Send Messages`, `Read Messages/View Channels`
-4. Copy the generated URL and open it
-5. Select your test server and authorize
-
-### 5. Start Services
-
-**Terminal 1 - Backend:**
-```bash
-cd X:\projectx\backend
-npm run dev
-```
-
-**Terminal 2 - Frontend:**
-```bash
-cd X:\projectx\frontend
-npm run dev
-```
-
-**Terminal 3 - Bot:**
-```bash
-cd X:\projectx\bot
 python main.py
 ```
 
-### 6. Access Dashboard
+### Bot zum Test-Server einladen
+Im Dev-Portal unter OAuth2 → URL Generator den `bot`-Scope wählen und die nötigen Permissions setzen (die aktuelle Invite-Bitmask im Dashboard ist `285223990`). Dashboard danach öffnen: `http://localhost:5173`.
 
-Open your browser: `http://localhost:5173`
+---
 
-## Features
+## Environment-Variablen
 
-### Authentication
-- Discord OAuth2 login
-- JWT Bearer token authentication
-- Automatic token refresh
-- Secure logout
+Die vollständige Liste mit Beschreibungen steht in [CLAUDE.md](CLAUDE.md) §5. `.env`-Dateien **niemals committen**. Die wichtigsten:
 
-### Guild Management
-- View all Discord servers you're admin/owner of
-- Select guild for configuration
-- Display guild icon and name
-- Multi-guild support
-
-### Welcome Message Configuration
-- Enable/disable welcome messages
-- Configure target channel
-- Customize message template
-- Real-time preview with placeholders:
-  - `{user}` → @username
-  - `{guild}` → server name
-- Save and persist settings
-- Reset to defaults
-
-### Leave Message Configuration
-- Enable/disable leave messages
-- Configure target channel
-- Customize message template
-- Real-time preview with placeholders
-- Save and persist settings
-
-### Bot Features
-- Automatic welcome message on member join
-- Automatic leave message on member leave
-- Admin command: `/welcome_test` to test messages
-- Reads configuration from backend API
-- Respects enabled/disabled settings
-
-### Backend API
-- RESTful API with Express
-- SQLite database
-- OAuth2 integration
-- Audit logging of all changes
-- CORS enabled for frontend
-- Input validation and error handling
-
-## Usage Guide
-
-### Configuring Welcome Messages
-
-1. Log in with Discord
-2. Select your server from the guild dropdown
-3. Click "Welcome Messages" in the dashboard
-4. Toggle "Enable Welcome Messages" to ON
-5. Enter the Channel ID where messages should be sent
-6. Customize the message template (use `{user}` and `{guild}` placeholders)
-7. See real-time preview below
-8. Click "Save Settings"
-9. You'll see a success message
-10. When someone joins your server, the bot will send the message!
-
-### Configuring Leave Messages
-
-Follow the same steps as welcome messages on the "Leave Messages" tab.
-
-### Finding Channel IDs
-
-1. Enable Developer Mode in Discord (User Settings → Advanced → Developer Mode)
-2. Right-click on a channel and select "Copy Channel ID"
-3. Paste into the Channel ID field in the dashboard
-
-### Testing Welcome/Leave Messages
-
-1. After configuring, use the bot command `/welcome_test` in a channel where the bot has permissions
-2. The bot will send a preview of the welcome message
-3. To test leave messages, configure a test user or have someone leave the server
-
-## API Documentation
-
-### Authentication Endpoints
-
-```
-POST /api/auth/callback
-- Exchange Discord OAuth code for tokens
-- Body: { code: "authorization_code" }
-- Returns: { accessToken, refreshToken, user }
-
-POST /api/auth/refresh
-- Refresh expired access token
-- Body: { refreshToken: "token" }
-- Returns: { accessToken, expiresIn }
+**`bot/.env`**
+```env
+DISCORD_TOKEN=...
+DISCORD_CLIENT_ID=...
+DISCORD_CLIENT_SECRET=...
+BACKEND_URL=http://localhost:3000
+BOT_API_KEY=...            # MUSS identisch zum Backend sein
+DATABASE_URL=bot.db
 ```
 
-### Guild Endpoints
-
-```
-GET /api/guilds
-- Get all guilds user is admin/owner of
-- Auth: Bearer token
-- Returns: [{ id, name, icon, isOwner, isAdmin }]
-
-GET /api/guilds/:id
-- Get specific guild details
-- Auth: Bearer token
-- Returns: { id, name, icon, isOwner, isAdmin }
-
-GET /api/guilds/:id/full
-- Get guild details with current settings
-- Auth: Bearer token
-- Returns: { ...guild, settings }
+**`backend/.env`**
+```env
+PORT=3000
+DISCORD_CLIENT_ID=...
+DISCORD_CLIENT_SECRET=...
+DISCORD_REDIRECT_URI=http://localhost:5173/auth/callback
+FRONTEND_URL=http://localhost:5173   # Pflicht für Cookies/CORS
+DATABASE_URL=./data/bot.db
+SESSION_SECRET=...                    # signiert das Session-JWT (kritisch)
+BOT_API_KEY=...                       # identisch zum Bot
+OWNER_DISCORD_ID=...                  # schaltet das Admin-Panel frei (leer = aus)
+NODE_ENV=development                  # production → Secure-Cookie (HTTPS Pflicht)
 ```
 
-### Settings Endpoints
-
-```
-GET /api/guilds/:id/settings
-- Get guild settings
-- Auth: Bearer token
-- Returns: { welcomeEnabled, welcomeChannelId, welcomeMessage, ... }
-
-PUT /api/guilds/:id/settings
-- Update all guild settings (complete replacement)
-- Auth: Bearer token
-- Body: { welcomeEnabled, welcomeChannelId, welcomeMessage, ... }
-- Returns: { success: true, settings }
-
-PATCH /api/guilds/:id/settings
-- Update partial guild settings (merge)
-- Auth: Bearer token
-- Body: { welcomeEnabled: true } (only changed fields)
-- Returns: { success: true, settings }
-
-DELETE /api/guilds/:id/settings
-- Reset settings to defaults
-- Auth: Bearer token
-- Returns: { success: true }
+**`frontend/.env`**
+```env
+VITE_BACKEND_URL=http://localhost:3000/api
+VITE_DISCORD_CLIENT_ID=...
+VITE_DISCORD_REDIRECT_URI=http://localhost:5173/auth/callback
 ```
 
-## Testing
+Secrets generieren:
+- `SESSION_SECRET`: `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"`
+- `BOT_API_KEY`: `python -c "import secrets; print(secrets.token_urlsafe(48))"`
 
-### Automated Tests
+> **Auth-Modell:** Login läuft über Discord-OAuth2; das Backend setzt ein HTTP-only Session-Cookie (`projectx_session`, JWT). Es gibt **keine** Bearer-Tokens und **kein** localStorage im Frontend. Details: [CLAUDE.md](CLAUDE.md) §6.
 
-```bash
-# Backend tests
+---
+
+## Docker (Production-like)
+
+```powershell
+docker compose up --build
+```
+
+Services: `backend` (intern :3000, nicht published), `bot`, `frontend` (nginx serviert die SPA + reverse-proxyt `/api` → backend). **Kein `db`-Service** — SQLite ist dateibasiert, Persistenz über das Named Volume `projectx-data`. `VITE_*`-Variablen sind **Build-Args** (siehe Kopf von [docker-compose.yml](docker-compose.yml)).
+
+**TLS:** Der `frontend` hängt am externen Docker-Netz `proxy`; ein separater Nginx-Proxy-Manager-Stack ([nginx-proxy-manager.yml](nginx-proxy-manager.yml)) macht Let's-Encrypt-TLS. **HTTPS ist in Production Pflicht**, da `NODE_ENV=production` das Session-Cookie auf `Secure` setzt. Vollständiger Guide: [PRODUCTION_SETUP.md](PRODUCTION_SETUP.md) + [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md).
+
+---
+
+## Tests
+
+```powershell
 cd X:\projectx\backend
-npm test
-
-# Frontend tests (if implemented)
-cd X:\projectx\frontend
-npm test
+npm test          # node tests/db.test.js
 ```
 
-### Manual Testing
+`[DB ERROR]`-Zeilen im Output sind erwartet — der Test triggert bewusst UNIQUE/FK-Fehler. Das Frontend hat aktuell keine automatisierten Tests; UI-Änderungen lokal im Browser bzw. via `npm run build` verifizieren.
 
-See [TEST_PLAN.md](./TEST_PLAN.md) for comprehensive testing checklist with:
-- Authentication flow testing
-- Guild management testing
-- Message configuration testing
-- API integration testing
-- Bot functionality testing
-- Database integrity testing
-- Error handling testing
-- User experience testing
+---
 
-## Troubleshooting
+## Troubleshooting (Kurzform)
 
-### Bot Not Responding
-- Verify bot token is correct in `.env`
-- Check bot has "Message Content Intent" enabled
-- Ensure bot has proper permissions in the server
-- Check bot can read configured channel
+Vollständige Tabelle in [CLAUDE.md](CLAUDE.md) §12.
 
-### Settings Not Saving
-- Check backend is running on port 3000
-- Verify token is valid (check localStorage)
-- Check browser console for API errors
-- Check backend logs for errors
+| Symptom | Ursache / Fix |
+|---|---|
+| Bot bekommt **401** von `/api/bot/...` | `BOT_API_KEY` fehlt oder ist zwischen `bot/.env` und `backend/.env` unterschiedlich. |
+| Bot bekommt **500** von `/api/bot/...` | `BOT_API_KEY` ist im Backend nicht gesetzt — Server lehnt aus Sicherheit ab. |
+| Frontend wird auf `/` zurückgeworfen / `/auth/me` 401 | Cookie kommt nicht an: CORS-Origin-Mismatch oder `FRONTEND_URL` falsch. In Prod HTTPS prüfen (`Secure`-Cookie). |
+| OAuth-Callback schlägt fehl | Redirect-URI muss in der Discord-App **und** beiden `.env`-Dateien identisch sein. |
+| `ECONNRESET, watch` crasht `npm run dev` | Windows + nicht-Standard-Laufwerk (`X:\`). Backend nutzt `nodemon --legacy-watch`, Frontend `server.watch.usePolling: true` — beides aktiv lassen. |
+| `SQLITE_IOERR: disk I/O error` auf allen Reads | WAL-Mode scheitert auf dem `X:`-Volume. Fix aktiv: `journal_mode = TRUNCATE` in [backend/db.js](backend/db.js) — **niemals** zurück auf WAL stellen. |
+| `Cannot connect to host localhost:3000` (Bot) | IPv4/IPv6-Dual-Stack. Backend bindet auf `0.0.0.0` ([backend/server.js](backend/server.js)). |
 
-### Login Not Working
-- Verify Discord credentials are correct
-- Check OAuth redirect URI matches in both Discord app and backend
-- Clear browser cache and localStorage
-- Check backend logs
+---
 
-### Messages Not Sending
-- Verify channel ID is correct
-- Check bot has "Send Messages" permission in channel
-- Enable Welcome/Leave messages (toggle ON)
-- Check bot is running (`python main.py`)
+## Weiterführende Dokumentation
 
-### Database Errors
-- Delete bot.db and restart backend to reinitialize
-- Check file permissions in project directory
-- Verify SQLite3 is installed
-
-## Database Schema
-
-See [ARCHITECTURE.md](./ARCHITECTURE.md) for complete database schema documentation.
-
-Key tables:
-- `users` - Discord users who logged in
-- `guilds` - Discord servers
-- `user_guilds` - User-guild relationships
-- `guild_settings` - Per-guild configuration
-- `audit_log` - All changes audit trail
-
-## Deployment
-
-See [DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md) for production deployment guide.
-
-### Quick Deploy Steps
-
-1. Set up production environment variables
-2. Build frontend: `npm run build` in frontend directory
-3. Serve built files with nginx or backend
-4. Start backend with `npm start` (use PM2)
-5. Start bot with `python main.py` (use PM2)
-6. Set up HTTPS with Let's Encrypt
-7. Configure domain DNS
-8. Enable CORS for production domain
-9. Set up monitoring and logging
-
-## Production Considerations
-
-- Use PostgreSQL instead of SQLite for multi-server deployments
-- Set up Redis for session/token caching
-- Use environment-based configuration
-- Enable HTTPS/TLS (no HTTP in production)
-- Set up rate limiting
-- Configure CORS strictly
-- Use PM2 or systemd for process management
-- Set up automated backups
-- Enable error tracking (Sentry, etc.)
-- Set up uptime monitoring
-- Use CDN for static assets
-
-## Performance Tips
-
-- Enable caching of guild list (localStorage)
-- Batch API requests when possible
-- Use indexes on database queries
-- Enable gzip compression on backend
-- Minify and bundle frontend assets
-- Use lazy loading for routes
-- Implement request debouncing
-
-## Security Best Practices
-
-- Never commit secrets to version control
-- Use HTTPS in production (TLS 1.2+)
-- Validate all input on backend
-- Escape user input on frontend
-- Use parameterized SQL queries
-- Implement rate limiting
-- Keep dependencies updated
-- Run security audits regularly
-- Use strong session secrets
-- Rotate tokens periodically
-
-## Contributing
-
-1. Create a feature branch
-2. Make changes
-3. Test thoroughly (see TEST_PLAN.md)
-4. Submit pull request
-
-## Support
-
-For issues or questions:
-1. Check [TEST_PLAN.md](./TEST_PLAN.md) for testing steps
-2. Check [ARCHITECTURE.md](./ARCHITECTURE.md) for system design
-3. Review logs in bot, backend, and browser console
-4. Refer to Discord.py and Express.js documentation
-
-## Logs
-
-- **Backend**: Logs to console (can be redirected to file)
-- **Bot**: Logs to console
-- **Frontend**: Browser developer console (F12)
-
-## License
-
-[Add your license here]
-
-## Version
-
-1.0.0 - Initial Release
-
-## Verification Status
-
-See [VERIFICATION_CHECKLIST.md](./VERIFICATION_CHECKLIST.md) for implementation status.
-
-All components implemented and ready for integration testing.
+- **Architektur / Datenflüsse:** [ARCHITECTURE.md](ARCHITECTURE.md)
+- **DB-Schema (Version 40):** [backend/DATABASE_SCHEMA.md](backend/DATABASE_SCHEMA.md)
+- **Deployment:** [PRODUCTION_SETUP.md](PRODUCTION_SETUP.md), [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md)
+- **Interne Single Source of Truth (Module, API-Verträge, Konventionen):** [CLAUDE.md](CLAUDE.md)
+- **Endnutzer-Doku (GitBook):** [docs/](docs/)

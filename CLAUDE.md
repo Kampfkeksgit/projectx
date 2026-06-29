@@ -1004,8 +1004,6 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - **Backend:** `npm test` führt [backend/tests/db.test.js](backend/tests/db.test.js) aus (74/74 grün), ergänzt durch [backend/tests/verify.js](backend/tests/verify.js).
   - `[DB ERROR]`-Zeilen im Output sind erwartet — der Test triggert bewusst UNIQUE/FK-Fehler, um `handleDbError` zu prüfen.
 - **Manuell:** [TEST_PLAN.md](TEST_PLAN.md) listet die End-to-End-Checks.
-- **Integration-Status:** [INTEGRATION_TESTING_STATUS.md](INTEGRATION_TESTING_STATUS.md).
-- **Verification:** [VERIFICATION_CHECKLIST.md](VERIFICATION_CHECKLIST.md).
 - Frontend hat aktuell keine automatisierten Tests — UI-Änderungen müssen lokal im Browser verifiziert werden (Dev-Server + Klick-Test der goldenen Pfade) oder zumindest via `npm run build`.
 
 ---

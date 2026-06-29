@@ -1,19 +1,21 @@
-# Introduction
+# projectx
 
-**ProjectX** is an all-in-one Discord bot with a modern web dashboard. You configure everything by clicking — no command lists, no JSON files. Sign in with Discord, pick a server, and set up welcome messages, moderation, leveling, tickets and much more, with a live preview that mirrors Discord.
+**projectx** ist ein All-in-One-Discord-Bot mit einem modernen Web-Dashboard. Du konfigurierst alles bequem per Mausklick im Browser – mit Live-Vorschau, ganz ohne Befehle auswendig zu lernen oder Konfigurationsdateien zu bearbeiten.
 
-## Why ProjectX
+## Was kann projectx?
 
-- **21+ modules** in one bot — onboarding, moderation, engagement and automation.
-- **Web dashboard** with a live Discord-style preview — no commands required.
-- **Per-server configuration** — every setting is scoped to the server you choose.
-- **Free to start** — the core modules are free forever; premium plans unlock the rest.
+Über **34 Module** decken alles ab, was eine aktive Community braucht – von Begrüßungsnachrichten und Moderation über Level-System, Tickets und Umfragen bis hin zu kleinen Spielen und automatischen Server-Backups.
 
-## How it works
+- **Kostenlos starten:** Viele Module sind dauerhaft gratis – du kannst sofort loslegen.
+- **Klick-Konfiguration:** Jedes Modul hat eine eigene Dashboard-Seite mit verständlichen Optionen.
+- **Live-Vorschau:** Sieh schon beim Einstellen, wie deine Nachrichten und Embeds im Discord aussehen werden.
+- **Mehrsprachig:** Das Dashboard und die Bot-Nachrichten gibt es in Deutsch, Englisch, Türkisch, Russisch und Polnisch.
 
-1. **Invite the bot** to your server.
-2. **Sign in with Discord** on the dashboard.
-3. **Pick a server** you manage.
-4. **Configure & save** — the bot picks up your changes within seconds.
+## So funktioniert es
 
-Continue with [Getting Started](getting-started.md) to set things up.
+1. **Bot einladen** – Füge projectx mit wenigen Klicks zu deinem Server hinzu.
+2. **Mit Discord anmelden** – Logge dich im Dashboard mit deinem Discord-Account an (kein Passwort nötig).
+3. **Server wählen** – Wähle einen Server aus, auf dem du Inhaber oder Administrator bist.
+4. **Konfigurieren & speichern** – Stelle deine Module ein und speichere – der Bot übernimmt die Änderungen in Sekunden.
+
+➡️ Loslegen: [Erste Schritte](getting-started.md)
