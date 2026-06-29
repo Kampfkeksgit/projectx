@@ -178,6 +178,9 @@ projectx/
 │                               # mode=mirror gleicht zusätzlich an + löscht Channels UND Rollen die NICHT im Snapshot sind
 │                               # (Rollen-Löschung nur wenn parts.roles; nie @everyone/managed/über Bot-Top-Rolle);
 │                               # Server-Name/-Icon nur mit MANAGE_GUILD. asyncio.sleep zwischen Creates (Rate-Limit).
+│                               # Restore zählt erstellte vs. fehlgeschlagene Creates: wenn Rollen/Kanäle angefragt
+│                               # waren, aber JEDER Create scheiterte (created=0, errors>0 → fehlende Manage-Rechte /
+│                               # Rolle zu tief), wird der Job als FAILED gemeldet statt als stilles „done".
 │       └── admin_broadcast.py  # Owner-Broadcast (Owner-Admin): @tasks.loop(30s) pollt GET /api/bot/broadcasts/due,
 │                               # claimt (status=sending), DMt die Nachricht an jeden eindeutigen Guild-Owner, meldet done {sent,total}.
 ├── backend/                    # Node.js / Express API
@@ -1068,6 +1071,7 @@ Empfehlung aus [README.md](README.md): SQLite → PostgreSQL für Multi-Instance
 ## 14. Letzte Aktualisierung
 
 - **Datum:** 2026-06-29
+- **Restore meldet echten Fehlschlag statt stillem „done" (kein Schema-Change):** Im Backup/Restore-Cog ([server_backup.py](bot/cogs/server_backup.py)) zählen `_restore_roles`/`_restore_channels` jetzt erstellte **vs.** fehlgeschlagene Creates und geben `(…, created, errors)` zurück. In `_do_restore` gilt: waren Rollen/Kanäle angefragt, scheiterte aber **jeder** Create (`created == 0 and errors > 0` — typischer Fall: dem Bot fehlen **Manage Roles/Manage Channels** oder seine Rolle steht zu tief), wird eine Exception geworfen → `_handle_job` meldet den Job als **`failed`** (roter Toast mit Grund) statt als grünen „done", hinter dem im Discord nichts passiert. Behebt das verwirrende „Vorlage angewendet, aber nichts zu sehen". Teil-Erfolge (einige Creates ok, andere fehlgeschlagen) bleiben `done` und listen die Fehler in der Message. Verifiziert: kompiliert sauber, keine weiteren Aufrufer der geänderten Signaturen.
 - **Backup-Restore: Pre-Flight-Permission-Check (kein Schema-Change):** Ein Restore in [server_backup.py](bot/cogs/server_backup.py) prüft jetzt **vor** dem ersten Discord-Call, ob der Bot die für die gewählten Teile nötigen Rechte hat, statt pro Element soft-zu-failen.
   - **Problem:** Bisher hat `_do_restore` jeden `create_role`/`create_channel`-Fehler einzeln in `notes` gesammelt und den Job trotzdem als `done` gemeldet — fehlten dem Bot die Rechte komplett, kam eine Wand aus „No permission to create role/channel 'X'" raus, der Job galt aber als erfolgreich.
   - **Fix:** In `_do_restore` direkt nach der `parts`-Auflösung ein Pre-Flight-Check auf `guild.me.guild_permissions` — `do_roles`→`manage_roles`, `do_channels`→`manage_channels`, `do_name|do_icon`→`manage_guild` (Administrator deckt alles ab, da discord.py es auflöst). Fehlt ein Recht, wirft die Methode **eine** Exception mit klarer, umsetzbarer Meldung (welche Rechte fehlen + Hinweis auf Rollen-Hierarchie) → `_handle_job` markiert den Job als **`failed`** statt `done`. Respektiert die Teil-Auswahl (prüft nur Rechte für tatsächlich gewählte Teile).
