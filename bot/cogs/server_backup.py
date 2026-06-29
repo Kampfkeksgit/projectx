@@ -27,6 +27,11 @@ symmetric):
   }
 
 GOTCHAS (see inline comments too):
+  - A restore runs a PRE-FLIGHT permission check (_do_restore) before touching
+    anything: it verifies the bot has the perms the selected parts need
+    (Manage Roles / Manage Channels / Manage Server) and raises early — marking
+    the job "failed" with ONE actionable message — instead of soft-failing per
+    item and flooding the message with duplicate "No permission to create X".
   - The bot can only manage roles/channels strictly BELOW its own top role.
   - Channel type is immutable: mirror never changes a type, it only creates via
     the missing-create path (and deletes channels absent from the snapshot).
@@ -281,6 +286,28 @@ class ServerBackup(commands.Cog):
             do_icon = bool(parts.get("server_icon"))
         else:
             do_roles = do_channels = do_name = do_icon = True
+
+        # Pre-flight permission check: verify the bot actually has the perms the
+        # selected restore parts require, BEFORE touching anything. Otherwise the
+        # restore soft-fails per item and floods the job message with dozens of
+        # duplicate "No permission to create X" notes while still reporting "done".
+        # Administrator implies all of these (discord.py resolves it). We raise so
+        # _handle_job marks the job "failed" with one clear, actionable message.
+        perms = guild.me.guild_permissions
+        missing = []
+        if do_roles and not perms.manage_roles:
+            missing.append("Manage Roles")
+        if do_channels and not perms.manage_channels:
+            missing.append("Manage Channels")
+        if (do_name or do_icon) and not perms.manage_guild:
+            missing.append("Manage Server")
+        if missing:
+            raise Exception(
+                "Restore aborted — the bot is missing required permission(s): "
+                + ", ".join(missing)
+                + ". Grant them to the bot's role (or give it Administrator) and "
+                "make sure its role is high enough in the role list, then retry."
+            )
 
         notes = []
 

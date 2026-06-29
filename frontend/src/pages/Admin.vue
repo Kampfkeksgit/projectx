@@ -391,6 +391,51 @@
         </div>
       </div>
 
+      <!-- MARKETPLACE (Vorlagen: hochladen, exportieren, verwalten) -->
+      <div v-else-if="tab === 'marketplace'">
+        <div class="panel panel--form">
+          <h3 class="panel__title">{{ t('admin.mpUploadTitle') }}</h3>
+          <p class="panel__desc">{{ t('admin.mpUploadDesc') }}</p>
+          <label class="modal__label">{{ t('admin.mpFileLabel') }}</label>
+          <input type="file" accept="application/json,.json" class="modal__input" @change="onTemplateFile" />
+          <div v-if="uploadForm.fileName" class="row__sub" style="margin-top: var(--space-2)">
+            {{ uploadForm.fileName }} · {{ t('admin.mpCounts', { channels: uploadForm.channels, roles: uploadForm.roles }) }}
+          </div>
+          <label class="modal__label">{{ t('admin.mpNameLabel') }}</label>
+          <input v-model="uploadForm.name" class="modal__input" :placeholder="t('admin.mpNamePlaceholder')" maxlength="120" />
+          <label class="modal__label">{{ t('admin.mpDescLabel') }}</label>
+          <input v-model="uploadForm.description" class="modal__input" :placeholder="t('admin.mpDescPlaceholder')" maxlength="500" />
+          <label class="modal__label">{{ t('admin.mpCategoryLabel') }}</label>
+          <input v-model="uploadForm.category" class="modal__input" :placeholder="t('admin.mpCategoryPlaceholder')" maxlength="40" />
+          <div class="panel__actions">
+            <AppButton variant="primary" :loading="uploadingTemplate" :disabled="!uploadForm.data" @click="uploadTemplate">{{ t('admin.mpUploadBtn') }}</AppButton>
+          </div>
+        </div>
+
+        <div v-if="templates.length === 0" class="empty"><p>{{ t('admin.mpEmpty') }}</p></div>
+        <ul v-else class="rows">
+          <li v-for="tp in templates" :key="tp.id" class="row">
+            <div class="row__main">
+              <GuildAvatar :name="tp.guild_name || tp.name" :icon-url="tp.guild_icon_url" size="sm" />
+              <div class="row__text">
+                <div class="row__name">{{ tp.name }} <span class="job-status" :class="`job-status--${tp.status === 'approved' ? 'done' : tp.status === 'rejected' ? 'failed' : 'pending'}`">{{ tp.status }}</span></div>
+                <div class="row__sub">{{ t('admin.mpCounts', { channels: tp.channels_count, roles: tp.roles_count }) }} · {{ t('admin.mpUses', { count: tp.uses }) }} · {{ fmtDateTimeUnix(tp.created_at) }}</div>
+                <div v-if="tp.description" class="row__reason">{{ tp.description }}</div>
+              </div>
+            </div>
+            <div class="row__right">
+              <select :value="tp.status" class="filter__select" @change="setTemplateStatus(tp, $event.target.value)">
+                <option value="approved">{{ t('admin.mpStatusApproved') }}</option>
+                <option value="pending">{{ t('admin.mpStatusPending') }}</option>
+                <option value="rejected">{{ t('admin.mpStatusRejected') }}</option>
+              </select>
+              <AppButton variant="subtle" @click="exportTemplate(tp)">{{ t('admin.mpExport') }}</AppButton>
+              <AppButton variant="danger" :loading="busyId === tp.id" @click="deleteTemplate(tp)">{{ t('admin.mpDelete') }}</AppButton>
+            </div>
+          </li>
+        </ul>
+      </div>
+
       <!-- SYSTEM (maintenance) -->
       <div v-else-if="tab === 'system'">
         <div class="panel panel--form">
@@ -537,7 +582,7 @@ const router = useRouter()
 const toast = useToast()
 const auth = useAuth()
 
-const tabs = ['overview', 'analytics', 'premium', 'health', 'users', 'guilds', 'audit', 'jobs', 'errors', 'system']
+const tabs = ['overview', 'analytics', 'premium', 'health', 'users', 'guilds', 'audit', 'jobs', 'errors', 'marketplace', 'system']
 const tab = ref('overview')
 const search = ref('')
 const loading = ref(true)
@@ -591,6 +636,11 @@ const errors = ref([])
 const errSource = ref('')
 const errLevel = ref('')
 const JOB_STATUSES = ['pending', 'running', 'done', 'failed']
+
+// Marketplace (Vorlagen hochladen / exportieren / verwalten)
+const templates = ref([])
+const uploadForm = reactive({ name: '', description: '', category: '', data: null, fileName: '', channels: 0, roles: 0 })
+const uploadingTemplate = ref(false)
 
 const DURATIONS = [
   { key: 'permanent', sec: 0 },
@@ -737,6 +787,9 @@ async function load() {
       const { data } = await api.get('/admin/errors', { params: { source: errSource.value, level: errLevel.value, limit: PAGE, offset: 0 } })
       errors.value = data.entries || []
       total.value = data.total || 0
+    } else if (tab.value === 'marketplace') {
+      const { data } = await api.get('/admin/marketplace')
+      templates.value = data.templates || []
     } else if (tab.value === 'system') {
       const [mnt, ann, bc] = await Promise.all([
         api.get('/admin/maintenance'),
@@ -996,6 +1049,97 @@ async function exportCsv(kind) {
     URL.revokeObjectURL(url)
   } catch (err) {
     toast.error(t('admin.exportFailed'))
+  }
+}
+
+// ---- Marketplace templates: upload / export / manage ----
+const slugify = (s) => String(s || 'template').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'template'
+
+function onTemplateFile(e) {
+  const file = e.target.files && e.target.files[0]
+  uploadForm.data = null; uploadForm.fileName = ''; uploadForm.channels = 0; uploadForm.roles = 0
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(reader.result)
+      // Accept a raw snapshot { server, roles, channels } OR an exported file { ..., data: {...} }.
+      const blob = parsed && parsed.data && typeof parsed.data === 'object' ? parsed.data : parsed
+      if (!blob || (!Array.isArray(blob.roles) && !Array.isArray(blob.channels))) {
+        toast.error(t('admin.mpInvalidFile')); return
+      }
+      uploadForm.data = blob
+      uploadForm.fileName = file.name
+      uploadForm.channels = (blob.channels || []).length
+      uploadForm.roles = (blob.roles || []).length
+      if (!uploadForm.name) uploadForm.name = parsed.name || (blob.server && blob.server.name) || file.name.replace(/\.json$/i, '')
+      if (!uploadForm.description && parsed.description) uploadForm.description = parsed.description
+      if (!uploadForm.category && parsed.category) uploadForm.category = parsed.category
+    } catch { toast.error(t('admin.mpInvalidFile')) }
+  }
+  reader.readAsText(file)
+}
+
+async function uploadTemplate() {
+  if (!uploadForm.data) return
+  uploadingTemplate.value = true
+  try {
+    const { data } = await api.post('/admin/marketplace/upload', {
+      name: uploadForm.name,
+      description: uploadForm.description,
+      category: uploadForm.category,
+      data: uploadForm.data
+    })
+    if (data?.template) templates.value = [data.template, ...templates.value]
+    uploadForm.name = ''; uploadForm.description = ''; uploadForm.category = ''
+    uploadForm.data = null; uploadForm.fileName = ''; uploadForm.channels = 0; uploadForm.roles = 0
+    toast.success(t('admin.mpUploaded'))
+  } catch (err) {
+    toast.error(err.response?.data?.message || err.response?.data?.error || t('admin.actionFailed'))
+  } finally {
+    uploadingTemplate.value = false
+  }
+}
+
+async function exportTemplate(tp) {
+  try {
+    const { data } = await api.get(`/admin/marketplace/${tp.id}/export`, { responseType: 'blob' })
+    const url = URL.createObjectURL(data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `template-${slugify(tp.name)}.json`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  } catch (err) {
+    toast.error(t('admin.exportFailed'))
+  }
+}
+
+async function setTemplateStatus(tp, status) {
+  const prev = tp.status
+  if (status === prev) return
+  try {
+    await api.put(`/admin/marketplace/${tp.id}/status`, { status })
+    tp.status = status
+    toast.success(t('admin.mpStatusUpdated'))
+  } catch (err) {
+    tp.status = prev
+    toast.error(err.response?.data?.error || t('admin.actionFailed'))
+  }
+}
+
+async function deleteTemplate(tp) {
+  busyId.value = tp.id
+  try {
+    await api.delete(`/admin/marketplace/${tp.id}`)
+    templates.value = templates.value.filter((x) => x.id !== tp.id)
+    toast.success(t('admin.mpDeleted'))
+  } catch (err) {
+    toast.error(err.response?.data?.error || t('admin.actionFailed'))
+  } finally {
+    busyId.value = null
   }
 }
 
