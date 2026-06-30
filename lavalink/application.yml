@@ -1,0 +1,48 @@
+# Lavalink config for the projectx Music module.
+#
+# YouTube is intentionally NOT available: Lavalink 4 dropped the built-in YouTube
+# source, and we deliberately do NOT install the youtube-source plugin. Only the
+# sources enabled below are usable (SoundCloud / Bandcamp / Twitch / Vimeo /
+# direct HTTP + radio streams).
+#
+# The password here is overridden by the LAVALINK_SERVER_PASSWORD env var in
+# docker-compose.yml — keep it in sync with the bot's LAVALINK_PASSWORD.
+
+server:
+  port: 2333
+  address: 0.0.0.0
+
+lavalink:
+  server:
+    password: "youshallnotpass"
+    sources:
+      youtube: false        # built-in YT source is gone in v4; left false for clarity
+      bandcamp: true
+      soundcloud: true
+      twitch: true
+      vimeo: true
+      http: true            # direct stream/radio URLs (mp3/aac/ogg/m3u8)
+      local: false
+    filters:                # audio filters (used by future /filter features)
+      volume: true
+      equalizer: true
+      karaoke: true
+      timescale: true
+      tremolo: true
+      vibrato: true
+      distortion: true
+      rotation: true
+      channelMix: true
+      lowPass: true
+    bufferDurationMs: 400
+    frameBufferDurationMs: 5000
+    youtubePlaylistLoadLimit: 6
+    playerUpdateInterval: 5
+    youtubeSearchEnabled: false
+    soundcloudSearchEnabled: true
+    gc-warnings: true
+
+logging:
+  level:
+    root: INFO
+    lavalink: INFO

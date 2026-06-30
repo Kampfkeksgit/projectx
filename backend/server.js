@@ -24,6 +24,7 @@ import verificationRoutes from './routes/verification.js'
 import roleMenusRoutes from './routes/rolemenus.js'
 import ticketsRoutes from './routes/tickets.js'
 import giveawaysRoutes from './routes/giveaways.js'
+import musicRoutes from './routes/music.js'
 import countingRoutes from './routes/counting.js'
 import pollsRoutes from './routes/polls.js'
 import inviteTrackingRoutes from './routes/invitetracking.js'
@@ -136,6 +137,7 @@ app.use('/api/guilds/:guild_id/applications', requirePremiumModule('applications
 app.use('/api/guilds/:guild_id/economy', requirePremiumModule('economy'), economyRoutes)
 app.use('/api/guilds/:guild_id/games', requirePremiumModule('games'), gamesRoutes)
 app.use('/api/guilds/:guild_id/backups', requirePremiumModule('backup'), backupRoutes)
+app.use('/api/guilds/:guild_id/music', requirePremiumModule('music'), musicRoutes)
 app.use('/api/guilds/:guild_id/general', generalRoutes)
 app.use('/api/guilds/:guild_id', resourcesRoutes)
 app.use('/api/public', publicRoutes)

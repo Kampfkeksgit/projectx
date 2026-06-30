@@ -1101,6 +1101,52 @@ function initializeDatabase() {
       else console.log('✓ Guild giveaway entries table initialized');
     });
 
+    // ----- Music module (v43): settings + live state snapshot + control queue -----
+    db.run(`
+      CREATE TABLE IF NOT EXISTS guild_music_settings (
+        guild_id               TEXT PRIMARY KEY,
+        enabled                BOOLEAN DEFAULT 0,
+        dj_role_id             TEXT,
+        default_volume         INTEGER DEFAULT 100,
+        auto_disconnect_seconds INTEGER DEFAULT 300,
+        max_queue              INTEGER DEFAULT 100,
+        allow_soundcloud       BOOLEAN DEFAULT 1,
+        allow_bandcamp         BOOLEAN DEFAULT 1,
+        allow_http             BOOLEAN DEFAULT 1,
+        allow_twitch           BOOLEAN DEFAULT 1,
+        updated_at             DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+      )
+    `, (err) => { if (err) console.error('Error creating guild_music_settings table:', err); });
+    db.run(`
+      CREATE TABLE IF NOT EXISTS guild_music_state (
+        guild_id          TEXT PRIMARY KEY,
+        voice_channel_id  TEXT,
+        text_channel_id   TEXT,
+        current           TEXT,
+        queue             TEXT DEFAULT '[]',
+        paused            BOOLEAN DEFAULT 0,
+        volume            INTEGER DEFAULT 100,
+        loop_mode         TEXT DEFAULT 'off',
+        position_ms       INTEGER DEFAULT 0,
+        updated_at        INTEGER DEFAULT 0,
+        FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+      )
+    `, (err) => { if (err) console.error('Error creating guild_music_state table:', err); });
+    db.run(`
+      CREATE TABLE IF NOT EXISTS guild_music_commands (
+        id          TEXT PRIMARY KEY,
+        guild_id    TEXT NOT NULL,
+        action      TEXT NOT NULL,
+        payload     TEXT,
+        created_at  INTEGER DEFAULT 0,
+        FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+      )
+    `, (err) => { if (err) console.error('Error creating guild_music_commands table:', err); });
+    db.run('CREATE INDEX IF NOT EXISTS idx_music_commands_guild ON guild_music_commands(guild_id)', (err) => {
+      if (err) console.error('Error creating idx_music_commands_guild:', err);
+    });
+
     // ----- New modules (v23-v27): Counting / Polls / Invite-Tracking / Applications / Economy -----
 
     db.run(`
@@ -1424,7 +1470,7 @@ export const MODULE_TIERS = {
   invitetracking: 'basic',
   games: 'basic', tictactoe: 'basic', rps: 'basic', trivia: 'basic', connect4: 'basic', hangman: 'basic', poker: 'basic',
   social: 'pro', stats: 'pro', tickets: 'pro', giveaways: 'pro', scheduled: 'pro',
-  applications: 'pro', economy: 'pro', backup: 'pro',
+  applications: 'pro', economy: 'pro', backup: 'pro', music: 'pro',
   general: 'free'
 };
 
@@ -2233,7 +2279,8 @@ const FLAG_MODULE_TABLES = [
   { key: 'tickets', table: 'guild_ticket_settings' },
   { key: 'counting', table: 'guild_counting_settings' },
   { key: 'invitetracking', table: 'guild_invite_settings' },
-  { key: 'economy', table: 'guild_economy_settings' }
+  { key: 'economy', table: 'guild_economy_settings' },
+  { key: 'music', table: 'guild_music_settings' }
 ];
 
 const COUNT_MODULE_TABLES = [
@@ -4358,6 +4405,16 @@ export const BUILTIN_COMMANDS = [
   { key: 'giveaway start', name: 'giveaway start', type: 'slash', module: 'giveaways', usage: '/giveaway start prize winners duration [requirements]', description: 'Start a giveaway with optional entry requirements (manage server).' },
   { key: 'giveaway reroll', name: 'giveaway reroll', type: 'slash', module: 'giveaways', usage: '/giveaway reroll id', description: 'Draw a new winner for a giveaway (manage server).' },
   { key: 'giveaway end', name: 'giveaway end', type: 'slash', module: 'giveaways', usage: '/giveaway end id', description: 'End a giveaway early and draw winners (manage server).' },
+  { key: 'play', name: 'play', type: 'slash', module: 'music', usage: '/play query', description: 'Play or queue a track (SoundCloud/Bandcamp/URL).' },
+  { key: 'skip', name: 'skip', type: 'slash', module: 'music', usage: '/skip', description: 'Skip the current track.' },
+  { key: 'stop', name: 'stop', type: 'slash', module: 'music', usage: '/stop', description: 'Stop playback, clear the queue and leave.' },
+  { key: 'pause', name: 'pause', type: 'slash', module: 'music', usage: '/pause', description: 'Pause playback.' },
+  { key: 'resume', name: 'resume', type: 'slash', module: 'music', usage: '/resume', description: 'Resume playback.' },
+  { key: 'queue', name: 'queue', type: 'slash', module: 'music', usage: '/queue', description: 'Show the current queue.' },
+  { key: 'nowplaying', name: 'nowplaying', type: 'slash', module: 'music', usage: '/nowplaying', description: 'Show the current track.' },
+  { key: 'volume', name: 'volume', type: 'slash', module: 'music', usage: '/volume level', description: 'Set playback volume (0-150).' },
+  { key: 'loop', name: 'loop', type: 'slash', module: 'music', usage: '/loop mode', description: 'Set loop mode (off/track/queue).' },
+  { key: 'shuffle', name: 'shuffle', type: 'slash', module: 'music', usage: '/shuffle', description: 'Shuffle the queue.' },
   { key: 'poll', name: 'poll', type: 'prefix', module: 'polls', usage: '{p}poll <question> | <A> | <B> | …', description: 'Start a button poll.' },
   { key: 'applypanel', name: 'applypanel', type: 'prefix', module: 'applications', usage: '{p}applypanel', description: 'Post the application panel (admin).' },
   { key: 'balance', name: 'balance', type: 'prefix', module: 'economy', usage: '{p}balance [member]', description: 'Show a balance.' },
@@ -6616,6 +6673,174 @@ export function getGiveawayById(guildId, giveawayId) {
 export function deleteGiveaway(guildId, giveawayId) {
   return new Promise((resolve, reject) => {
     db.run('DELETE FROM guild_giveaways WHERE guild_id = ? AND id = ?', [guildId, giveawayId], function (err) {
+      if (err) reject(err);
+      else resolve(this.changes);
+    });
+  });
+}
+
+// ===== Module: Music (v43, Pro — Lavalink) =====
+
+export const MUSIC_SOURCES = ['soundcloud', 'bandcamp', 'http', 'twitch']; // YouTube intentionally excluded
+export const MUSIC_LOOP_MODES = ['off', 'track', 'queue'];
+export const MUSIC_COMMAND_ACTIONS = ['pause', 'resume', 'skip', 'stop', 'volume', 'remove', 'clear', 'shuffle', 'loop'];
+
+export const MUSIC_DEFAULTS = {
+  enabled: false,
+  dj_role_id: null,
+  default_volume: 100,
+  auto_disconnect_seconds: 300,
+  max_queue: 100,
+  allow_soundcloud: true,
+  allow_bandcamp: true,
+  allow_http: true,
+  allow_twitch: true
+};
+
+function shapeMusicSettings(row) {
+  if (!row) return { ...MUSIC_DEFAULTS };
+  return {
+    enabled: !!row.enabled,
+    dj_role_id: row.dj_role_id ?? null,
+    default_volume: row.default_volume ?? 100,
+    auto_disconnect_seconds: row.auto_disconnect_seconds ?? 300,
+    max_queue: row.max_queue ?? 100,
+    allow_soundcloud: !!row.allow_soundcloud,
+    allow_bandcamp: !!row.allow_bandcamp,
+    allow_http: !!row.allow_http,
+    allow_twitch: !!row.allow_twitch
+  };
+}
+
+export function getMusicSettings(guildId) {
+  return new Promise((resolve, reject) => {
+    db.get('SELECT * FROM guild_music_settings WHERE guild_id = ?', [guildId], (err, row) => {
+      if (err) reject(err);
+      else resolve(shapeMusicSettings(row));
+    });
+  });
+}
+
+export function upsertMusicSettings(guildId, settings) {
+  const s = settings || {};
+  const cur = { ...MUSIC_DEFAULTS };
+  const merged = {
+    enabled: s.enabled !== undefined ? (s.enabled ? 1 : 0) : (cur.enabled ? 1 : 0),
+    dj_role_id: isSnowflake(s.dj_role_id) ? s.dj_role_id : null,
+    default_volume: clampRange(s.default_volume, 0, 150, 100),
+    auto_disconnect_seconds: clampRange(s.auto_disconnect_seconds, 0, 3600, 300),
+    max_queue: clampRange(s.max_queue, 1, 500, 100),
+    allow_soundcloud: s.allow_soundcloud !== undefined ? (s.allow_soundcloud ? 1 : 0) : 1,
+    allow_bandcamp: s.allow_bandcamp !== undefined ? (s.allow_bandcamp ? 1 : 0) : 1,
+    allow_http: s.allow_http !== undefined ? (s.allow_http ? 1 : 0) : 1,
+    allow_twitch: s.allow_twitch !== undefined ? (s.allow_twitch ? 1 : 0) : 1
+  };
+  return new Promise((resolve, reject) => {
+    db.run(
+      `INSERT INTO guild_music_settings
+         (guild_id, enabled, dj_role_id, default_volume, auto_disconnect_seconds, max_queue,
+          allow_soundcloud, allow_bandcamp, allow_http, allow_twitch, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT(guild_id) DO UPDATE SET
+         enabled = excluded.enabled, dj_role_id = excluded.dj_role_id,
+         default_volume = excluded.default_volume, auto_disconnect_seconds = excluded.auto_disconnect_seconds,
+         max_queue = excluded.max_queue, allow_soundcloud = excluded.allow_soundcloud,
+         allow_bandcamp = excluded.allow_bandcamp, allow_http = excluded.allow_http,
+         allow_twitch = excluded.allow_twitch, updated_at = CURRENT_TIMESTAMP`,
+      [guildId, merged.enabled, merged.dj_role_id, merged.default_volume, merged.auto_disconnect_seconds,
+       merged.max_queue, merged.allow_soundcloud, merged.allow_bandcamp, merged.allow_http, merged.allow_twitch],
+      (err) => (err ? reject(err) : getMusicSettings(guildId).then(resolve).catch(reject))
+    );
+  });
+}
+
+function parseJsonColumn(value, fallback) {
+  if (!value) return fallback;
+  try { const v = JSON.parse(value); return v == null ? fallback : v; } catch { return fallback; }
+}
+
+/** Dashboard read: the bot-pushed live playback snapshot (or an idle default). */
+export function getMusicState(guildId) {
+  return new Promise((resolve, reject) => {
+    db.get('SELECT * FROM guild_music_state WHERE guild_id = ?', [guildId], (err, row) => {
+      if (err) return reject(err);
+      if (!row) {
+        return resolve({ connected: false, voice_channel_id: null, text_channel_id: null,
+          current: null, queue: [], paused: false, volume: 100, loop_mode: 'off', position_ms: 0, updated_at: 0 });
+      }
+      resolve({
+        connected: !!row.voice_channel_id,
+        voice_channel_id: row.voice_channel_id ?? null,
+        text_channel_id: row.text_channel_id ?? null,
+        current: parseJsonColumn(row.current, null),
+        queue: parseJsonColumn(row.queue, []),
+        paused: !!row.paused,
+        volume: row.volume ?? 100,
+        loop_mode: MUSIC_LOOP_MODES.includes(row.loop_mode) ? row.loop_mode : 'off',
+        position_ms: row.position_ms ?? 0,
+        updated_at: row.updated_at ?? 0
+      });
+    });
+  });
+}
+
+/** Bot push: upsert the live snapshot. A null/empty voice_channel_id clears the row. */
+export function upsertMusicState(guildId, state) {
+  const s = state || {};
+  if (!isSnowflake(s.voice_channel_id)) {
+    return new Promise((resolve, reject) => {
+      db.run('DELETE FROM guild_music_state WHERE guild_id = ?', [guildId], (err) => (err ? reject(err) : resolve({ cleared: true })));
+    });
+  }
+  const now = Math.floor(Date.now() / 1000);
+  const loop = MUSIC_LOOP_MODES.includes(s.loop_mode) ? s.loop_mode : 'off';
+  return new Promise((resolve, reject) => {
+    db.run(
+      `INSERT INTO guild_music_state
+         (guild_id, voice_channel_id, text_channel_id, current, queue, paused, volume, loop_mode, position_ms, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(guild_id) DO UPDATE SET
+         voice_channel_id = excluded.voice_channel_id, text_channel_id = excluded.text_channel_id,
+         current = excluded.current, queue = excluded.queue, paused = excluded.paused,
+         volume = excluded.volume, loop_mode = excluded.loop_mode, position_ms = excluded.position_ms,
+         updated_at = excluded.updated_at`,
+      [guildId, s.voice_channel_id, isSnowflake(s.text_channel_id) ? s.text_channel_id : null,
+       s.current ? JSON.stringify(s.current) : null,
+       JSON.stringify(Array.isArray(s.queue) ? s.queue.slice(0, 500) : []),
+       s.paused ? 1 : 0, clampRange(s.volume, 0, 150, 100), loop, clampRange(s.position_ms, 0, 86400000, 0), now],
+      (err) => (err ? reject(err) : resolve({ ok: true }))
+    );
+  });
+}
+
+/** Dashboard control: queue a command for the bot to execute. */
+export function enqueueMusicCommand(guildId, action, payload) {
+  if (!MUSIC_COMMAND_ACTIONS.includes(action)) {
+    return Promise.reject(Object.assign(new Error('invalid_action'), { code: 'VALIDATION' }));
+  }
+  const id = randomUUID();
+  const now = Math.floor(Date.now() / 1000);
+  const payloadStr = (payload === undefined || payload === null) ? null : JSON.stringify(payload);
+  return new Promise((resolve, reject) => {
+    db.run('INSERT INTO guild_music_commands (id, guild_id, action, payload, created_at) VALUES (?, ?, ?, ?, ?)',
+      [id, guildId, action, payloadStr, now],
+      (err) => (err ? reject(err) : resolve({ id, action })));
+  });
+}
+
+/** Bot poll: all queued control commands across guilds (oldest first). */
+export function getAllMusicCommands(limit = 100) {
+  return new Promise((resolve, reject) => {
+    db.all('SELECT * FROM guild_music_commands ORDER BY created_at ASC LIMIT ?', [clampRange(limit, 1, 500, 100)], (err, rows) => {
+      if (err) reject(err);
+      else resolve((rows || []).map(r => ({ id: r.id, guild_id: r.guild_id, action: r.action, payload: parseJsonColumn(r.payload, null), created_at: r.created_at })));
+    });
+  });
+}
+
+export function deleteMusicCommand(id) {
+  return new Promise((resolve, reject) => {
+    db.run('DELETE FROM guild_music_commands WHERE id = ?', [id], function (err) {
       if (err) reject(err);
       else resolve(this.changes);
     });

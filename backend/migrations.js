@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 42;
+const CURRENT_SCHEMA_VERSION = 43;
 
 /**
  * Initialize schema version tracking
@@ -101,7 +101,8 @@ async function applyMigrations(fromVersion, toVersion) {
     39: migrationV39,
     40: migrationV40,
     41: migrationV41,
-    42: migrationV42
+    42: migrationV42,
+    43: migrationV43
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -2054,6 +2055,57 @@ function migrationV42() {
     'ALTER TABLE guild_giveaways ADD COLUMN min_account_age_days INTEGER DEFAULT 0',
     'ALTER TABLE guild_giveaways ADD COLUMN min_member_days INTEGER DEFAULT 0',
     'ALTER TABLE guild_giveaways ADD COLUMN min_level INTEGER DEFAULT 0'
+  ]);
+}
+
+/**
+ * Migration V43: Music module (Pro) — Lavalink-backed voice playback.
+ *   - guild_music_settings: per-guild config (DJ role, default volume,
+ *     auto-disconnect, max queue, allowed sources — YouTube intentionally absent).
+ *   - guild_music_state: bot-pushed live snapshot (current track + queue + paused
+ *     + volume + voice channel) so the dashboard can show "now playing".
+ *   - guild_music_commands: dashboard control queue (play/pause/skip/stop/volume/
+ *     remove/clear). The bot polls due commands, executes them and deletes them.
+ * Idempotent; mirrored in initializeDatabase().
+ */
+function migrationV43() {
+  return runSchemaBatch(43, [
+    `CREATE TABLE IF NOT EXISTS guild_music_settings (
+      guild_id               TEXT PRIMARY KEY,
+      enabled                BOOLEAN DEFAULT 0,
+      dj_role_id             TEXT,
+      default_volume         INTEGER DEFAULT 100,
+      auto_disconnect_seconds INTEGER DEFAULT 300,
+      max_queue              INTEGER DEFAULT 100,
+      allow_soundcloud       BOOLEAN DEFAULT 1,
+      allow_bandcamp         BOOLEAN DEFAULT 1,
+      allow_http             BOOLEAN DEFAULT 1,
+      allow_twitch           BOOLEAN DEFAULT 1,
+      updated_at             DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS guild_music_state (
+      guild_id          TEXT PRIMARY KEY,
+      voice_channel_id  TEXT,
+      text_channel_id   TEXT,
+      current           TEXT,
+      queue             TEXT DEFAULT '[]',
+      paused            BOOLEAN DEFAULT 0,
+      volume            INTEGER DEFAULT 100,
+      loop_mode         TEXT DEFAULT 'off',
+      position_ms       INTEGER DEFAULT 0,
+      updated_at        INTEGER DEFAULT 0,
+      FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS guild_music_commands (
+      id          TEXT PRIMARY KEY,
+      guild_id    TEXT NOT NULL,
+      action      TEXT NOT NULL,
+      payload     TEXT,
+      created_at  INTEGER DEFAULT 0,
+      FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_music_commands_guild ON guild_music_commands(guild_id)'
   ]);
 }
 

@@ -64,6 +64,10 @@ import {
   endGiveawayNow,
   markGiveawayEnded,
   getLevelingUser,
+  getMusicSettings,
+  upsertMusicState,
+  getAllMusicCommands,
+  deleteMusicCommand,
   isGuildBlocked,
   getGuild,
   effectiveTier,
@@ -156,7 +160,8 @@ const PREMIUM_BOT_GATES = [
   { test: /\/settings\/invitetracking$/, module: 'invitetracking', disabled: { enabled: false } },
   { test: /\/settings\/applications$/, module: 'applications', disabled: { forms: [] } },
   { test: /\/settings\/economy$/, module: 'economy', disabled: { enabled: false } },
-  { test: /\/settings\/games$/, module: 'games', disabled: { games_channel_id: null, tictactoe_enabled: false, rps_enabled: false, trivia_enabled: false, connect4_enabled: false, hangman_enabled: false, poker_enabled: false } }
+  { test: /\/settings\/games$/, module: 'games', disabled: { games_channel_id: null, tictactoe_enabled: false, rps_enabled: false, trivia_enabled: false, connect4_enabled: false, hangman_enabled: false, poker_enabled: false } },
+  { test: /\/settings\/music$/, module: 'music', disabled: { enabled: false } }
 ]
 
 /**
@@ -828,6 +833,28 @@ router.get('/guilds/:guild_id/settings/starboard', requireBotToken, async (req, 
   }
 })
 
+// Music: raw settings (premium-gated → disabled shape if not Pro).
+router.get('/guilds/:guild_id/settings/music', requireBotToken, async (req, res) => {
+  try {
+    const settings = await getMusicSettings(req.params.guild_id)
+    return res.json(settings)
+  } catch (error) {
+    console.error('Bot get music settings error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch music settings' })
+  }
+})
+
+// Music: bot pushes the live playback snapshot (a missing voice channel clears it).
+router.put('/guilds/:guild_id/music/state', requireBotToken, async (req, res) => {
+  try {
+    await upsertMusicState(req.params.guild_id, req.body || {})
+    return res.json({ success: true })
+  } catch (error) {
+    console.error('Bot put music state error:', error.message)
+    res.status(500).json({ error: 'Failed to update music state' })
+  }
+})
+
 // Starboard: read the entry for a source message (or null).
 router.get('/guilds/:guild_id/starboard/entries/:message_id', requireBotToken, async (req, res) => {
   try {
@@ -1310,6 +1337,28 @@ router.get('/giveaways/due', requireBotToken, async (req, res) => {
   } catch (error) {
     console.error('Bot get due giveaways error:', error.message)
     res.status(500).json({ error: 'Failed to fetch due giveaways' })
+  }
+})
+
+// Music: control commands queued from dashboards across all guilds (bot polls).
+router.get('/music/commands', requireBotToken, async (req, res) => {
+  try {
+    const commands = await getAllMusicCommands()
+    return res.json({ commands })
+  } catch (error) {
+    console.error('Bot get music commands error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch music commands' })
+  }
+})
+
+// Music: delete a control command after the bot executed it.
+router.delete('/music/commands/:id', requireBotToken, async (req, res) => {
+  try {
+    await deleteMusicCommand(req.params.id)
+    return res.json({ success: true })
+  } catch (error) {
+    console.error('Bot delete music command error:', error.message)
+    res.status(500).json({ error: 'Failed to delete music command' })
   }
 })
 
