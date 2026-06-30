@@ -31,7 +31,7 @@ Diese Regel hat Vorrang vor „Brevity"-Gewohnheiten — die CLAUDE.md ist Singl
 
 | Komponente | Stack | Zweck |
 |---|---|---|
-| [bot/](bot/) | Python 3.8+, discord.py 2.3.2 | Hört auf `on_member_join` / `on_member_remove`, sendet konfigurierte Nachrichten |
+| [bot/](bot/) | Python 3.10+, discord.py 2.7.1 | Hört auf `on_member_join` / `on_member_remove`, sendet konfigurierte Nachrichten |
 | [backend/](backend/) | Node.js 18+, Express 4, SQLite3 | REST-API, Discord-OAuth2, Settings-CRUD, Audit-Log, Cookie-Session, interne Bot-API |
 | [frontend/](frontend/) | Vue 3 + Vite 4, Vue Router 4, Axios | Web-Dashboard zum Konfigurieren der Bot-Nachrichten |
 
@@ -429,7 +429,7 @@ projectx/
 ## 3. Tech-Stack & Dependencies (aktueller Stand)
 
 ### Bot — [bot/requirements.txt](bot/requirements.txt)
-- `discord.py==2.3.2`
+- `discord.py==2.7.1` (von 2.3.2 hochgezogen — wavelink 3.5.2 fürs Music-Modul verlangt `discord.py>=2.7.0`; Python-Image ist bereits 3.11. Alle 37 Cogs importieren sauber gegen 2.7.1.)
 - `python-dotenv==1.0.0`
 - `aiohttp==3.9.0` — async HTTP zum Backend
 - `requests==2.31.0`
@@ -1092,6 +1092,8 @@ Empfehlung aus [README.md](README.md): SQLite → PostgreSQL für Multi-Instance
 
 ## 14. Letzte Aktualisierung
 
+- **Datum:** 2026-07-01
+- **discord.py 2.3.2 → 2.7.1 (für das Music-Modul, bewusster Dependency-Bump):** wavelink 3.5.2 (nötig fürs `channelId`-Voice-Protokoll von Lavalink 4.2.x → SoundCloud-Wiedergabe) verlangt `discord.py>=2.7.0`. Das Bot-Image ist bereits Python 3.11 (wavelink braucht ≥3.10), also nur der discord.py-Pin in [requirements.txt](bot/requirements.txt) hochgezogen. **Verifiziert:** discord.py 2.7.1 + wavelink 3.5.2 installiert, **alle 37 Cogs + main.py importieren sauber** dagegen (fängt API-Brüche auf Klassen-/Decorator-Ebene), Kern-APIs (Intents/`bot.tree`/`app_commands`/`ui`/`utils`) vorhanden. **Achtung:** Laufzeit-Verhalten konnte nicht voll getestet werden — nach dem Deploy die wichtigsten Cog-Funktionen einmal durchklicken. Behebt den Build-Fehler `pip install ... exit code 1` (discord.py==2.3.2 vs wavelink-Anforderung >=2.7.0).
 - **Datum:** 2026-06-30
 - **Neues Music-Modul (Schema v43, Pro) — Lavalink-Voice-Wiedergabe, OHNE YouTube:** Neues 35. Modul: Musik in Sprachkanälen via Lavalink (wavelink 3.x). Quellen: **SoundCloud / Bandcamp / Twitch / Direkt-+Radio-Streams — kein YouTube** (Lavalink-seitig nicht installiert + im Cog defensiv geblockt).
   - **Architektur:** eigener **Lavalink-Container** (`ghcr.io/lavalink-devs/lavalink:4` in [docker-compose.yml](docker-compose.yml) + [lavalink/application.yml](lavalink/application.yml)). Bot-Cog [music.py](bot/cogs/music.py) (wavelink) ist **inert ohne wavelink-Install ODER `config.LAVALINK_HOST`** → kein Crash. Neue Bot-Env `LAVALINK_HOST/PORT/PASSWORD/SECURE` + `MUSIC_POLL_INTERVAL` ([config.py](bot/config.py)), Dep `wavelink==3.4.1`.
