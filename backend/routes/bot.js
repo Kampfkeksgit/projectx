@@ -60,7 +60,10 @@ import {
   addGiveawayEntry,
   getGiveawayEntries,
   getDueGiveaways,
+  getPendingGiveaways,
+  endGiveawayNow,
   markGiveawayEnded,
+  getLevelingUser,
   isGuildBlocked,
   getGuild,
   effectiveTier,
@@ -1307,6 +1310,39 @@ router.get('/giveaways/due', requireBotToken, async (req, res) => {
   } catch (error) {
     console.error('Bot get due giveaways error:', error.message)
     res.status(500).json({ error: 'Failed to fetch due giveaways' })
+  }
+})
+
+// Giveaways: dashboard-created giveaways awaiting their first post by the bot.
+router.get('/giveaways/pending', requireBotToken, async (req, res) => {
+  try {
+    const giveaways = await getPendingGiveaways()
+    return res.json({ giveaways })
+  } catch (error) {
+    console.error('Bot get pending giveaways error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch pending giveaways' })
+  }
+})
+
+// Giveaways: end early (slash /giveaway end) — pulls ends_at to now.
+router.put('/guilds/:guild_id/giveaways/:gid/end', requireBotToken, async (req, res) => {
+  try {
+    const changes = await endGiveawayNow(req.params.guild_id, req.params.gid, Math.floor(Date.now() / 1000))
+    return res.json({ success: true, ended: changes > 0 })
+  } catch (error) {
+    console.error('Bot end giveaway error:', error.message)
+    res.status(500).json({ error: 'Failed to end giveaway' })
+  }
+})
+
+// Leveling: a member's current level (for giveaway min-level requirement checks).
+router.get('/guilds/:guild_id/leveling/user/:user_id', requireBotToken, async (req, res) => {
+  try {
+    const u = await getLevelingUser(req.params.guild_id, req.params.user_id)
+    return res.json({ level: u?.level ?? 0, xp: u?.xp ?? 0 })
+  } catch (error) {
+    console.error('Bot get leveling user error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch leveling user' })
   }
 })
 
