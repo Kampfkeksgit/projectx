@@ -84,7 +84,12 @@ services:
   # Bandcamp / Twitch / HTTP+radio streams are available. Remove this service (and
   # the bot's LAVALINK_* env) to ship without music.
   lavalink:
-    image: ghcr.io/lavalink-devs/lavalink:4
+    # PINNED to 4.0.x: the rolling :4 tag pulls Lavalink 4.2.x, whose VoiceState
+    # protocol requires a `channelId` field that wavelink 3.4.1 doesn't send →
+    # "Field 'channelId' is required ... missing at $.voice" → voice connect times
+    # out and the bot instantly leaves. 4.0.8 matches wavelink 3.4.1. (To move to a
+    # newer Lavalink later, bump wavelink in bot/requirements.txt in lockstep.)
+    image: ghcr.io/lavalink-devs/lavalink:4.0.8
     restart: unless-stopped
     # Lavalink is configured ENTIRELY via env here (Spring relaxed binding), so it
     # works even if the application.yml bind-mount doesn't resolve (common with
