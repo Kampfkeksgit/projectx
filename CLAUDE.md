@@ -331,6 +331,7 @@ projectx/
 │       │   ├── StatsChart.vue  # Vanilla-SVG-Liniendiagramm (props: title, points[{ts,...}], lines[{key,label,color}])
 │       │   ├── ScheduledMessageRow.vue # Inline-Editor-Row für geplante Nachrichten (once/interval, datetime-local)
 │       │   ├── RoleMenuRow.vue  # Inline-Editor-Row für Rollen-Menüs (Buttons/Select + Options-Repeater)
+│       │   │                   # Einklappbar (Caret + klickbarer Header; gespeicherte Menüs starten eingeklappt, Drafts offen) wie StatsCounterRow
 │       │   ├── TicketCategoryRow.vue # Inline-Editor-Row für Ticket-Kategorien (Label/Emoji/Desc/
 │       │   │                       # Kategorie+Support-Rolle+Ping-Rolle-Override/Button-Style/Welcome/Toggle)
 │       │   ├── PremiumLock.vue # Sperrseite für Premium-Module (in DashboardLayout statt router-view gerendert, wenn Tier < Modul)

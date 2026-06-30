@@ -1268,6 +1268,7 @@ export default {
     loadError: 'Verifizierungs-Einstellungen konnten nicht geladen werden'
   },
   rolemenus: {
+    toggleDetails: 'Ein-/ausklappen',
     eyebrow: 'Engagement',
     title: 'Rollen-Menüs',
     sub: 'Member vergeben sich Rollen selbst über Buttons oder ein Dropdown. Der Bot postet jedes Menü in seinen Channel.',

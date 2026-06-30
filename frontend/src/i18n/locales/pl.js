@@ -1226,6 +1226,7 @@ export default {
     loadError: 'Nie udało się załadować ustawień weryfikacji'
   },
   rolemenus: {
+    toggleDetails: 'Rozwiń / zwiń',
     eyebrow: 'Zaangażowanie',
     title: 'Menu ról',
     sub: 'Pozwól członkom samodzielnie przydzielać role za pomocą przycisków lub listy rozwijanej. Bot publikuje każde menu na jego kanale.',

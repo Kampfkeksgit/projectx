@@ -1226,6 +1226,7 @@ export default {
     loadError: 'Doğrulama ayarları yüklenemedi'
   },
   rolemenus: {
+    toggleDetails: 'Genişlet / daralt',
     eyebrow: 'Etkileşim',
     title: 'Rol Menüleri',
     sub: 'Üyelerin düğmeler veya açılır menü aracılığıyla kendilerine rol atamasına izin verin. Bot her menüyü kendi kanalına yayınlar.',

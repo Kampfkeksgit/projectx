@@ -1268,6 +1268,7 @@ export default {
     loadError: 'Failed to load verification settings'
   },
   rolemenus: {
+    toggleDetails: 'Expand / collapse',
     eyebrow: 'Engagement',
     title: 'Role Menus',
     sub: 'Let members self-assign roles via buttons or a dropdown. The bot posts each menu to its channel.',
