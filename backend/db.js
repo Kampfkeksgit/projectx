@@ -948,6 +948,9 @@ function initializeDatabase() {
     db.run('ALTER TABLE guild_role_menus ADD COLUMN embed TEXT', (err) => {
       if (err && !/duplicate column name/i.test(err.message)) console.error('Warning: guild_role_menus.embed:', err.message);
     });
+    db.run('ALTER TABLE guild_role_menus ADD COLUMN dirty INTEGER DEFAULT 0', (err) => {
+      if (err && !/duplicate column name/i.test(err.message)) console.error('Warning: guild_role_menus.dirty:', err.message);
+    });
 
     db.run(`
       CREATE TABLE IF NOT EXISTS guild_role_menu_options (
@@ -5929,10 +5932,14 @@ export async function getRoleMenus(guildId) {
   return result;
 }
 
-/** Bot: role menus that are configured (have a channel) but not yet posted. */
+/**
+ * Bot: role menus that need (re)rendering — either not yet posted, or edited in
+ * the dashboard since the last render (dirty = 1). The cog posts unposted menus
+ * and edits dirty posted ones in place (it tells them apart by message_id).
+ */
 export async function getPendingRoleMenus() {
   const rows = await new Promise((resolve, reject) => {
-    db.all(`SELECT * FROM guild_role_menus WHERE channel_id IS NOT NULL AND (message_id IS NULL OR message_id = '') AND guild_id NOT IN (SELECT id FROM guilds WHERE blocked = 1) AND ${tierFilterSql('basic')}`, [], (err, r) => {
+    db.all(`SELECT * FROM guild_role_menus WHERE channel_id IS NOT NULL AND ((message_id IS NULL OR message_id = '') OR dirty = 1) AND guild_id NOT IN (SELECT id FROM guilds WHERE blocked = 1) AND ${tierFilterSql('basic')}`, [], (err, r) => {
       if (err) reject(err); else resolve(r || []);
     });
   });
@@ -5994,11 +6001,12 @@ export function updateRoleMenu(guildId, menuId, patch) {
     const exclusive = p.exclusive !== undefined ? (p.exclusive ? 1 : 0) : existing.exclusive;
     const useEmbed = p.use_embed !== undefined ? (p.use_embed ? 1 : 0) : existing.use_embed;
     const embed = p.embed !== undefined ? JSON.stringify(sanitizeEmbed(p.embed)) : existing.embed;
-    // Changing channel re-requires a fresh post → clear message_id.
+    // Changing channel re-requires a fresh post → clear message_id. Any edit marks
+    // the menu dirty so the bot re-renders the posted message (edit in place).
     const clearMessage = channelId !== existing.channel_id;
     await new Promise((resolve, reject) => {
       db.run(
-        `UPDATE guild_role_menus SET channel_id = ?, name = ?, menu_type = ?, exclusive = ?, use_embed = ?, embed = ?${clearMessage ? ', message_id = NULL' : ''}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        `UPDATE guild_role_menus SET channel_id = ?, name = ?, menu_type = ?, exclusive = ?, use_embed = ?, embed = ?, dirty = 1${clearMessage ? ', message_id = NULL' : ''}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
         [channelId, name, menuType, exclusive, useEmbed, embed, menuId],
         (err) => (err ? reject(err) : resolve())
       );
@@ -6029,11 +6037,11 @@ export async function getRoleMenuByMessage(guildId, messageId) {
   return shapeRoleMenu(row, await readRoleMenuOptions(row.id));
 }
 
-/** Bot: store the channel + posted message id for a role menu. */
+/** Bot: store the channel + posted message id for a role menu (and clear dirty). */
 export function setRoleMenuMessage(guildId, menuId, channelId, messageId) {
   return new Promise((resolve, reject) => {
     db.run(
-      'UPDATE guild_role_menus SET channel_id = ?, message_id = ?, updated_at = CURRENT_TIMESTAMP WHERE guild_id = ? AND id = ?',
+      'UPDATE guild_role_menus SET channel_id = ?, message_id = ?, dirty = 0, updated_at = CURRENT_TIMESTAMP WHERE guild_id = ? AND id = ?',
       [isSnowflake(channelId) ? channelId : null, messageId ?? null, guildId, menuId],
       function (err) {
         if (err) reject(err);
