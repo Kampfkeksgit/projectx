@@ -86,21 +86,25 @@ services:
   lavalink:
     image: ghcr.io/lavalink-devs/lavalink:4
     restart: unless-stopped
+    # Lavalink is configured ENTIRELY via env here (Spring relaxed binding), so it
+    # works even if the application.yml bind-mount doesn't resolve (common with
+    # Portainer Git stacks). These env vars override the file where they overlap.
     environment:
-      # Override the application.yml password from the stack env (keep in sync
-      # with the bot's LAVALINK_PASSWORD).
-      LAVALINK_SERVER_PASSWORD: ${LAVALINK_PASSWORD:-youshallnotpass}
+      SERVER_PORT: "2333"                       # MUST be 2333 (the bot connects there); default is 8080
       SERVER_ADDRESS: 0.0.0.0
+      LAVALINK_SERVER_PASSWORD: ${LAVALINK_PASSWORD:-youshallnotpass}
+      LAVALINK_SERVER_SOURCES_YOUTUBE: "false"  # no YouTube
+      LAVALINK_SERVER_SOURCES_SOUNDCLOUD: "true"
+      LAVALINK_SERVER_SOURCES_BANDCAMP: "true"
+      LAVALINK_SERVER_SOURCES_TWITCH: "true"
+      LAVALINK_SERVER_SOURCES_HTTP: "true"
     volumes:
       - ./lavalink/application.yml:/opt/Lavalink/application.yml:ro
     expose:
       - "2333"
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:2333/version || exit 1"]
-      interval: 20s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+    # No healthcheck: the Lavalink image has no guaranteed wget/curl, so a check
+    # would report a false "unhealthy". The bot retries the node connection on
+    # startup instead (see music.py _connect_nodes), which handles slow boots.
 
   frontend:
     build:
