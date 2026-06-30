@@ -8,6 +8,7 @@ version: "3.8"
 #            DISCORD_REDIRECT_URI FRONTEND_URL SESSION_SECRET BOT_API_KEY OWNER_DISCORD_ID
 # Optional:  APPLICATION_ID SKU_BASIC_ID SKU_PRO_ID
 #            YOUTUBE_API_KEY TWITCH_CLIENT_ID TWITCH_CLIENT_SECRET KICK_CLIENT_ID KICK_CLIENT_SECRET
+#            LAVALINK_PASSWORD (music; defaults to youshallnotpass — change in prod)
 #
 # TLS/Domain via Nginx Proxy Manager: the `frontend` joins the external `proxy`
 # network and is NOT published on a host port — NPM forwards to `frontend:80`.
@@ -67,8 +68,39 @@ services:
       KICK_CLIENT_ID: ${KICK_CLIENT_ID:-}
       KICK_CLIENT_SECRET: ${KICK_CLIENT_SECRET:-}
       SOCIAL_POLL_INTERVAL: ${SOCIAL_POLL_INTERVAL:-180}
+      # Music module (optional — cog stays inert if LAVALINK_HOST is empty).
+      # Leave LAVALINK_HOST empty to disable music entirely.
+      LAVALINK_HOST: ${LAVALINK_HOST:-lavalink}
+      LAVALINK_PORT: ${LAVALINK_PORT:-2333}
+      LAVALINK_PASSWORD: ${LAVALINK_PASSWORD:-youshallnotpass}
+      LAVALINK_SECURE: ${LAVALINK_SECURE:-false}
+      MUSIC_POLL_INTERVAL: ${MUSIC_POLL_INTERVAL:-4}
     depends_on:
       - backend
+      - lavalink
+
+  # Lavalink audio server (for the Music module). YouTube is intentionally NOT
+  # enabled — the YouTube source plugin is not installed, so only SoundCloud /
+  # Bandcamp / Twitch / HTTP+radio streams are available. Remove this service (and
+  # the bot's LAVALINK_* env) to ship without music.
+  lavalink:
+    image: ghcr.io/lavalink-devs/lavalink:4
+    restart: unless-stopped
+    environment:
+      # Override the application.yml password from the stack env (keep in sync
+      # with the bot's LAVALINK_PASSWORD).
+      LAVALINK_SERVER_PASSWORD: ${LAVALINK_PASSWORD:-youshallnotpass}
+      SERVER_ADDRESS: 0.0.0.0
+    volumes:
+      - ./lavalink/application.yml:/opt/Lavalink/application.yml:ro
+    expose:
+      - "2333"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:2333/version || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   frontend:
     build:

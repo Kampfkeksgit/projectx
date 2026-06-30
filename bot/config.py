@@ -35,6 +35,16 @@ SKU_BASIC_ID = os.getenv('SKU_BASIC_ID')
 SKU_PRO_ID = os.getenv('SKU_PRO_ID')
 PREMIUM_POLL_INTERVAL = int(os.getenv('PREMIUM_POLL_INTERVAL', '300'))
 
+# --- Music module / Lavalink (Pro) ---
+# The music cog connects to a Lavalink audio server via wavelink. If LAVALINK_HOST
+# is unset the cog stays inert (no node connection, no playback) — the rest of the
+# bot is unaffected. YouTube is intentionally NOT enabled on the Lavalink side.
+LAVALINK_HOST = os.getenv('LAVALINK_HOST')                       # e.g. "lavalink" (docker) or "localhost"
+LAVALINK_PORT = int(os.getenv('LAVALINK_PORT', '2333'))
+LAVALINK_PASSWORD = os.getenv('LAVALINK_PASSWORD', 'youshallnotpass')
+LAVALINK_SECURE = os.getenv('LAVALINK_SECURE', 'false').lower() in ('1', 'true', 'yes')
+MUSIC_POLL_INTERVAL = int(os.getenv('MUSIC_POLL_INTERVAL', '4'))  # dashboard control-command poll (seconds)
+
 if not DISCORD_TOKEN:
     raise ValueError("DISCORD_TOKEN not set in .env file")
 if not DISCORD_CLIENT_ID:

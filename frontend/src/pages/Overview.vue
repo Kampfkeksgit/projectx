@@ -486,6 +486,28 @@
         </div>
       </article>
 
+      <article class="config-card" :class="{ 'config-card--locked': isLocked('music') }" :data-lock="lockLabel('music')">
+        <div class="config-card__head">
+          <div class="config-card__icon config-card__icon--music">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          </div>
+          <div>
+            <h3 class="config-card__title">{{ t('overview.musicTitle') }}</h3>
+            <p class="config-card__desc">{{ t('overview.musicDesc') }}</p>
+          </div>
+        </div>
+        <div class="config-card__meta">
+          <span class="status" :class="extraEnabled.music ? 'status--on' : 'status--off'">
+            <span class="status__dot"></span>
+            {{ extraEnabled.music ? t('common.enabled') : t('common.disabled') }}
+          </span>
+        </div>
+        <div class="config-card__cta">
+          <AppButton v-if="botPresent" tag="router-link" :to="`/dashboard/${guildId}/music`" variant="gradient">{{ t('common.configure') }}</AppButton>
+          <AppButton v-else tag="a" :href="inviteUrl" target="_blank" rel="noopener noreferrer" variant="ghost">{{ t('common.invite') }}</AppButton>
+        </div>
+      </article>
+
       <article class="config-card">
         <div class="config-card__head">
           <div class="config-card__icon config-card__icon--counting">
@@ -761,7 +783,8 @@ const extraEnabled = reactive({
   connect4: false,
   hangman: false,
   poker: false,
-  backupCount: 0
+  backupCount: 0,
+  music: false
 })
 
 // Games category — one shared /games settings row drives all five cards.
@@ -778,7 +801,7 @@ async function fetchExtraStatus() {
   const id = guildId.value
   if (!id) return
   const endpoints = ['autorole', 'logs', 'moderation', 'leveling']
-  const [general, autorole, logs, moderation, leveling, rr, cmds, social, stats, tempvoice, starboard, suggestions, birthday, scheduled, antiraid, verification, rolemenus, tickets, giveaways, counting, polls, invitetracking, applications, economy, games, backups] = await Promise.all([
+  const [general, autorole, logs, moderation, leveling, rr, cmds, social, stats, tempvoice, starboard, suggestions, birthday, scheduled, antiraid, verification, rolemenus, tickets, giveaways, counting, polls, invitetracking, applications, economy, games, backups, music] = await Promise.all([
     api.get(`/guilds/${id}/general`).then(r => r.data).catch(() => null),
     api.get(`/guilds/${id}/settings/autorole`).then(r => r.data).catch(() => null),
     api.get(`/guilds/${id}/settings/logs`).then(r => r.data).catch(() => null),
@@ -804,7 +827,8 @@ async function fetchExtraStatus() {
     api.get(`/guilds/${id}/applications/forms`).then(r => r.data).catch(() => null),
     api.get(`/guilds/${id}/economy`).then(r => r.data).catch(() => null),
     api.get(`/guilds/${id}/games`).then(r => r.data).catch(() => null),
-    api.get(`/guilds/${id}/backups`).then(r => r.data).catch(() => null)
+    api.get(`/guilds/${id}/backups`).then(r => r.data).catch(() => null),
+    api.get(`/guilds/${id}/music`).then(r => r.data).catch(() => null)
   ])
   void endpoints
   extraEnabled.generalLanguage = (general?.success && general.settings?.language) ? general.settings.language : 'en'
@@ -843,6 +867,7 @@ async function fetchExtraStatus() {
   extraEnabled.hangman = !!gs.hangman_enabled
   extraEnabled.poker = !!gs.poker_enabled
   extraEnabled.backupCount = (backups?.success && Array.isArray(backups.snapshots)) ? backups.snapshots.length : 0
+  extraEnabled.music = !!(music?.success && music.settings?.enabled)
 }
 
 onMounted(fetchExtraStatus)
@@ -1029,6 +1054,7 @@ onMounted(() => {
 .config-card__icon--economy { background: linear-gradient(135deg, #facc15, #f59e0b); }
 .config-card__icon--games { background: linear-gradient(135deg, #ec4899, #8b5cf6); }
 .config-card__icon--backup { background: linear-gradient(135deg, #14b8a6, #22d3ee); }
+.config-card__icon--music { background: linear-gradient(135deg, #1db954, #1ed760); }
 
 .config-card__title {
   font-size: 1.1rem;
