@@ -1,14 +1,27 @@
 <template>
   <div class="form-card rm-row" :class="{ 'is-draft': isDraft }">
-    <div class="rm-row__head">
+    <div class="rm-row__head" @click="collapsed = !collapsed">
       <div class="rm-row__title">
+        <button
+          type="button"
+          class="rm-row__collapse"
+          :class="{ 'is-collapsed': collapsed }"
+          :title="t('rolemenus.toggleDetails')"
+          :aria-label="t('rolemenus.toggleDetails')"
+          :aria-expanded="!collapsed"
+          @click.stop="collapsed = !collapsed"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
         <span v-if="dirty" class="rm-row__dot" :title="t('rolemenus.unsavedDot')" aria-hidden="true"></span>
         <span class="rm-row__badge">{{ local.menu_type === 'select' ? t('rolemenus.typeSelect') : t('rolemenus.typeButtons') }}</span>
         <span class="rm-row__name">{{ local.name || t('rolemenus.namePlaceholder') }}</span>
+        <span class="rm-row__count">{{ previewOptions.length }}</span>
         <span v-if="local.message_id" class="rm-row__posted">{{ t('rolemenus.posted') }}</span>
       </div>
     </div>
 
+    <div v-show="!collapsed" class="rm-row__body">
     <div class="rm-row__grid">
       <div class="form-row">
         <label class="form-row__label" :for="`rm-name-${rowKey}`">{{ t('rolemenus.nameLabel') }}</label>
@@ -85,11 +98,12 @@
       <AppButton v-if="isDraft" variant="ghost" :disabled="saving" @click="$emit('cancel')">{{ t('rolemenus.cancel') }}</AppButton>
       <AppButton variant="gradient" :loading="saving" :disabled="!isDraft && !dirty" @click="$emit('save', cloneLocal())">{{ t('rolemenus.save') }}</AppButton>
     </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { computed, reactive, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import AppButton from './AppButton.vue'
 import AppToggle from './AppToggle.vue'
 import ChannelSelector from './ChannelSelector.vue'
@@ -138,6 +152,10 @@ function hydrate(src) {
 }
 
 const local = reactive(hydrate(props.modelValue))
+
+// Saved menus start collapsed (tidy list); new drafts open for editing.
+const collapsed = ref(!props.isDraft)
+
 let initial = JSON.stringify(local)
 const rowKey = computed(() => local.id || 'draft')
 const dirty = computed(() => JSON.stringify(local) !== initial)
@@ -176,8 +194,13 @@ function removeOption(i) { local.options.splice(i, 1); if (local.options.length 
 <style scoped>
 .form-card { background: var(--color-surface); background-image: var(--gradient-card); border: 1px solid var(--color-border); border-radius: var(--radius-xl); padding: var(--space-5) var(--space-6); display: flex; flex-direction: column; gap: var(--space-4); box-shadow: var(--shadow-inset); }
 .rm-row.is-draft { border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-soft), var(--shadow-inset); }
-.rm-row__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.rm-row__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; cursor: pointer; }
 .rm-row__title { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 0; flex-wrap: wrap; }
+.rm-row__collapse { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; flex-shrink: 0; color: var(--color-text-soft); border-radius: var(--radius-sm); transition: color var(--transition), background var(--transition), transform var(--transition); }
+.rm-row__collapse:hover { color: var(--color-primary); background: var(--color-surface-2); }
+.rm-row__collapse.is-collapsed { transform: rotate(-90deg); }
+.rm-row__body { display: flex; flex-direction: column; gap: var(--space-4); }
+.rm-row__count { font-family: var(--font-mono); font-size: 0.72rem; font-weight: 700; color: var(--color-text-soft); background: var(--color-surface-2); border-radius: var(--radius-sm); padding: 1px 7px; }
 .rm-row__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-warning); box-shadow: 0 0 0 3px rgba(245,158,11,0.18); }
 .rm-row__badge { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; color: #fff; padding: 2px 8px; border-radius: var(--radius-sm); background: linear-gradient(135deg, #8b5cf6, #ec4899); }
 .rm-row__name { font-weight: 600; color: var(--color-text); }
