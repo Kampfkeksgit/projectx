@@ -1075,6 +1075,19 @@ function initializeDatabase() {
     db.run('CREATE INDEX IF NOT EXISTS idx_giveaways_guild ON guild_giveaways(guild_id)', (err) => {
       if (err) console.error('Error creating idx_giveaways_guild:', err);
     });
+    // v42: dashboard creation + entry requirements (idempotent mirror)
+    for (const col of [
+      'host_id TEXT',
+      'description TEXT',
+      'required_role_ids TEXT',
+      'min_account_age_days INTEGER DEFAULT 0',
+      'min_member_days INTEGER DEFAULT 0',
+      'min_level INTEGER DEFAULT 0'
+    ]) {
+      db.run(`ALTER TABLE guild_giveaways ADD COLUMN ${col}`, (err) => {
+        if (err && !/duplicate column name/i.test(err.message)) console.error(`Warning: guild_giveaways.${col}:`, err.message);
+      });
+    }
 
     db.run(`
       CREATE TABLE IF NOT EXISTS guild_giveaway_entries (
@@ -4342,8 +4355,9 @@ export const BUILTIN_COMMANDS = [
   { key: 'ticketadd', name: 'ticketadd', type: 'prefix', module: 'tickets', usage: '{p}ticketadd @user', description: 'Add a user to the current ticket (staff).' },
   { key: 'ticketremove', name: 'ticketremove', type: 'prefix', module: 'tickets', usage: '{p}ticketremove @user', description: 'Remove a user from the current ticket (staff).' },
   { key: 'ticketclose', name: 'ticketclose', type: 'prefix', module: 'tickets', usage: '{p}ticketclose', description: 'Close the current ticket (staff/owner).' },
-  { key: 'gstart', name: 'gstart', type: 'prefix', module: 'giveaways', usage: '{p}gstart <duration> <winners> <prize>', description: 'Start a giveaway (admin).' },
-  { key: 'greroll', name: 'greroll', type: 'prefix', module: 'giveaways', usage: '{p}greroll <giveaway_id>', description: 'Reroll a giveaway winner (admin).' },
+  { key: 'giveaway start', name: 'giveaway start', type: 'slash', module: 'giveaways', usage: '/giveaway start prize winners duration [requirements]', description: 'Start a giveaway with optional entry requirements (manage server).' },
+  { key: 'giveaway reroll', name: 'giveaway reroll', type: 'slash', module: 'giveaways', usage: '/giveaway reroll id', description: 'Draw a new winner for a giveaway (manage server).' },
+  { key: 'giveaway end', name: 'giveaway end', type: 'slash', module: 'giveaways', usage: '/giveaway end id', description: 'End a giveaway early and draw winners (manage server).' },
   { key: 'poll', name: 'poll', type: 'prefix', module: 'polls', usage: '{p}poll <question> | <A> | <B> | …', description: 'Start a button poll.' },
   { key: 'applypanel', name: 'applypanel', type: 'prefix', module: 'applications', usage: '{p}applypanel', description: 'Post the application panel (admin).' },
   { key: 'balance', name: 'balance', type: 'prefix', module: 'economy', usage: '{p}balance [member]', description: 'Show a balance.' },
@@ -6428,6 +6442,24 @@ export function getGuildTickets(guildId) {
 
 // ===== Module: Giveaways =====
 
+function sanitizeRoleIdList(input, max = 10) {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const v of input) {
+    const s = String(v);
+    if (isSnowflake(s) && !seen.has(s)) { seen.add(s); out.push(s); }
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+/** Parse a JSON role-id column into a clean string array (never throws). */
+function parseRoleIdColumn(value) {
+  if (!value) return [];
+  try { return sanitizeRoleIdList(JSON.parse(value)); } catch { return []; }
+}
+
 function shapeGiveaway(row) {
   if (!row) return null;
   return {
@@ -6439,11 +6471,21 @@ function shapeGiveaway(row) {
     winners_count: row.winners_count ?? 1,
     ends_at: row.ends_at ?? 0,
     ended: !!row.ended,
+    host_id: row.host_id ?? null,
+    description: row.description ?? '',
+    required_role_ids: parseRoleIdColumn(row.required_role_ids),
+    min_account_age_days: row.min_account_age_days ?? 0,
+    min_member_days: row.min_member_days ?? 0,
+    min_level: row.min_level ?? 0,
     created_at: row.created_at ?? null
   };
 }
 
-/** Bot: create a giveaway (from !gstart). Returns the new id. */
+/**
+ * Create a giveaway. Used by the bot (slash /giveaway start, ends_at preset) and
+ * the dashboard (POST, ends_at computed from duration). Requirements are enforced
+ * by the bot at entry time. Returns the full shaped row.
+ */
 export function createGiveaway(guildId, payload) {
   return new Promise((resolve, reject) => {
     const p = payload || {};
@@ -6452,13 +6494,29 @@ export function createGiveaway(guildId, payload) {
     const prize = truncate(p.prize || 'a prize', 256);
     const winners = clampRange(p.winners_count, 1, 50, 1);
     const endsAt = clampRange(p.ends_at, 0, 4102444800, 0);
+    if (!endsAt) return reject(Object.assign(new Error('ends_at required'), { code: 'VALIDATION' }));
+    const hostId = isSnowflake(p.host_id) ? p.host_id : null;
+    const description = truncate(p.description || '', 1000);
+    const requiredRoles = sanitizeRoleIdList(p.required_role_ids);
+    const minAccountAge = clampRange(p.min_account_age_days, 0, 3650, 0);
+    const minMemberDays = clampRange(p.min_member_days, 0, 3650, 0);
+    const minLevel = clampRange(p.min_level, 0, 1000, 0);
+    const messageId = isSnowflake(p.message_id) ? p.message_id : null;
     const id = randomUUID();
     db.run(
-      'INSERT INTO guild_giveaways (id, guild_id, channel_id, prize, winners_count, ends_at) VALUES (?, ?, ?, ?, ?, ?)',
-      [id, guildId, channelId, prize, winners, endsAt],
+      `INSERT INTO guild_giveaways
+         (id, guild_id, channel_id, message_id, prize, winners_count, ends_at,
+          host_id, description, required_role_ids, min_account_age_days, min_member_days, min_level)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, guildId, channelId, messageId, prize, winners, endsAt,
+       hostId, description, JSON.stringify(requiredRoles), minAccountAge, minMemberDays, minLevel],
       function (err) {
         if (err) reject(err);
-        else resolve({ id, prize, winners_count: winners, ends_at: endsAt });
+        else resolve({
+          id, channel_id: channelId, message_id: messageId, prize, winners_count: winners, ends_at: endsAt,
+          host_id: hostId, description, required_role_ids: requiredRoles,
+          min_account_age_days: minAccountAge, min_member_days: minMemberDays, min_level: minLevel
+        });
       }
     );
   });
@@ -6506,6 +6564,30 @@ export function getDueGiveaways(now) {
 export function markGiveawayEnded(giveawayId) {
   return new Promise((resolve, reject) => {
     db.run('UPDATE guild_giveaways SET ended = 1 WHERE id = ?', [giveawayId], function (err) {
+      if (err) reject(err);
+      else resolve(this.changes);
+    });
+  });
+}
+
+/**
+ * Bot: dashboard-created giveaways that still need posting (channel set, no
+ * message yet, not ended). Same tier/blocked guards as the draw loop.
+ */
+export function getPendingGiveaways() {
+  return new Promise((resolve, reject) => {
+    db.all(`SELECT * FROM guild_giveaways WHERE ended = 0 AND (message_id IS NULL OR message_id = '') AND channel_id IS NOT NULL AND guild_id NOT IN (SELECT id FROM guilds WHERE blocked = 1) AND ${tierFilterSql('pro')}`, [], (err, rows) => {
+      if (err) reject(err);
+      else resolve((rows || []).map(shapeGiveaway));
+    });
+  });
+}
+
+/** Slash /giveaway end: bring the end time forward so the draw loop picks it up. */
+export function endGiveawayNow(guildId, giveawayId, now) {
+  return new Promise((resolve, reject) => {
+    const ts = Number.isFinite(now) ? Math.floor(now) : Math.floor(Date.now() / 1000);
+    db.run('UPDATE guild_giveaways SET ends_at = ? WHERE guild_id = ? AND id = ? AND ended = 0', [ts, guildId, giveawayId], function (err) {
       if (err) reject(err);
       else resolve(this.changes);
     });
