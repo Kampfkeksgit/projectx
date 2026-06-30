@@ -110,12 +110,19 @@ class Music(commands.Cog):
         await self.bot.wait_until_ready()
         scheme = "https" if config.LAVALINK_SECURE else "http"
         uri = f"{scheme}://{config.LAVALINK_HOST}:{config.LAVALINK_PORT}"
-        try:
-            node = wavelink.Node(uri=uri, password=config.LAVALINK_PASSWORD)
-            await wavelink.Pool.connect(nodes=[node], client=self.bot, cache_capacity=100)
-            print(f"[music] connecting to Lavalink at {uri}")
-        except Exception as exc:
-            print(f"[music] Lavalink connection failed: {exc}")
+        # Retry: Lavalink (Java) can take 20-30s to boot, often slower than the bot.
+        # Without this, a single failed initial connect would leave music dead until
+        # a manual bot restart.
+        for attempt in range(1, 13):
+            try:
+                node = wavelink.Node(uri=uri, password=config.LAVALINK_PASSWORD)
+                await wavelink.Pool.connect(nodes=[node], client=self.bot, cache_capacity=100)
+                print(f"[music] connecting to Lavalink at {uri} (attempt {attempt})")
+                return
+            except Exception as exc:
+                print(f"[music] Lavalink connection attempt {attempt} failed: {exc}")
+                await asyncio.sleep(5)
+        print("[music] gave up connecting to Lavalink after several attempts")
 
     # ---- helpers -----------------------------------------------------------
 
