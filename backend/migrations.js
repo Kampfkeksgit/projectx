@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 40;
+const CURRENT_SCHEMA_VERSION = 41;
 
 /**
  * Initialize schema version tracking
@@ -99,7 +99,8 @@ async function applyMigrations(fromVersion, toVersion) {
     37: migrationV37,
     38: migrationV38,
     39: migrationV39,
-    40: migrationV40
+    40: migrationV40,
+    41: migrationV41
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -2015,6 +2016,20 @@ function migrationV40() {
       expires_at    INTEGER
     )`,
     'ALTER TABLE guilds ADD COLUMN premium_reminded_at INTEGER'
+  ]);
+}
+
+/**
+ * Migration V41: Role-menu live-update flag.
+ *   - guild_role_menus.dirty: set to 1 whenever a menu is edited in the dashboard
+ *     (content/options/embed). The bot re-renders dirty menus by editing the
+ *     already-posted message in place, then clears the flag (via setRoleMenuMessage).
+ *     Without this, content edits to an already-posted menu never reached Discord.
+ * Idempotent; mirrored in initializeDatabase().
+ */
+function migrationV41() {
+  return runSchemaBatch(41, [
+    'ALTER TABLE guild_role_menus ADD COLUMN dirty INTEGER DEFAULT 0'
   ]);
 }
 

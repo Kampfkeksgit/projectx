@@ -5,9 +5,13 @@ dashboard; this cog posts any unposted menu to its channel and handles clicks vi
 on_interaction (custom_id "rr:<role_id>" for buttons, "rrselect" for the select),
 so they keep working across restarts without persistent-view registration.
 
+Dashboard edits: /pending also returns already-posted menus flagged dirty (edited
+since last render). When a menu already has a message_id, the cog edits that
+message IN PLACE (no duplicate); the PUT below clears the dirty flag.
+
 Backend contract (X-Bot-Token auth):
   GET /api/bot/rolemenus/pending → { menus: [{ id, guild_id, channel_id, name,
-                                       menu_type, use_embed, embed,
+                                       menu_type, use_embed, embed, message_id,
                                        options: [{ role_id, label, emoji }] }] }
   PUT /api/bot/guilds/{gid}/rolemenus/{id}/message  body { channel_id, message_id }
 
@@ -169,11 +173,27 @@ class RoleMenus(commands.Cog):
                 description="\n".join(lines) or t(lang, "rm.pickBelow"),
                 color=await general_config.get_embed_color(self.backend_url, self.api_key, guild.id, fallback=MENU_COLOR),
             )
-        try:
-            msg = await channel.send(embed=embed, view=build_menu_view(menu, lang=lang))
-        except discord.Forbidden:
-            print(f"[rolemenus] missing permission to post in {channel.id}")
-            return
+        view = build_menu_view(menu, lang=lang)
+        existing_id = menu.get("message_id")
+        msg = None
+        # Already posted (dirty after a dashboard edit) → edit the message in place
+        # so content/option/embed changes show up instead of staying stale.
+        if existing_id:
+            try:
+                existing = await channel.fetch_message(int(existing_id))
+                await existing.edit(embed=embed, view=view)
+                msg = existing
+            except (discord.NotFound, discord.Forbidden, ValueError):
+                msg = None  # message gone / unreachable → repost below
+            except Exception as exc:
+                print(f"[rolemenus] edit failed for {menu.get('id')}: {exc}")
+                return
+        if msg is None:
+            try:
+                msg = await channel.send(embed=embed, view=view)
+            except discord.Forbidden:
+                print(f"[rolemenus] missing permission to post in {channel.id}")
+                return
 
         await bot_put(
             self.backend_url, self.api_key,
