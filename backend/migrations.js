@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 41;
+const CURRENT_SCHEMA_VERSION = 42;
 
 /**
  * Initialize schema version tracking
@@ -100,7 +100,8 @@ async function applyMigrations(fromVersion, toVersion) {
     38: migrationV38,
     39: migrationV39,
     40: migrationV40,
-    41: migrationV41
+    41: migrationV41,
+    42: migrationV42
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -2030,6 +2031,29 @@ function migrationV40() {
 function migrationV41() {
   return runSchemaBatch(41, [
     'ALTER TABLE guild_role_menus ADD COLUMN dirty INTEGER DEFAULT 0'
+  ]);
+}
+
+/**
+ * Migration V42: Giveaway overhaul — dashboard creation + entry requirements.
+ *   - host_id: who started the giveaway (slash command user or dashboard user).
+ *   - description: optional extra text shown in the embed.
+ *   - required_role_ids (JSON): member must have at least ONE of these roles.
+ *   - min_account_age_days: Discord account must be at least N days old.
+ *   - min_member_days: must have been in the server for at least N days.
+ *   - min_level: leveling-module level gate (0 = off).
+ * The bot enforces all of these at entry-click time. Dashboard-created giveaways
+ * have no message_id until the bot posts them (getPendingGiveaways loop).
+ * Idempotent ("duplicate column" swallowed); mirrored in initializeDatabase().
+ */
+function migrationV42() {
+  return runSchemaBatch(42, [
+    'ALTER TABLE guild_giveaways ADD COLUMN host_id TEXT',
+    'ALTER TABLE guild_giveaways ADD COLUMN description TEXT',
+    'ALTER TABLE guild_giveaways ADD COLUMN required_role_ids TEXT',
+    'ALTER TABLE guild_giveaways ADD COLUMN min_account_age_days INTEGER DEFAULT 0',
+    'ALTER TABLE guild_giveaways ADD COLUMN min_member_days INTEGER DEFAULT 0',
+    'ALTER TABLE guild_giveaways ADD COLUMN min_level INTEGER DEFAULT 0'
   ]);
 }
 
