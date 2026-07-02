@@ -95,8 +95,9 @@ class Leveling(commands.Cog):
             if author is None or author.bot:
                 return
             # Skip slash-command interaction echo messages — they're application
-            # messages with no real "human" intent.
-            if getattr(message, "interaction", None) is not None:
+            # messages with no real "human" intent. (interaction_metadata is the
+            # discord.py 2.7 replacement for the deprecated Message.interaction.)
+            if getattr(message, "interaction_metadata", None) is not None:
                 return
 
             path = f"/api/bot/guilds/{message.guild.id}/leveling/xp"
