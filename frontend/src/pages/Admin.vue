@@ -17,11 +17,20 @@
         </div>
       </header>
 
-      <div class="admin__tabs">
-        <button v-for="tb in tabs" :key="tb" class="admin__tab" :class="{ 'is-active': tab === tb }" @click="switchTab(tb)">
-          {{ t(`admin.tab${cap(tb)}`) }}
+      <nav class="admin__tabs" role="tablist" aria-label="Admin">
+        <button
+          v-for="tb in tabs"
+          :key="tb"
+          class="admin__tab"
+          :class="{ 'is-active': tab === tb }"
+          role="tab"
+          :aria-selected="tab === tb"
+          @click="switchTab(tb)"
+        >
+          <span class="admin__tab-ic" v-html="tabIcon(tb)"></span>
+          <span class="admin__tab-label">{{ t(`admin.tab${cap(tb)}`) }}</span>
         </button>
-      </div>
+      </nav>
 
       <!-- toolbar: search (users/guilds/audit) + export (users/guilds) -->
       <div v-if="showToolbar" class="admin__toolbar">
@@ -584,6 +593,26 @@ const auth = useAuth()
 
 const tabs = ['overview', 'analytics', 'premium', 'health', 'users', 'guilds', 'audit', 'jobs', 'errors', 'marketplace', 'system']
 const tab = ref('overview')
+
+// Feather-style tab icons (16px, stroke=currentColor) — improves scannability of
+// the 11-tab admin bar.
+const TAB_ICONS = {
+  overview: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>',
+  analytics: '<path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/>',
+  premium: '<path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20"/><path d="M12 3 8 9l4 12 4-12z"/>',
+  health: '<path d="M3 12h4l2 6 4-14 2 8h6"/>',
+  users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  guilds: '<rect x="2" y="3" width="20" height="6" rx="1"/><rect x="2" y="15" width="20" height="6" rx="1"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/>',
+  audit: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/>',
+  jobs: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+  errors: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+  marketplace: '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>',
+  system: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>'
+}
+function tabIcon(tb) {
+  const p = TAB_ICONS[tb] || ''
+  return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`
+}
 const search = ref('')
 const loading = ref(true)
 const loadingMore = ref(false)
@@ -1165,9 +1194,31 @@ function goBack() { router.push('/dashboard') }
   .admin__head-action { position: static; }
 }
 
-.admin__tabs { display: inline-flex; gap: 4px; padding: 4px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-full); margin-bottom: var(--space-5); flex-wrap: wrap; }
-.admin__tab { padding: 0.5rem 1.1rem; border-radius: var(--radius-full); font-weight: 600; font-size: 0.88rem; color: var(--color-text-soft); cursor: pointer; transition: background var(--transition), color var(--transition); }
-.admin__tab.is-active { background: var(--color-primary); color: #fff; }
+.admin__tabs { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); margin-bottom: var(--space-5); box-shadow: var(--shadow-inset); }
+.admin__tab {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 0.5rem 0.95rem; border-radius: var(--radius-md);
+  font-weight: 600; font-size: 0.86rem; line-height: 1;
+  color: var(--color-text-muted); cursor: pointer;
+  border: 1px solid transparent;
+  transition: background var(--transition), color var(--transition), border-color var(--transition), transform var(--transition);
+}
+.admin__tab-ic { display: inline-flex; opacity: 0.75; transition: opacity var(--transition); }
+.admin__tab:hover { color: var(--color-text); background: var(--color-surface-2); border-color: var(--color-border-strong); }
+.admin__tab:hover .admin__tab-ic { opacity: 1; }
+.admin__tab.is-active {
+  background: var(--gradient-brand); color: #fff; border-color: transparent;
+  box-shadow: 0 4px 14px -4px var(--color-primary-soft);
+}
+.admin__tab.is-active .admin__tab-ic { opacity: 1; }
+.admin__tab:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+
+@media (max-width: 640px) {
+  /* Horizontal scroll instead of wrapping on small screens. */
+  .admin__tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
+  .admin__tab { flex: 0 0 auto; }
+  .admin__tab-label { white-space: nowrap; }
+}
 
 .admin__toolbar { margin-bottom: var(--space-5); display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; }
 .search { position: relative; max-width: 360px; flex: 1; min-width: 200px; }
