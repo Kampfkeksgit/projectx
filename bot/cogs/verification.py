@@ -4,7 +4,7 @@ Posts a panel with a "Verify" button; clicking it grants the configured verified
 role. Clicks are handled via on_interaction (custom_id "verify") so they keep
 working across bot restarts without persistent-view registration.
 
-Admins post/refresh the panel with `!verifypanel`.
+Admins post/refresh the panel with the `/verifypanel` slash command.
 
 Backend contract (X-Bot-Token auth):
   GET /api/bot/guilds/{gid}/settings/verification
@@ -17,6 +17,7 @@ Logging prefix: "[verify]".
 import time
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 import config
@@ -59,39 +60,44 @@ class Verification(commands.Cog):
             self._settings_cache[key] = (settings, now)
         return settings
 
-    @commands.command(name="verifypanel")
-    @commands.has_permissions(administrator=True)
-    @commands.guild_only()
-    async def verifypanel(self, ctx):
-        lang = await lang_for(self.backend_url, self.api_key, ctx.guild.id)
-        settings = await self._get_settings(ctx.guild.id, force=True)
+    @app_commands.command(name="verifypanel", description="Post or refresh the verification panel.")
+    @app_commands.guild_only()
+    @app_commands.default_permissions(manage_guild=True)
+    async def verifypanel(self, interaction: discord.Interaction):
+        lang = await lang_for(self.backend_url, self.api_key, interaction.guild.id)
+        perms = getattr(interaction.user, "guild_permissions", None)
+        if not (perms and (perms.manage_guild or perms.administrator)):
+            await interaction.response.send_message(t(lang, "verify.adminOnly"), ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=True)
+        settings = await self._get_settings(interaction.guild.id, force=True)
         if not settings or not settings.get("enabled"):
-            await ctx.reply(t(lang, "verify.disabled"), mention_author=False)
+            await interaction.followup.send(t(lang, "verify.disabled"), ephemeral=True)
             return
         if not settings.get("verified_role_id"):
-            await ctx.reply(t(lang, "verify.noRole"), mention_author=False)
+            await interaction.followup.send(t(lang, "verify.noRole"), ephemeral=True)
             return
 
         channel_id = settings.get("channel_id")
-        channel = ctx.guild.get_channel(int(channel_id)) if channel_id else ctx.channel
+        channel = interaction.guild.get_channel(int(channel_id)) if channel_id else interaction.channel
         embed = discord.Embed(
             description=settings.get("message") or t(lang, "verify.defaultMessage"),
-            color=await general_config.get_embed_color(self.backend_url, self.api_key, ctx.guild.id, fallback=VERIFY_COLOR),
+            color=await general_config.get_embed_color(self.backend_url, self.api_key, interaction.guild.id, fallback=VERIFY_COLOR),
         )
         embed.set_author(name=t(lang, "verify.author"))
         try:
             msg = await channel.send(embed=embed, view=build_panel_view(settings.get("button_label") or t(lang, "verify.button")))
         except discord.Forbidden:
-            await ctx.reply(t(lang, "verify.cantPost"), mention_author=False)
+            await interaction.followup.send(t(lang, "verify.cantPost"), ephemeral=True)
             return
 
         await bot_put(
             self.backend_url, self.api_key,
-            f"/api/bot/guilds/{ctx.guild.id}/verification/panel",
+            f"/api/bot/guilds/{interaction.guild.id}/verification/panel",
             {"message_id": str(msg.id)},
         )
-        if channel.id != ctx.channel.id:
-            await ctx.reply(t(lang, "verify.panelPosted", channel=channel.mention), mention_author=False)
+        await interaction.followup.send(t(lang, "verify.panelPosted", channel=channel.mention), ephemeral=True)
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction):

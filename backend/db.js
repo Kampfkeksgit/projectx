@@ -4583,7 +4583,7 @@ export const BUILTIN_COMMANDS = [
   { key: 'welcome_test', name: 'welcome_test', type: 'prefix', module: 'welcome', usage: '{p}welcome_test', description: 'Send a test welcome message (admin).' },
   { key: 'birthday', name: 'birthday', type: 'prefix', module: 'birthday', usage: '{p}birthday DD.MM[.YYYY]', description: 'Save your birthday.' },
   { key: 'suggest', name: 'suggest', type: 'prefix', module: 'suggestions', usage: '{p}suggest <text>', description: 'Submit a suggestion.' },
-  { key: 'verifypanel', name: 'verifypanel', type: 'prefix', module: 'verification', usage: '{p}verifypanel', description: 'Post the verification panel (admin).' },
+  { key: 'verifypanel', name: 'verifypanel', type: 'slash', module: 'verification', usage: '/verifypanel', description: 'Post or refresh the verification panel (manage server).' },
   { key: 'ticketpanel', name: 'ticketpanel', type: 'prefix', module: 'tickets', usage: '{p}ticketpanel', description: 'Post the ticket panel (admin).' },
   { key: 'claim', name: 'claim', type: 'prefix', module: 'tickets', usage: '{p}claim', description: 'Claim the current ticket (staff).' },
   { key: 'ticketadd', name: 'ticketadd', type: 'prefix', module: 'tickets', usage: '{p}ticketadd @user', description: 'Add a user to the current ticket (staff).' },

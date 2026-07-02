@@ -124,7 +124,7 @@ projectx/
 │       ├── scheduler.py        # 30s-Loop: GET /scheduled/due → postet Nachricht, PUT .../ran (Backend rechnet next/disable).
 │       ├── antiraid.py         # on_member_join: Account-Alter-Gate + Join-Rate-Burst (deque) → alert|kick|ban + Alarm.
 │       ├── slash_utils.py      # Slash-Commands /ping /userinfo /serverinfo /avatar (app_commands, tree.sync in main.py).
-│       ├── verification.py     # !verifypanel postet Verify-Button; on_interaction "verify" → Verifiziert-Rolle.
+│       ├── verification.py     # /verifypanel (Slash, default_permissions manage_guild) postet Verify-Button; on_interaction "verify" → Verifiziert-Rolle.
 │       ├── rolemenus.py        # 60s-Loop postet unposted Menüs (Buttons/Select; Embed = Auto-Liste ODER eigenes use_embed-Embed);
 │       │                       # on_interaction "rr:<role>"/"rrselect" → Rolle toggeln.
 │       ├── tickets.py          # !ticketpanel postet Panel (Dropdown ODER Buttons je panel_type, Embed aus panel_embed).
@@ -1099,6 +1099,11 @@ Empfehlung aus [README.md](README.md): SQLite → PostgreSQL für Multi-Instance
 
 ## 14. Letzte Aktualisierung
 
+- **Datum:** 2026-07-03
+- **`/verifypanel` als Slash-Command + Leveling-Deprecation gefixt (kein Schema-Change):**
+  - **Verification:** Der Prefix-Befehl `!verifypanel` ist jetzt der Slash-Command **`/verifypanel`** ([verification.py](bot/cogs/verification.py), `app_commands.command` im Cog, `default_permissions=manage_guild` + Runtime-Check, ephemerale Antworten). `BUILTIN_COMMANDS` in [db.js](backend/db.js): Eintrag `verifypanel` von `prefix` auf `slash` umgestellt (Key bleibt → Command-Manager-Toggle greift weiter). Neuer i18n-Key `verify.adminOnly` in allen 5 Sprachen.
+  - **Leveling-Deprecation:** `DeprecationWarning: interaction is deprecated` in [leveling.py](bot/cogs/leveling.py) behoben — die Slash-Echo-Erkennung nutzt jetzt `message.interaction_metadata` statt des in discord.py 2.7 deprecateten `message.interaction`.
+  - Verifiziert: Cogs kompilieren + importieren sauber gegen discord.py 2.7.1 (`verifypanel` als app_command registriert), Bot-i18n-Parität grün, Backend-Syntax OK. **Hinweis:** `/verifypanel` erscheint erst nach Bot-Neustart (`tree.sync()`).
 - **Datum:** 2026-07-02
 - **Team-/Credits-Seite (Schema v44):** Neue öffentliche Seite [`/team`](frontend/src/pages/Team.vue) (kein Auth) zeigt, wer am Projekt mitwirkt — Karten mit Avatar (oder Initialen-Fallback), Rolle, Bio und Social-Icons. Der **Owner verwaltet die Mitglieder im Admin-Bereich** (neuer Tab „Team"): Hinzufügen per **Discord-ID/Tag** + **Socials** (github/twitter/youtube/twitch/instagram/tiktok/website), Bearbeiten/Löschen/Reihenfolge.
   - **Schema v44:** Tabelle `team_members` (idempotent + Mirror). db.js: `getTeamMembers` (public, **LEFT JOIN `users`** → Avatar-Fallback via `discord_id`, wenn kein Avatar gesetzt), `create|update|deleteTeamMember`, `sanitizeSocials` (Whitelist `TEAM_SOCIALS`; nur bekannte Keys, Werte getrimmt/gekürzt).

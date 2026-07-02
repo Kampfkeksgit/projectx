@@ -34,6 +34,7 @@ _EN = {
     "suggest.posted": "{user} ✅ your suggestion was posted in {channel}.",
     # --- verification ---
     "verify.disabled": "Verification is not enabled.",
+    "verify.adminOnly": "You need the **Manage Server** permission for that.",
     "verify.noRole": "No verified role is configured.",
     "verify.cantPost": "I can't post in the verification channel.",
     "verify.defaultMessage": "Click the button below to verify.",
@@ -337,6 +338,7 @@ _DE = {
     "suggest.posted": "{user} ✅ dein Vorschlag wurde in {channel} gepostet.",
     # --- verification ---
     "verify.disabled": "Verifizierung ist nicht aktiviert.",
+    "verify.adminOnly": "Dafür brauchst du die Berechtigung **Server verwalten**.",
     "verify.noRole": "Es ist keine Verifiziert-Rolle konfiguriert.",
     "verify.cantPost": "Ich kann im Verifizierungs-Channel nicht posten.",
     "verify.defaultMessage": "Klicke auf den Button unten, um dich zu verifizieren.",
@@ -640,6 +642,7 @@ _TR = {
     "suggest.posted": "{user} ✅ önerin {channel} kanalına gönderildi.",
     # --- verification ---
     "verify.disabled": "Doğrulama etkin değil.",
+    "verify.adminOnly": "Bunun için **Sunucuyu Yönet** yetkisine ihtiyacın var.",
     "verify.noRole": "Doğrulanmış rol yapılandırılmamış.",
     "verify.cantPost": "Doğrulama kanalına gönderi yapamıyorum.",
     "verify.defaultMessage": "Doğrulamak için aşağıdaki düğmeye tıkla.",
@@ -943,6 +946,7 @@ _RU = {
     "suggest.posted": "{user} ✅ ваше предложение опубликовано в {channel}.",
     # --- verification ---
     "verify.disabled": "Верификация не включена.",
+    "verify.adminOnly": "Для этого нужно право **Управление сервером**.",
     "verify.noRole": "Роль верифицированного не настроена.",
     "verify.cantPost": "Я не могу публиковать в канале верификации.",
     "verify.defaultMessage": "Нажмите кнопку ниже, чтобы пройти верификацию.",
@@ -1246,6 +1250,7 @@ _PL = {
     "suggest.posted": "{user} ✅ twoja propozycja została opublikowana w {channel}.",
     # --- verification ---
     "verify.disabled": "Weryfikacja nie jest włączona.",
+    "verify.adminOnly": "Potrzebujesz uprawnienia **Zarządzanie serwerem**.",
     "verify.noRole": "Nie skonfigurowano roli zweryfikowanego.",
     "verify.cantPost": "Nie mogę pisać na kanale weryfikacji.",
     "verify.defaultMessage": "Kliknij przycisk poniżej, aby się zweryfikować.",
