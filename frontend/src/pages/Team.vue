@@ -11,10 +11,12 @@
 
     <div v-else class="team-grid">
       <article v-for="m in members" :key="m.id" class="team-card">
-        <div class="team-card__avatar" :style="avatarStyle(m)">
-          <span v-if="!m.avatar_url">{{ initials(m.name) }}</span>
+        <div class="team-card__ring">
+          <div class="team-card__avatar" :style="avatarStyle(m)">
+            <span v-if="!m.avatar_url">{{ initials(displayName(m)) }}</span>
+          </div>
         </div>
-        <h2 class="team-card__name">{{ m.name }}</h2>
+        <h2 class="team-card__name">{{ displayName(m) }}</h2>
         <div v-if="m.role" class="team-card__role">{{ m.role }}</div>
         <p v-if="m.bio" class="team-card__bio">{{ m.bio }}</p>
         <div v-if="socialLinks(m).length" class="team-card__socials">
@@ -69,8 +71,13 @@ function socialLinks(m) {
   return out
 }
 
+function displayName(m) {
+  if (m.name && m.name.trim()) return m.name
+  if (m.discord_username && m.discord_username !== 'unknown') return '@' + m.discord_username
+  return '—'
+}
 function initials(name) {
-  return String(name || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase()
+  return String(name || '?').replace(/^@/, '').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase()
 }
 function avatarStyle(m) {
   if (m.avatar_url) return { backgroundImage: `url('${m.avatar_url}')` }
@@ -96,25 +103,48 @@ onMounted(async () => {
 .team-head__sub { color: var(--color-text-muted); max-width: 40rem; margin: 0 auto; line-height: 1.6; }
 .team-state { text-align: center; color: var(--color-text-muted); padding: var(--space-8); }
 
-.team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-5); }
+.team-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-5); }
 .team-card {
+  position: relative; width: 268px; overflow: hidden;
   background: var(--color-surface); background-image: var(--gradient-card);
   border: 1px solid var(--color-border); border-radius: var(--radius-xl);
-  padding: var(--space-6) var(--space-5); text-align: center;
-  box-shadow: var(--shadow-inset); transition: transform var(--transition), border-color var(--transition);
+  padding: var(--space-7) var(--space-5) var(--space-6); text-align: center;
+  box-shadow: var(--shadow-inset);
+  transition: transform var(--transition), border-color var(--transition), box-shadow var(--transition);
 }
-.team-card:hover { transform: translateY(-3px); border-color: var(--color-border-strong); }
+/* Accent glow line along the top edge. */
+.team-card::before {
+  content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 60%; height: 2px; border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--color-primary), transparent);
+  opacity: 0.5; transition: opacity var(--transition), width var(--transition);
+}
+.team-card:hover { transform: translateY(-6px); border-color: var(--color-primary-soft); box-shadow: 0 18px 40px -20px var(--color-primary-soft), var(--shadow-inset); }
+.team-card:hover::before { opacity: 1; width: 85%; }
+
+/* Gradient ring around the avatar. */
+.team-card__ring {
+  width: 100px; height: 100px; margin: 0 auto var(--space-4); border-radius: 50%;
+  padding: 3px; background: var(--gradient-brand);
+  box-shadow: 0 8px 24px -8px var(--color-primary-soft);
+  transition: transform var(--transition);
+}
+.team-card:hover .team-card__ring { transform: scale(1.04); }
 .team-card__avatar {
-  width: 88px; height: 88px; border-radius: 50%; margin: 0 auto var(--space-4);
+  width: 100%; height: 100%; border-radius: 50%;
   background-size: cover; background-position: center;
   display: flex; align-items: center; justify-content: center;
-  font-family: var(--font-display); font-weight: 700; font-size: 1.7rem; color: #fff;
-  box-shadow: 0 6px 20px -8px rgba(0,0,0,0.5); border: 2px solid var(--color-border);
+  font-family: var(--font-display); font-weight: 700; font-size: 1.8rem; color: #fff;
+  border: 3px solid var(--color-surface);
 }
-.team-card__name { font-family: var(--font-display); font-size: 1.15rem; font-weight: 600; margin-bottom: 2px; }
-.team-card__role { font-size: 0.82rem; font-weight: 600; color: var(--color-primary); margin-bottom: var(--space-3); }
-.team-card__bio { font-size: 0.86rem; color: var(--color-text-muted); line-height: 1.5; margin-bottom: var(--space-4); }
-.team-card__socials { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
-.team-social { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: var(--radius-md); color: var(--color-text-soft); background: var(--color-surface-2); border: 1px solid var(--color-border-strong); transition: color var(--transition), background var(--transition), transform var(--transition); }
-.team-social:hover { color: #fff; background: var(--color-primary); transform: translateY(-2px); }
+.team-card__name { font-family: var(--font-display); font-size: 1.25rem; font-weight: 700; letter-spacing: -0.01em; margin-bottom: var(--space-2); }
+.team-card__role {
+  display: inline-block; font-size: 0.74rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--color-primary); background: var(--color-primary-soft);
+  padding: 3px 12px; border-radius: var(--radius-full); margin-bottom: var(--space-3);
+}
+.team-card__bio { font-size: 0.86rem; color: var(--color-text-muted); line-height: 1.55; margin-bottom: var(--space-4); }
+.team-card__socials { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+.team-social { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: var(--radius-md); color: var(--color-text-soft); background: var(--color-surface-2); border: 1px solid var(--color-border-strong); transition: color var(--transition), background var(--transition), border-color var(--transition), transform var(--transition); }
+.team-social:hover { color: #fff; background: var(--gradient-brand); border-color: transparent; transform: translateY(-3px); }
 </style>
