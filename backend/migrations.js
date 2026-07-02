@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 43;
+const CURRENT_SCHEMA_VERSION = 44;
 
 /**
  * Initialize schema version tracking
@@ -102,7 +102,8 @@ async function applyMigrations(fromVersion, toVersion) {
     40: migrationV40,
     41: migrationV41,
     42: migrationV42,
-    43: migrationV43
+    43: migrationV43,
+    44: migrationV44
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -2106,6 +2107,31 @@ function migrationV43() {
       FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
     )`,
     'CREATE INDEX IF NOT EXISTS idx_music_commands_guild ON guild_music_commands(guild_id)'
+  ]);
+}
+
+/**
+ * Migration V44: Team / credits page.
+ *   - team_members: people who contributed to the project. The owner manages them
+ *     in the admin area (by Discord id/tag + socials); a public /team page lists
+ *     them. `socials` is JSON keyed by platform; `discord_id` optionally links to a
+ *     users row so the avatar can fall back to their dashboard avatar.
+ * Idempotent; mirrored in initializeDatabase().
+ */
+function migrationV44() {
+  return runSchemaBatch(44, [
+    `CREATE TABLE IF NOT EXISTS team_members (
+      id          TEXT PRIMARY KEY,
+      discord_id  TEXT,
+      name        TEXT NOT NULL,
+      role        TEXT,
+      avatar_url  TEXT,
+      bio         TEXT,
+      socials     TEXT DEFAULT '{}',
+      position    INTEGER DEFAULT 0,
+      created_at  INTEGER DEFAULT 0
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_team_members_pos ON team_members(position)'
   ]);
 }
 

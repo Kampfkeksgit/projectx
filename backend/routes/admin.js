@@ -35,6 +35,10 @@ import {
   createBroadcast,
   getRecentBroadcasts,
   createPremiumCode,
+  getTeamMembers,
+  createTeamMember,
+  updateTeamMember,
+  deleteTeamMember,
   getPremiumCodes,
   deletePremiumCode,
   getRevenue
@@ -439,6 +443,64 @@ router.delete('/premium-codes/:code', async (req, res) => {
   } catch (error) {
     console.error('Admin delete premium code error:', error.message)
     res.status(500).json({ error: 'Failed to delete code' })
+  }
+})
+
+// ----- Team / credits management (owner) -----
+
+router.get('/team', async (req, res) => {
+  try {
+    res.json({ success: true, members: await getTeamMembers() })
+  } catch (error) {
+    console.error('Admin get team error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch team' })
+  }
+})
+
+router.post('/team', async (req, res) => {
+  try {
+    let member
+    try {
+      member = await createTeamMember(req.body || {})
+    } catch (err) {
+      if (err && err.code === 'VALIDATION') return res.status(400).json({ error: 'name_required' })
+      throw err
+    }
+    await logAuditAction(req.user.id, null, 'ADMIN_TEAM_CREATE', { id: member.id, name: member.name })
+    res.json({ success: true, member })
+  } catch (error) {
+    console.error('Admin create team member error:', error.message)
+    res.status(500).json({ error: 'Failed to create team member' })
+  }
+})
+
+router.put('/team/:id', async (req, res) => {
+  try {
+    let member
+    try {
+      member = await updateTeamMember(req.params.id, req.body || {})
+    } catch (err) {
+      if (err && err.code === 'NOT_FOUND') return res.status(404).json({ error: 'not_found' })
+      if (err && err.code === 'VALIDATION') return res.status(400).json({ error: 'name_required' })
+      throw err
+    }
+    await logAuditAction(req.user.id, null, 'ADMIN_TEAM_UPDATE', { id: member.id })
+    res.json({ success: true, member })
+  } catch (error) {
+    console.error('Admin update team member error:', error.message)
+    res.status(500).json({ error: 'Failed to update team member' })
+  }
+})
+
+router.delete('/team/:id', async (req, res) => {
+  try {
+    const changes = await deleteTeamMember(req.params.id)
+    if (changes === 0) return res.status(404).json({ error: 'not_found' })
+    await logAuditAction(req.user.id, null, 'ADMIN_TEAM_DELETE', { id: req.params.id })
+    res.json({ success: true })
+  } catch (error) {
+    console.error('Admin delete team member error:', error.message)
+    res.status(500).json({ error: 'Failed to delete team member' })
   }
 })
 

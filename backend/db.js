@@ -1147,6 +1147,24 @@ function initializeDatabase() {
       if (err) console.error('Error creating idx_music_commands_guild:', err);
     });
 
+    // ----- Team / credits page (v44) -----
+    db.run(`
+      CREATE TABLE IF NOT EXISTS team_members (
+        id          TEXT PRIMARY KEY,
+        discord_id  TEXT,
+        name        TEXT NOT NULL,
+        role        TEXT,
+        avatar_url  TEXT,
+        bio         TEXT,
+        socials     TEXT DEFAULT '{}',
+        position    INTEGER DEFAULT 0,
+        created_at  INTEGER DEFAULT 0
+      )
+    `, (err) => { if (err) console.error('Error creating team_members table:', err); });
+    db.run('CREATE INDEX IF NOT EXISTS idx_team_members_pos ON team_members(position)', (err) => {
+      if (err) console.error('Error creating idx_team_members_pos:', err);
+    });
+
     // ----- New modules (v23-v27): Counting / Polls / Invite-Tracking / Applications / Economy -----
 
     db.run(`
@@ -2710,6 +2728,106 @@ export function markPremiumReminded(guildId) {
   return new Promise((resolve, reject) => {
     db.run('UPDATE guilds SET premium_reminded_at = ? WHERE id = ?', [Math.floor(Date.now() / 1000), guildId],
       function (err) { if (err) reject(err); else resolve(this.changes); });
+  });
+}
+
+// ----- Team / credits page (v44) -----
+
+export const TEAM_SOCIALS = ['github', 'twitter', 'youtube', 'twitch', 'instagram', 'tiktok', 'website'];
+
+function sanitizeSocials(input) {
+  const out = {};
+  const src = input && typeof input === 'object' ? input : {};
+  for (const key of TEAM_SOCIALS) {
+    const v = truncate(String(src[key] == null ? '' : src[key]).trim(), 300);
+    if (v) out[key] = v;
+  }
+  return out;
+}
+
+function shapeTeamMember(row) {
+  if (!row) return null;
+  let socials = {};
+  try { socials = row.socials ? JSON.parse(row.socials) : {}; } catch { socials = {}; }
+  return {
+    id: row.id,
+    discord_id: row.discord_id ?? null,
+    name: row.name ?? '',
+    role: row.role ?? '',
+    // Fall back to the linked user's dashboard avatar when none is set explicitly.
+    avatar_url: row.avatar_url || row.user_avatar || null,
+    bio: row.bio ?? '',
+    socials: socials && typeof socials === 'object' ? socials : {},
+    position: row.position ?? 0,
+    created_at: row.created_at ?? 0
+  };
+}
+
+/** Public + admin: all team members, ordered. Joins users for an avatar fallback. */
+export function getTeamMembers() {
+  return dbAll(
+    `SELECT tm.*, u.avatar_url AS user_avatar
+     FROM team_members tm
+     LEFT JOIN users u ON u.discord_id = tm.discord_id
+     ORDER BY tm.position ASC, tm.created_at ASC`
+  ).then((rows) => (rows || []).map(shapeTeamMember));
+}
+
+export function createTeamMember(payload = {}) {
+  const p = payload || {};
+  const name = truncate(String(p.name || '').trim(), 80);
+  if (!name) return Promise.reject(Object.assign(new Error('name required'), { code: 'VALIDATION' }));
+  const id = randomUUID();
+  const discordId = isSnowflake(p.discord_id) ? p.discord_id : null;
+  const role = truncate(String(p.role || '').trim(), 80);
+  const avatar = sanitizeUrlLike(p.avatar_url);
+  const bio = truncate(String(p.bio || '').trim(), 500);
+  const socials = JSON.stringify(sanitizeSocials(p.socials));
+  const position = clampRange(p.position, 0, 100000, 0);
+  const now = Math.floor(Date.now() / 1000);
+  return new Promise((resolve, reject) => {
+    db.run(
+      'INSERT INTO team_members (id, discord_id, name, role, avatar_url, bio, socials, position, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, discordId, name, role, avatar, bio, socials, position, now],
+      (err) => (err ? reject(err) : getTeamMemberById(id).then(resolve).catch(reject))
+    );
+  });
+}
+
+function getTeamMemberById(id) {
+  return dbGet(
+    `SELECT tm.*, u.avatar_url AS user_avatar FROM team_members tm
+     LEFT JOIN users u ON u.discord_id = tm.discord_id WHERE tm.id = ?`, [id]
+  ).then(shapeTeamMember);
+}
+
+export function updateTeamMember(id, patch = {}) {
+  return new Promise((resolve, reject) => {
+    dbGet('SELECT * FROM team_members WHERE id = ?', [id]).then((existing) => {
+      if (!existing) return reject(Object.assign(new Error('not found'), { code: 'NOT_FOUND' }));
+      const p = patch || {};
+      const name = p.name !== undefined ? truncate(String(p.name || '').trim(), 80) : existing.name;
+      if (!name) return reject(Object.assign(new Error('name required'), { code: 'VALIDATION' }));
+      const discordId = p.discord_id !== undefined ? (isSnowflake(p.discord_id) ? p.discord_id : null) : existing.discord_id;
+      const role = p.role !== undefined ? truncate(String(p.role || '').trim(), 80) : existing.role;
+      const avatar = p.avatar_url !== undefined ? sanitizeUrlLike(p.avatar_url) : existing.avatar_url;
+      const bio = p.bio !== undefined ? truncate(String(p.bio || '').trim(), 500) : existing.bio;
+      const socials = p.socials !== undefined ? JSON.stringify(sanitizeSocials(p.socials)) : existing.socials;
+      const position = p.position !== undefined ? clampRange(p.position, 0, 100000, 0) : existing.position;
+      db.run(
+        'UPDATE team_members SET discord_id = ?, name = ?, role = ?, avatar_url = ?, bio = ?, socials = ?, position = ? WHERE id = ?',
+        [discordId, name, role, avatar, bio, socials, position, id],
+        (err) => (err ? reject(err) : getTeamMemberById(id).then(resolve).catch(reject))
+      );
+    }).catch(reject);
+  });
+}
+
+export function deleteTeamMember(id) {
+  return new Promise((resolve, reject) => {
+    db.run('DELETE FROM team_members WHERE id = ?', [id], function (err) {
+      if (err) reject(err); else resolve(this.changes);
+    });
   });
 }
 
