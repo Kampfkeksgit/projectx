@@ -94,6 +94,7 @@ export default {
     healthUsers: '{n} użytkowników',
     healthVersion: 'Wersja bota',
     healthBackend: 'Backend {v} · Node {node}',
+    healthRuntime: 'Python {py} · discord.py {dpy}',
     jobsEmpty: 'Brak zadań kopii zapasowych.',
     jobsAllStatus: 'Wszystkie statusy',
     jobsRetry: 'Ponów',

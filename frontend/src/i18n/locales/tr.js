@@ -94,6 +94,7 @@ export default {
     healthUsers: '{n} kullanıcı',
     healthVersion: 'Bot sürümü',
     healthBackend: 'Arka uç {v} · Node {node}',
+    healthRuntime: 'Python {py} · discord.py {dpy}',
     jobsEmpty: 'Yedekleme işi yok.',
     jobsAllStatus: 'Tüm durumlar',
     jobsRetry: 'Yeniden dene',

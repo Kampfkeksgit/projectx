@@ -336,6 +336,7 @@
           <div class="card">
             <div class="card__label">{{ t('admin.healthVersion') }}</div>
             <div class="card__value">{{ health.bot.version || '—' }}</div>
+            <div v-if="health.bot.py_version || health.bot.dpy_version" class="card__meta">{{ t('admin.healthRuntime', { py: health.bot.py_version || '—', dpy: health.bot.dpy_version || '—' }) }}</div>
             <div class="card__meta">{{ t('admin.healthBackend', { v: health.backend.version || '—', node: health.backend.node }) }}</div>
           </div>
         </div>
