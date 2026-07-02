@@ -1321,8 +1321,17 @@ export default {
     roleHint: 'Przyznawana, gdy członek się zweryfikuje.',
     rolePlaceholder: 'Wybierz rolę',
     messageLabel: 'Wiadomość panelu',
+    messageModeLabel: 'Styl panelu',
+    messageModePlain: 'Zwykły',
+    messageModeEmbed: 'Osadzony',
+    messageModeHint: 'Wyświetl zwykłą wiadomość lub w pełni zaprojektowany osadzony element. {guild} zostaje zastąpione nazwą Twojego serwera.',
+    embedLabel: 'Osadzony element',
+    embedHint: 'Zaprojektuj osadzony element weryfikacji wyświetlany nad przyciskiem.',
+    livePreview: 'Podgląd na żywo',
+    author: 'Weryfikacja',
+    defaultMessage: 'Kliknij przycisk poniżej, aby się zweryfikować i odblokować serwer.',
     buttonLabel: 'Etykieta przycisku',
-    usageNote: 'Po zapisaniu uruchom !verifypanel na serwerze (administrator), aby opublikować lub odświeżyć przycisk weryfikacji.',
+    usageNote: 'Panel jest publikowany automatycznie na wybranym kanale i aktualizuje się, gdy zmienisz go tutaj (w ciągu ~1 min). Użyj /verifypanel, aby opublikować go ponownie ręcznie.',
     loadError: 'Nie udało się załadować ustawień weryfikacji'
   },
   rolemenus: {

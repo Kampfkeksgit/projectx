@@ -1321,8 +1321,17 @@ export default {
     roleHint: 'Bir üye doğrulandığında verilir.',
     rolePlaceholder: 'Bir rol seçin',
     messageLabel: 'Panel mesajı',
+    messageModeLabel: 'Panel stili',
+    messageModePlain: 'Düz',
+    messageModeEmbed: 'Gömülü',
+    messageModeHint: 'Düz bir mesaj mı yoksa tamamen tasarlanmış bir gömülü içerik mi gösterileceğini seçin. {guild}, sunucunuzun adıyla değiştirilir.',
+    embedLabel: 'Gömülü',
+    embedHint: 'Düğmenin üstünde gösterilen doğrulama gömülü içeriğini tasarlayın.',
+    livePreview: 'Canlı önizleme',
+    author: 'Doğrulama',
+    defaultMessage: 'Doğrulamak ve sunucunun kilidini açmak için aşağıdaki düğmeye tıklayın.',
     buttonLabel: 'Düğme etiketi',
-    usageNote: 'Kaydettikten sonra, doğrulama düğmesini yayınlamak veya yenilemek için sunucuda (yönetici) !verifypanel komutunu çalıştırın.',
+    usageNote: 'Panel, seçilen kanala otomatik olarak gönderilir ve burada değiştirdiğinizde kendini günceller (yaklaşık 1 dakika içinde). Manuel olarak (yeniden) göndermek için /verifypanel komutunu kullanın.',
     loadError: 'Doğrulama ayarları yüklenemedi'
   },
   rolemenus: {

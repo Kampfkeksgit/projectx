@@ -41,6 +41,7 @@ import {
   markScheduledRan,
   getVerificationSettings,
   setVerificationPanelMessage,
+  getPendingVerificationPanels,
   getPendingRoleMenus,
   setRoleMenuMessage,
   getRoleMenuByMessage,
@@ -1127,6 +1128,17 @@ router.put('/guilds/:guild_id/verification/panel', requireBotToken, async (req, 
   } catch (error) {
     console.error('Bot set verification panel error:', error.message)
     res.status(500).json({ error: 'Failed to set verification panel' })
+  }
+})
+
+// Verification: panels to (re)post — unposted or edited in the dashboard (dirty).
+router.get('/verification/pending', requireBotToken, async (req, res) => {
+  try {
+    const panels = await getPendingVerificationPanels()
+    return res.json({ panels })
+  } catch (error) {
+    console.error('Bot get pending verification panels error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch pending verification panels' })
   }
 })
 
