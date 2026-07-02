@@ -2616,24 +2616,55 @@ function generatePremiumCode() {
   return `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}`;
 }
 
-/** Owner admin: create a redeemable promo/trial code. */
-export async function createPremiumCode({ tier, duration_days, max_uses, expires_at, createdBy } = {}) {
+/** Normalize a custom code: uppercase, A-Z/0-9/dash only, length 3-32, or null. */
+export function sanitizePremiumCodeInput(raw) {
+  const s = String(raw == null ? '' : raw).trim().toUpperCase().replace(/[^A-Z0-9-]/g, '');
+  return s.length >= 3 && s.length <= 32 ? s : null;
+}
+
+function insertPremiumCode(code, t, dur, maxUses, createdBy, now, exp) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      'INSERT INTO premium_codes (code, tier, duration_days, max_uses, uses, created_by, created_at, expires_at) VALUES (?, ?, ?, ?, 0, ?, ?, ?)',
+      [code, t, dur, maxUses, createdBy || null, now, exp],
+      (err) => (err ? reject(err) : resolve())
+    );
+  });
+}
+
+/**
+ * Owner admin: create a redeemable promo/trial code. Pass `code` for a custom
+ * code (e.g. "SUMMER2026"); omit it to auto-generate a random one. A custom code
+ * that collides throws `{ code: 'DUPLICATE' }`; an invalid custom code throws
+ * `{ code: 'VALIDATION' }`.
+ */
+export async function createPremiumCode({ tier, duration_days, max_uses, expires_at, createdBy, code: customCode } = {}) {
   const t = PREMIUM_TIERS.includes(tier) && tier !== 'free' ? tier : 'basic';
   const dur = clampRange(duration_days, 1, 3650, 30);
   const maxUses = clampRange(max_uses, 0, 100000, 1); // 0 = unlimited
   const exp = expires_at && Number(expires_at) > 0 ? Math.floor(Number(expires_at)) : null;
   const now = Math.floor(Date.now() / 1000);
+  const shape = (code) => ({ code, tier: t, duration_days: dur, max_uses: maxUses, uses: 0, created_at: now, expires_at: exp });
+
+  // Custom code path: use it verbatim, surface collisions as DUPLICATE (no retry).
+  if (customCode != null && String(customCode).trim() !== '') {
+    const code = sanitizePremiumCodeInput(customCode);
+    if (!code) throw Object.assign(new Error('invalid_code'), { code: 'VALIDATION' });
+    try {
+      await insertPremiumCode(code, t, dur, maxUses, createdBy, now, exp);
+      return shape(code);
+    } catch (err) {
+      if (/UNIQUE|PRIMARY/i.test(err.message)) throw Object.assign(new Error('duplicate_code'), { code: 'DUPLICATE' });
+      throw err;
+    }
+  }
+
+  // Auto-generate path: retry on the (astronomically unlikely) collision.
   for (let attempt = 0; attempt < 5; attempt++) {
     const code = generatePremiumCode();
     try {
-      await new Promise((resolve, reject) => {
-        db.run(
-          'INSERT INTO premium_codes (code, tier, duration_days, max_uses, uses, created_by, created_at, expires_at) VALUES (?, ?, ?, ?, 0, ?, ?, ?)',
-          [code, t, dur, maxUses, createdBy || null, now, exp],
-          (err) => (err ? reject(err) : resolve())
-        );
-      });
-      return { code, tier: t, duration_days: dur, max_uses: maxUses, uses: 0, created_at: now, expires_at: exp };
+      await insertPremiumCode(code, t, dur, maxUses, createdBy, now, exp);
+      return shape(code);
     } catch (err) {
       if (!/UNIQUE|PRIMARY/i.test(err.message)) throw err; // collision → retry
     }
