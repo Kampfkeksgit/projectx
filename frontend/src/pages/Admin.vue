@@ -124,13 +124,15 @@
         </div>
 
         <div class="panel">
-          <h3 class="panel__title">{{ t('admin.ovAdoptionTitle') }}</h3>
-          <div class="adoption">
-            <div v-for="m in adoptionList" :key="m.key" class="adoption__row">
-              <span class="adoption__key">{{ prettyKey(m.key) }}</span>
-              <div class="adoption__bar"><div class="adoption__fill" :style="{ width: barWidth(m.count) }"></div></div>
-              <span class="adoption__count">{{ m.count }}</span>
-            </div>
+          <div class="adoption__head">
+            <h3 class="panel__title">{{ t('admin.ovAdoptionTitle') }}</h3>
+            <span class="adoption__summary">{{ t('admin.ovAdoptionActive', { active: adoptionActive, total: adoptionList.length }) }}</span>
+          </div>
+          <div class="adoption__grid">
+            <span v-for="m in adoptionList" :key="m.key" class="adchip" :class="{ 'is-on': m.count > 0 }">
+              <span class="adchip__name">{{ prettyKey(m.key) }}</span>
+              <span class="adchip__count">{{ m.count }}</span>
+            </span>
           </div>
         </div>
       </div>
@@ -751,7 +753,7 @@ const adoptionList = computed(() => {
     .map(([key, count]) => ({ key, count }))
     .sort((a, b) => b.count - a.count)
 })
-const maxAdoption = computed(() => Math.max(1, ...adoptionList.value.map((m) => m.count)))
+const adoptionActive = computed(() => adoptionList.value.filter((m) => m.count > 0).length)
 
 // --- Analytics chart data ---
 const ADOPTION_COLORS = ['#5865f2', '#22d3ee', '#f472b6', '#facc15', '#34d399']
@@ -782,7 +784,6 @@ function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1) }
 function isMe(id) { return auth.state.user?.id === id }
 function initials(name) { return (name || '?').slice(0, 2).toUpperCase() }
 function prettyKey(k) { return k.replace(/-/g, ' ') }
-function barWidth(n) { return `${Math.round((n / maxAdoption.value) * 100)}%` }
 function fmtDate(ts) { return ts ? new Date(ts * 1000).toLocaleDateString(locale.value) : '' }
 function fmtDateTime(s) {
   if (!s) return ''
@@ -1387,12 +1388,25 @@ function goBack() { router.push('/dashboard') }
 .mini-row__name { font-weight: 600; font-size: 0.88rem; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mini-row__time { font-size: 0.76rem; color: var(--color-text-soft); }
 
-.adoption { display: flex; flex-direction: column; gap: 6px; }
-.adoption__row { display: flex; align-items: center; gap: var(--space-3); }
-.adoption__key { width: 130px; font-size: 0.78rem; color: var(--color-text-soft); text-transform: capitalize; flex-shrink: 0; }
-.adoption__bar { flex: 1; height: 8px; background: var(--color-surface-2); border-radius: var(--radius-full); overflow: hidden; }
-.adoption__fill { height: 100%; background: var(--gradient-brand, var(--color-primary)); border-radius: var(--radius-full); }
-.adoption__count { width: 36px; text-align: right; font-size: 0.78rem; font-weight: 700; }
+.adoption__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-4); }
+.adoption__summary { font-size: 0.82rem; font-weight: 600; color: var(--color-text-muted); }
+.adoption__grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.adchip {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 5px 6px 5px 12px; border-radius: var(--radius-full);
+  background: var(--color-surface-2); border: 1px solid var(--color-border);
+  font-size: 0.82rem; color: var(--color-text-soft);
+}
+.adchip__name { text-transform: capitalize; }
+.adchip__count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 22px; height: 20px; padding: 0 6px; border-radius: var(--radius-full);
+  font-size: 0.74rem; font-weight: 700; color: var(--color-text-soft);
+  background: var(--color-bg-elevated); border: 1px solid var(--color-border-strong);
+}
+/* Active modules stand out; inactive stay muted so usage is scannable at a glance. */
+.adchip.is-on { color: var(--color-text); border-color: var(--color-primary-soft); background: var(--color-primary-soft); }
+.adchip.is-on .adchip__count { color: #fff; background: var(--gradient-brand, var(--color-primary)); border-color: transparent; }
 
 .toggle-row { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); font-weight: 600; font-size: 0.9rem; }
 

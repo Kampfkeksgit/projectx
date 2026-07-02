@@ -188,6 +188,7 @@ export default {
     ovExpiringEmpty: 'Ни одна премиум-подписка не истекает в течение 7 дней.',
     ovExpiresIn: 'до {date}',
     ovAdoptionTitle: 'Использование модулей',
+    ovAdoptionActive: 'используется {active} из {total}',
     premiumUntil: 'Премиум до {date}',
     blockedUntil: 'Заблокировано до {date}',
     durationLabel: 'Длительность',
