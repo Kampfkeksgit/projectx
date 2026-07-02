@@ -919,6 +919,12 @@ function initializeDatabase() {
       if (err) console.error('Error creating guild_verification_settings table:', err);
       else console.log('✓ Guild verification settings table initialized');
     });
+    // v45: designable embed + live-update flag (idempotent mirror)
+    for (const col of ['use_embed BOOLEAN DEFAULT 0', 'embed TEXT', 'dirty INTEGER DEFAULT 0']) {
+      db.run(`ALTER TABLE guild_verification_settings ADD COLUMN ${col}`, (err) => {
+        if (err && !/duplicate column name/i.test(err.message)) console.error(`Warning: guild_verification_settings.${col}:`, err.message);
+      });
+    }
 
     db.run(`
       CREATE TABLE IF NOT EXISTS guild_role_menus (
@@ -6075,20 +6081,28 @@ export const VERIFICATION_DEFAULTS = {
   channel_id: null,
   verified_role_id: null,
   message: 'Click the button below to verify and unlock the server.',
-  button_label: 'Verify'
+  button_label: 'Verify',
+  use_embed: false,
+  embed: { ...DEFAULT_EMBED, title: 'Verification', description: 'Click the button below to verify and unlock the server.' }
 };
+
+function verificationDefaults() {
+  return { ...VERIFICATION_DEFAULTS, embed: { ...VERIFICATION_DEFAULTS.embed } };
+}
 
 export function getVerificationSettings(guildId) {
   return new Promise((resolve, reject) => {
     db.get('SELECT * FROM guild_verification_settings WHERE guild_id = ?', [guildId], (err, row) => {
       if (err) return reject(err);
-      if (!row) return resolve({ ...VERIFICATION_DEFAULTS });
+      if (!row) return resolve(verificationDefaults());
       resolve({
         enabled: !!row.enabled,
         channel_id: row.channel_id ?? null,
         verified_role_id: row.verified_role_id ?? null,
         message: row.message ?? VERIFICATION_DEFAULTS.message,
-        button_label: row.button_label || 'Verify'
+        button_label: row.button_label || 'Verify',
+        use_embed: !!row.use_embed,
+        embed: parseEmbedColumn(row.embed)
       });
     });
   });
@@ -6101,17 +6115,22 @@ export function upsertVerificationSettings(guildId, settings) {
     const role = isSnowflake(settings.verified_role_id) ? settings.verified_role_id : null;
     const message = truncate(settings.message || VERIFICATION_DEFAULTS.message, 2000);
     const label = truncate(settings.button_label || 'Verify', 80);
+    const useEmbed = settings.use_embed ? 1 : 0;
+    const embed = JSON.stringify(sanitizeEmbed(settings.embed));
     db.run(
-      `INSERT INTO guild_verification_settings (guild_id, enabled, channel_id, verified_role_id, message, button_label)
-       VALUES (?, ?, ?, ?, ?, ?)
+      `INSERT INTO guild_verification_settings (guild_id, enabled, channel_id, verified_role_id, message, button_label, use_embed, embed, dirty)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
        ON CONFLICT(guild_id) DO UPDATE SET
          enabled = excluded.enabled,
          channel_id = excluded.channel_id,
          verified_role_id = excluded.verified_role_id,
          message = excluded.message,
          button_label = excluded.button_label,
+         use_embed = excluded.use_embed,
+         embed = excluded.embed,
+         dirty = 1,
          updated_at = CURRENT_TIMESTAMP`,
-      [guildId, enabled, channel, role, message, label],
+      [guildId, enabled, channel, role, message, label, useEmbed, embed],
       function (err) {
         if (err) reject(err);
         else resolve(this.changes);
@@ -6120,11 +6139,40 @@ export function upsertVerificationSettings(guildId, settings) {
   });
 }
 
-/** Bot: store the posted verification panel message id. */
+/**
+ * Bot: verification panels that need (re)posting — enabled, channel + role set,
+ * and either not yet posted or edited since the last render (dirty = 1). The cog
+ * posts unposted panels and edits dirty ones in place (auto-update).
+ */
+export function getPendingVerificationPanels() {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `SELECT * FROM guild_verification_settings
+       WHERE enabled = 1 AND channel_id IS NOT NULL AND verified_role_id IS NOT NULL
+         AND ((panel_message_id IS NULL OR panel_message_id = '') OR dirty = 1)
+         AND guild_id NOT IN (SELECT id FROM guilds WHERE blocked = 1)`,
+      [],
+      (err, rows) => {
+        if (err) return reject(err);
+        resolve((rows || []).map((row) => ({
+          guild_id: row.guild_id,
+          channel_id: row.channel_id ?? null,
+          panel_message_id: row.panel_message_id ?? null,
+          message: row.message ?? VERIFICATION_DEFAULTS.message,
+          button_label: row.button_label || 'Verify',
+          use_embed: !!row.use_embed,
+          embed: parseEmbedColumn(row.embed)
+        })));
+      }
+    );
+  });
+}
+
+/** Bot: store the posted verification panel message id (and clear dirty). */
 export function setVerificationPanelMessage(guildId, messageId) {
   return new Promise((resolve, reject) => {
     db.run(
-      'UPDATE guild_verification_settings SET panel_message_id = ? WHERE guild_id = ?',
+      'UPDATE guild_verification_settings SET panel_message_id = ?, dirty = 0 WHERE guild_id = ?',
       [messageId ?? null, guildId],
       function (err) {
         if (err) reject(err);

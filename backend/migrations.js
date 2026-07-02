@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 44;
+const CURRENT_SCHEMA_VERSION = 45;
 
 /**
  * Initialize schema version tracking
@@ -103,7 +103,8 @@ async function applyMigrations(fromVersion, toVersion) {
     41: migrationV41,
     42: migrationV42,
     43: migrationV43,
-    44: migrationV44
+    44: migrationV44,
+    45: migrationV45
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -2138,6 +2139,22 @@ function migrationV44() {
     // Idempotent for dev DBs that already created team_members without this column.
     'ALTER TABLE team_members ADD COLUMN discord_username TEXT',
     'CREATE INDEX IF NOT EXISTS idx_team_members_pos ON team_members(position)'
+  ]);
+}
+
+/**
+ * Migration V45: Verification embed + live-update.
+ *   - use_embed / embed (JSON): the verify panel can be a designed embed instead
+ *     of the plain message (same embed shape as welcome/tickets/rolemenus).
+ *   - dirty: set on any dashboard edit so the bot re-renders the posted panel in
+ *     place (like rolemenus), keeping it in sync automatically.
+ * Idempotent ("duplicate column" swallowed); mirrored in initializeDatabase().
+ */
+function migrationV45() {
+  return runSchemaBatch(45, [
+    'ALTER TABLE guild_verification_settings ADD COLUMN use_embed BOOLEAN DEFAULT 0',
+    'ALTER TABLE guild_verification_settings ADD COLUMN embed TEXT',
+    'ALTER TABLE guild_verification_settings ADD COLUMN dirty INTEGER DEFAULT 0'
   ]);
 }
 
