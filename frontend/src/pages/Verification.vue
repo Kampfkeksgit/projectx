@@ -6,56 +6,65 @@
       <p class="config__sub">{{ t('verification.sub') }}</p>
     </header>
 
-    <section class="form-card">
-      <div class="row row--toggle">
-        <div>
-          <div class="row__label">{{ t('verification.enableLabel') }}</div>
-          <div class="row__hint">{{ t('verification.enableHint') }}</div>
+    <div class="config__grid">
+      <section class="config__form">
+        <div class="form-card">
+          <div class="row row--toggle">
+            <div>
+              <div class="row__label">{{ t('verification.enableLabel') }}</div>
+              <div class="row__hint">{{ t('verification.enableHint') }}</div>
+            </div>
+            <AppToggle v-model="form.enabled" />
+          </div>
+
+          <div class="row">
+            <label class="row__label">{{ t('verification.channelLabel') }}</label>
+            <div class="row__hint">{{ t('verification.channelHint') }}</div>
+            <ChannelSelector v-model="form.channel_id" :guild-id="guildId" :types="['text', 'announcement']" />
+          </div>
+
+          <div class="row">
+            <label class="row__label">{{ t('verification.roleLabel') }}</label>
+            <div class="row__hint">{{ t('verification.roleHint') }}</div>
+            <RoleSelector v-model="form.verified_role_id" :guild-id="guildId" :placeholder="t('verification.rolePlaceholder')" />
+          </div>
+
+          <!-- Message mode: plain text or a designed embed -->
+          <div class="row">
+            <label class="row__label">{{ t('verification.messageModeLabel') }}</label>
+            <div class="mode">
+              <button type="button" class="mode__btn" :class="{ 'is-active': !form.use_embed }" @click="form.use_embed = false">{{ t('verification.messageModePlain') }}</button>
+              <button type="button" class="mode__btn" :class="{ 'is-active': form.use_embed }" @click="form.use_embed = true">{{ t('verification.messageModeEmbed') }}</button>
+            </div>
+            <div class="row__hint">{{ t('verification.messageModeHint') }}</div>
+          </div>
+
+          <div v-if="!form.use_embed" class="row">
+            <label class="row__label" for="vf-msg">{{ t('verification.messageLabel') }}</label>
+            <textarea id="vf-msg" v-model="form.message" class="input input--textarea" rows="3" maxlength="2000"></textarea>
+          </div>
+
+          <div v-else class="row">
+            <label class="row__label">{{ t('verification.embedLabel') }}</label>
+            <div class="row__hint">{{ t('verification.embedHint') }}</div>
+            <EmbedEditor v-model="form.embed" />
+          </div>
+
+          <div class="row">
+            <label class="row__label" for="vf-btn">{{ t('verification.buttonLabel') }}</label>
+            <input id="vf-btn" v-model="form.button_label" class="input input--narrow" type="text" maxlength="80" placeholder="Verify" />
+          </div>
+
+          <div class="form-card__note form-card__note--info">{{ t('verification.usageNote') }}</div>
+
+          <div class="form-card__actions">
+            <AppButton variant="gradient" :loading="saving" :disabled="!dirty" @click="save">{{ t('common.saveChanges') }}</AppButton>
+          </div>
         </div>
-        <AppToggle v-model="form.enabled" />
-      </div>
+      </section>
 
-      <div class="row">
-        <label class="row__label">{{ t('verification.channelLabel') }}</label>
-        <div class="row__hint">{{ t('verification.channelHint') }}</div>
-        <ChannelSelector v-model="form.channel_id" :guild-id="guildId" :types="['text', 'announcement']" />
-      </div>
-
-      <div class="row">
-        <label class="row__label">{{ t('verification.roleLabel') }}</label>
-        <div class="row__hint">{{ t('verification.roleHint') }}</div>
-        <RoleSelector v-model="form.verified_role_id" :guild-id="guildId" :placeholder="t('verification.rolePlaceholder')" />
-      </div>
-
-      <!-- Message mode: plain text or a designed embed -->
-      <div class="row">
-        <label class="row__label">{{ t('verification.messageModeLabel') }}</label>
-        <div class="mode">
-          <button type="button" class="mode__btn" :class="{ 'is-active': !form.use_embed }" @click="form.use_embed = false">{{ t('verification.messageModePlain') }}</button>
-          <button type="button" class="mode__btn" :class="{ 'is-active': form.use_embed }" @click="form.use_embed = true">{{ t('verification.messageModeEmbed') }}</button>
-        </div>
-        <div class="row__hint">{{ t('verification.messageModeHint') }}</div>
-      </div>
-
-      <div v-if="!form.use_embed" class="row">
-        <label class="row__label" for="vf-msg">{{ t('verification.messageLabel') }}</label>
-        <textarea id="vf-msg" v-model="form.message" class="input input--textarea" rows="3" maxlength="2000"></textarea>
-      </div>
-
-      <div v-else class="row">
-        <label class="row__label">{{ t('verification.embedLabel') }}</label>
-        <div class="row__hint">{{ t('verification.embedHint') }}</div>
-        <EmbedEditor v-model="form.embed" />
-      </div>
-
-      <div class="row">
-        <label class="row__label" for="vf-btn">{{ t('verification.buttonLabel') }}</label>
-        <input id="vf-btn" v-model="form.button_label" class="input input--narrow" type="text" maxlength="80" placeholder="Verify" />
-      </div>
-
-      <!-- Live preview -->
-      <div class="row">
-        <div class="preview__label">{{ t('verification.livePreview') }}</div>
+      <aside class="config__preview">
+        <div class="config__preview-label">{{ t('verification.livePreview') }}</div>
         <DiscordMessagePreview mode="embed" :embed="previewEmbed" channel-name="verify">
           <template #components>
             <div class="dc-row">
@@ -63,14 +72,8 @@
             </div>
           </template>
         </DiscordMessagePreview>
-      </div>
-
-      <div class="form-card__note form-card__note--info">{{ t('verification.usageNote') }}</div>
-
-      <div class="form-card__actions">
-        <AppButton variant="gradient" :loading="saving" :disabled="!dirty" @click="save">{{ t('common.saveChanges') }}</AppButton>
-      </div>
-    </section>
+      </aside>
+    </div>
   </div>
 </template>
 
@@ -164,8 +167,12 @@ async function save() {
 .config__title { font-size: clamp(1.6rem, 2.5vw, 2rem); letter-spacing: -0.02em; margin-bottom: var(--space-2); }
 .config__sub { color: var(--color-text-muted); }
 
+.config__grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: var(--space-5); align-items: flex-start; }
+.config__form { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+.config__preview { position: sticky; top: calc(var(--nav-height) + var(--space-6)); min-width: 0; }
+.config__preview-label { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-soft); margin-bottom: var(--space-3); }
+
 .form-card {
-  max-width: 720px;
   background: var(--color-surface);
   background-image: var(--gradient-card);
   border: 1px solid var(--color-border);
@@ -191,7 +198,6 @@ async function save() {
 .mode { display: inline-flex; gap: 4px; background: var(--color-bg-elevated); border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); padding: 3px; width: fit-content; }
 .mode__btn { padding: 0.45rem 0.9rem; border-radius: var(--radius-sm); font-size: 0.88rem; font-weight: 600; color: var(--color-text-muted); }
 .mode__btn.is-active { background: var(--gradient-brand); color: #fff; }
-.preview__label { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-soft); margin-bottom: var(--space-2); }
 .dc-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .dc-btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px; border-radius: 3px; font-size: 0.86rem; font-weight: 500; color: #fff; line-height: 1; }
 .dc-btn--success { background: #248046; }
@@ -199,4 +205,9 @@ async function save() {
 .form-card__note { font-size: 0.82rem; border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); line-height: 1.5; }
 .form-card__note--info { color: var(--color-text-muted); background: var(--color-bg-elevated); border: 1px solid var(--color-border); }
 .form-card__actions { display: flex; justify-content: flex-end; }
+
+@media (max-width: 1100px) {
+  .config__grid { grid-template-columns: 1fr; }
+  .config__preview { position: static; }
+}
 </style>
