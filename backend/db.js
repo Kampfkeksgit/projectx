@@ -1150,17 +1150,21 @@ function initializeDatabase() {
     // ----- Team / credits page (v44) -----
     db.run(`
       CREATE TABLE IF NOT EXISTS team_members (
-        id          TEXT PRIMARY KEY,
-        discord_id  TEXT,
-        name        TEXT NOT NULL,
-        role        TEXT,
-        avatar_url  TEXT,
-        bio         TEXT,
-        socials     TEXT DEFAULT '{}',
-        position    INTEGER DEFAULT 0,
-        created_at  INTEGER DEFAULT 0
+        id               TEXT PRIMARY KEY,
+        discord_id       TEXT,
+        discord_username TEXT,
+        name             TEXT NOT NULL,
+        role             TEXT,
+        avatar_url       TEXT,
+        bio              TEXT,
+        socials          TEXT DEFAULT '{}',
+        position         INTEGER DEFAULT 0,
+        created_at       INTEGER DEFAULT 0
       )
     `, (err) => { if (err) console.error('Error creating team_members table:', err); });
+    db.run('ALTER TABLE team_members ADD COLUMN discord_username TEXT', (err) => {
+      if (err && !/duplicate column name/i.test(err.message)) console.error('Warning: team_members.discord_username:', err.message);
+    });
     db.run('CREATE INDEX IF NOT EXISTS idx_team_members_pos ON team_members(position)', (err) => {
       if (err) console.error('Error creating idx_team_members_pos:', err);
     });
@@ -2752,6 +2756,7 @@ function shapeTeamMember(row) {
   return {
     id: row.id,
     discord_id: row.discord_id ?? null,
+    discord_username: row.discord_username ?? null,
     name: row.name ?? '',
     role: row.role ?? '',
     // Fall back to the linked user's dashboard avatar when none is set explicitly.
@@ -2776,9 +2781,11 @@ export function getTeamMembers() {
 export function createTeamMember(payload = {}) {
   const p = payload || {};
   const name = truncate(String(p.name || '').trim(), 80);
-  if (!name) return Promise.reject(Object.assign(new Error('name required'), { code: 'VALIDATION' }));
-  const id = randomUUID();
   const discordId = isSnowflake(p.discord_id) ? p.discord_id : null;
+  // Either a name OR a Discord id is enough — the bot fills the name/avatar from
+  // the id (team-resolve loop). Reject only when both are missing.
+  if (!name && !discordId) return Promise.reject(Object.assign(new Error('name required'), { code: 'VALIDATION' }));
+  const id = randomUUID();
   const role = truncate(String(p.role || '').trim(), 80);
   const avatar = sanitizeUrlLike(p.avatar_url);
   const bio = truncate(String(p.bio || '').trim(), 500);
@@ -2807,8 +2814,8 @@ export function updateTeamMember(id, patch = {}) {
       if (!existing) return reject(Object.assign(new Error('not found'), { code: 'NOT_FOUND' }));
       const p = patch || {};
       const name = p.name !== undefined ? truncate(String(p.name || '').trim(), 80) : existing.name;
-      if (!name) return reject(Object.assign(new Error('name required'), { code: 'VALIDATION' }));
       const discordId = p.discord_id !== undefined ? (isSnowflake(p.discord_id) ? p.discord_id : null) : existing.discord_id;
+      if (!name && !discordId) return reject(Object.assign(new Error('name required'), { code: 'VALIDATION' }));
       const role = p.role !== undefined ? truncate(String(p.role || '').trim(), 80) : existing.role;
       const avatar = p.avatar_url !== undefined ? sanitizeUrlLike(p.avatar_url) : existing.avatar_url;
       const bio = p.bio !== undefined ? truncate(String(p.bio || '').trim(), 500) : existing.bio;
@@ -2828,6 +2835,37 @@ export function deleteTeamMember(id) {
     db.run('DELETE FROM team_members WHERE id = ?', [id], function (err) {
       if (err) reject(err); else resolve(this.changes);
     });
+  });
+}
+
+/** Bot: team members with a Discord id that haven't been resolved yet. */
+export function getUnresolvedTeamMembers() {
+  return dbAll(
+    `SELECT id, discord_id FROM team_members
+     WHERE discord_id IS NOT NULL AND discord_id != ''
+       AND (discord_username IS NULL OR discord_username = '')`
+  );
+}
+
+/**
+ * Bot: write back a resolved Discord user. Sets discord_username (also the
+ * "resolved" marker). Fills name/avatar only when the admin left them empty, so
+ * an explicit name/avatar is never overwritten.
+ */
+export function resolveTeamMember(id, { username, name, avatar_url } = {}) {
+  const uname = truncate(String(username || '').trim(), 80) || 'unknown';
+  const dispName = truncate(String(name || '').trim(), 80);
+  const avatar = sanitizeUrlLike(avatar_url);
+  return new Promise((resolve, reject) => {
+    db.run(
+      `UPDATE team_members SET
+         discord_username = ?,
+         name = CASE WHEN name IS NULL OR name = '' THEN ? ELSE name END,
+         avatar_url = CASE WHEN avatar_url IS NULL OR avatar_url = '' THEN ? ELSE avatar_url END
+       WHERE id = ?`,
+      [uname, dispName, avatar || null, id],
+      function (err) { if (err) reject(err); else resolve(this.changes); }
+    );
   });
 }
 

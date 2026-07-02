@@ -160,6 +160,8 @@ export default {
     teamDiscordIdPlaceholder: 'np. 123456789012345678',
     teamAvatar: 'URL awatara (opcjonalnie)',
     teamAvatarHint: 'Pozostaw awatar pusty, aby użyć awatara członka z panelu (jeśli Discord ID się zgadza) lub jego inicjałów.',
+    teamNameOrId: 'Podaj nazwę lub Discord ID.',
+    teamResolveHint: 'Wskazówka: dodaj tylko Discord ID i zostaw nazwę/awatar puste — bot uzupełni je z Discorda w kilka minut. Wartości ustawione ręcznie zawsze mają pierwszeństwo.',
     teamPosition: 'Kolejność',
     teamBio: 'Opis (opcjonalnie)',
     teamAdd: 'Dodaj członka',

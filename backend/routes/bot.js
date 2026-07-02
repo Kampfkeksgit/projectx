@@ -68,6 +68,8 @@ import {
   upsertMusicState,
   getAllMusicCommands,
   deleteMusicCommand,
+  getUnresolvedTeamMembers,
+  resolveTeamMember,
   isGuildBlocked,
   getGuild,
   effectiveTier,
@@ -1339,6 +1341,29 @@ router.get('/giveaways/due', requireBotToken, async (req, res) => {
   } catch (error) {
     console.error('Bot get due giveaways error:', error.message)
     res.status(500).json({ error: 'Failed to fetch due giveaways' })
+  }
+})
+
+// Team: members added by a Discord id that still need name/avatar resolution.
+router.get('/team/unresolved', requireBotToken, async (req, res) => {
+  try {
+    const members = await getUnresolvedTeamMembers()
+    return res.json({ members })
+  } catch (error) {
+    console.error('Bot get unresolved team error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch unresolved team' })
+  }
+})
+
+// Team: the bot writes back a resolved Discord user (username + name + avatar).
+router.put('/team/:id/resolved', requireBotToken, async (req, res) => {
+  try {
+    const b = req.body || {}
+    await resolveTeamMember(req.params.id, { username: b.username, name: b.name, avatar_url: b.avatar_url })
+    return res.json({ success: true })
+  } catch (error) {
+    console.error('Bot resolve team member error:', error.message)
+    res.status(500).json({ error: 'Failed to resolve team member' })
   }
 })
 

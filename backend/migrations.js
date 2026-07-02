@@ -2116,21 +2116,27 @@ function migrationV43() {
  *     in the admin area (by Discord id/tag + socials); a public /team page lists
  *     them. `socials` is JSON keyed by platform; `discord_id` optionally links to a
  *     users row so the avatar can fall back to their dashboard avatar.
+ *   - discord_username: filled by the bot's team-resolve loop (fetch_user by id) —
+ *     also the "resolved" marker so a member added by just a Discord id gets its
+ *     name/avatar auto-filled.
  * Idempotent; mirrored in initializeDatabase().
  */
 function migrationV44() {
   return runSchemaBatch(44, [
     `CREATE TABLE IF NOT EXISTS team_members (
-      id          TEXT PRIMARY KEY,
-      discord_id  TEXT,
-      name        TEXT NOT NULL,
-      role        TEXT,
-      avatar_url  TEXT,
-      bio         TEXT,
-      socials     TEXT DEFAULT '{}',
-      position    INTEGER DEFAULT 0,
-      created_at  INTEGER DEFAULT 0
+      id               TEXT PRIMARY KEY,
+      discord_id       TEXT,
+      discord_username TEXT,
+      name             TEXT NOT NULL,
+      role             TEXT,
+      avatar_url       TEXT,
+      bio              TEXT,
+      socials          TEXT DEFAULT '{}',
+      position         INTEGER DEFAULT 0,
+      created_at       INTEGER DEFAULT 0
     )`,
+    // Idempotent for dev DBs that already created team_members without this column.
+    'ALTER TABLE team_members ADD COLUMN discord_username TEXT',
     'CREATE INDEX IF NOT EXISTS idx_team_members_pos ON team_members(position)'
   ]);
 }

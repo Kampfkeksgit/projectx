@@ -470,7 +470,7 @@
               <AppButton v-if="teamForm.id" variant="ghost" @click="resetTeamForm">{{ t('common.cancel') }}</AppButton>
               <AppButton variant="primary" :loading="teamSaving" @click="saveTeamMember">{{ teamForm.id ? t('admin.teamUpdate') : t('admin.teamAdd') }}</AppButton>
             </div>
-            <p class="admin__hint">{{ t('admin.teamAvatarHint') }}</p>
+            <p class="admin__hint">{{ t('admin.teamResolveHint') }}</p>
           </div>
         </div>
 
@@ -484,7 +484,7 @@
               </div>
               <div class="team-list__meta">
                 <span class="team-list__name">{{ m.name }}</span>
-                <span class="team-list__role">{{ m.role || '—' }} · #{{ m.position }}<template v-if="socialsCount(m)"> · {{ socialsCount(m) }} {{ t('admin.teamSocials') }}</template></span>
+                <span class="team-list__role"><template v-if="m.discord_username && m.discord_username !== 'unknown'">@{{ m.discord_username }} · </template>{{ m.role || '—' }} · #{{ m.position }}<template v-if="socialsCount(m)"> · {{ socialsCount(m) }} {{ t('admin.teamSocials') }}</template></span>
               </div>
               <button class="linkbtn" @click="editTeamMember(m)">{{ t('admin.teamEdit') }}</button>
               <button class="linkbtn linkbtn--danger" @click="removeTeamMember(m)">{{ t('common.delete') }}</button>
@@ -1111,7 +1111,7 @@ function socialsCount(m) {
   return Object.values(m.socials || {}).filter(v => typeof v === 'string' && v.trim()).length
 }
 async function saveTeamMember() {
-  if (!teamForm.name.trim()) { toast.error(t('admin.teamNameRequired')); return }
+  if (!teamForm.name.trim() && !teamForm.discord_id.trim()) { toast.error(t('admin.teamNameOrId')); return }
   teamSaving.value = true
   const body = {
     name: teamForm.name.trim(), role: teamForm.role.trim(), discord_id: teamForm.discord_id.trim() || null,

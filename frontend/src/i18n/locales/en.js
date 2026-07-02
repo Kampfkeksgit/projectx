@@ -160,6 +160,8 @@ export default {
     teamDiscordIdPlaceholder: 'e.g. 123456789012345678',
     teamAvatar: 'Avatar URL (optional)',
     teamAvatarHint: 'Leave the avatar empty to use the member\'s dashboard avatar (if the Discord ID matches) or their initials.',
+    teamNameOrId: 'Enter a name or a Discord ID.',
+    teamResolveHint: 'Tip: add just a Discord ID and leave name/avatar empty — the bot fills them from Discord within a few minutes. Values you set manually always win.',
     teamPosition: 'Order',
     teamBio: 'Bio (optional)',
     teamAdd: 'Add member',

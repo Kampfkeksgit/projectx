@@ -160,6 +160,8 @@ export default {
     teamDiscordIdPlaceholder: 'ör. 123456789012345678',
     teamAvatar: 'Avatar URL\'si (isteğe bağlı)',
     teamAvatarHint: 'Üyenin pano avatarını (Discord kimliği eşleşiyorsa) veya baş harflerini kullanmak için avatarı boş bırakın.',
+    teamNameOrId: 'Bir ad veya Discord ID gir.',
+    teamResolveHint: 'İpucu: yalnızca bir Discord ID ekle, ad/avatarı boş bırak — bot birkaç dakika içinde Discord\'dan doldurur. Elle girdiğin değerler her zaman önceliklidir.',
     teamPosition: 'Sıra',
     teamBio: 'Biyografi (isteğe bağlı)',
     teamAdd: 'Üye ekle',
