@@ -8,102 +8,159 @@
       </div>
     </header>
 
-    <!-- ===== General ===== -->
-    <section class="form-card">
-      <div class="card-title">{{ t('tickets.sectionGeneral') }}</div>
+    <div class="config__grid">
+      <section class="config__form">
+        <!-- ===== General ===== -->
+        <div class="form-card">
+          <div class="card-title">{{ t('tickets.sectionGeneral') }}</div>
 
-      <div class="row row--toggle">
-        <div>
-          <div class="row__label">{{ t('tickets.enableLabel') }}</div>
-          <div class="row__hint">{{ t('tickets.enableHint') }}</div>
-        </div>
-        <AppToggle v-model="form.enabled" />
-      </div>
+          <div class="row row--toggle">
+            <div>
+              <div class="row__label">{{ t('tickets.enableLabel') }}</div>
+              <div class="row__hint">{{ t('tickets.enableHint') }}</div>
+            </div>
+            <AppToggle v-model="form.enabled" />
+          </div>
 
-      <div class="row">
-        <label class="row__label">{{ t('tickets.panelChannelLabel') }}</label>
-        <div class="row__hint">{{ t('tickets.panelChannelHint') }}</div>
-        <ChannelSelector v-model="form.panel_channel_id" :guild-id="guildId" :types="['text', 'announcement']" />
-      </div>
+          <div class="row">
+            <label class="row__label">{{ t('tickets.panelChannelLabel') }}</label>
+            <div class="row__hint">{{ t('tickets.panelChannelHint') }}</div>
+            <ChannelSelector v-model="form.panel_channel_id" :guild-id="guildId" :types="['text', 'announcement']" />
+          </div>
 
-      <div class="row row--split">
-        <div class="row">
-          <label class="row__label">{{ t('tickets.categoryLabel') }}</label>
-          <div class="row__hint">{{ t('tickets.categoryHint') }}</div>
-          <ChannelSelector v-model="form.category_id" :guild-id="guildId" :types="['category']" :placeholder="t('tickets.categoryPlaceholder')" />
-        </div>
-        <div class="row">
-          <label class="row__label">{{ t('tickets.supportRoleLabel') }}</label>
-          <div class="row__hint">{{ t('tickets.supportRoleHint') }}</div>
-          <RoleSelector v-model="form.support_role_id" :guild-id="guildId" :placeholder="t('tickets.supportRolePlaceholder')" />
-        </div>
-      </div>
+          <div class="row row--split">
+            <div class="row">
+              <label class="row__label">{{ t('tickets.categoryLabel') }}</label>
+              <div class="row__hint">{{ t('tickets.categoryHint') }}</div>
+              <ChannelSelector v-model="form.category_id" :guild-id="guildId" :types="['category']" :placeholder="t('tickets.categoryPlaceholder')" />
+            </div>
+            <div class="row">
+              <label class="row__label">{{ t('tickets.supportRoleLabel') }}</label>
+              <div class="row__hint">{{ t('tickets.supportRoleHint') }}</div>
+              <RoleSelector v-model="form.support_role_id" :guild-id="guildId" :placeholder="t('tickets.supportRolePlaceholder')" />
+            </div>
+          </div>
 
-      <div class="row row--split">
-        <div class="row">
-          <label class="row__label">{{ t('tickets.pingRoleLabel') }}</label>
-          <div class="row__hint">{{ t('tickets.pingRoleHint') }}</div>
-          <RoleSelector v-model="form.ping_role_id" :guild-id="guildId" :placeholder="t('tickets.catNonePlaceholder')" />
-        </div>
-        <div class="row">
-          <label class="row__label" for="tk-naming">{{ t('tickets.namingLabel') }}</label>
-          <div class="row__hint">{{ t('tickets.namingHint') }}</div>
-          <input id="tk-naming" v-model="form.naming_template" class="input" type="text" maxlength="80" placeholder="ticket-{user}" />
-        </div>
-      </div>
+          <div class="row row--split">
+            <div class="row">
+              <label class="row__label">{{ t('tickets.pingRoleLabel') }}</label>
+              <div class="row__hint">{{ t('tickets.pingRoleHint') }}</div>
+              <RoleSelector v-model="form.ping_role_id" :guild-id="guildId" :placeholder="t('tickets.catNonePlaceholder')" />
+            </div>
+            <div class="row">
+              <label class="row__label" for="tk-naming">{{ t('tickets.namingLabel') }}</label>
+              <div class="row__hint">{{ t('tickets.namingHint') }}</div>
+              <input id="tk-naming" v-model="form.naming_template" class="input" type="text" maxlength="80" placeholder="ticket-{user}" />
+            </div>
+          </div>
 
-      <div class="row row--split">
-        <div class="row">
-          <label class="row__label">{{ t('tickets.transcriptLabel') }}</label>
-          <div class="row__hint">{{ t('tickets.transcriptHint') }}</div>
-          <ChannelSelector v-model="form.transcript_channel_id" :guild-id="guildId" :types="['text', 'announcement']" :placeholder="t('tickets.transcriptPlaceholder')" />
-        </div>
-        <div class="row">
-          <label class="row__label">{{ t('tickets.logChannelLabel') }}</label>
-          <div class="row__hint">{{ t('tickets.logChannelHint') }}</div>
-          <ChannelSelector v-model="form.log_channel_id" :guild-id="guildId" :types="['text', 'announcement']" :placeholder="t('tickets.logChannelPlaceholder')" />
-        </div>
-      </div>
+          <div class="row row--split">
+            <div class="row">
+              <label class="row__label">{{ t('tickets.transcriptLabel') }}</label>
+              <div class="row__hint">{{ t('tickets.transcriptHint') }}</div>
+              <ChannelSelector v-model="form.transcript_channel_id" :guild-id="guildId" :types="['text', 'announcement']" :placeholder="t('tickets.transcriptPlaceholder')" />
+            </div>
+            <div class="row">
+              <label class="row__label">{{ t('tickets.logChannelLabel') }}</label>
+              <div class="row__hint">{{ t('tickets.logChannelHint') }}</div>
+              <ChannelSelector v-model="form.log_channel_id" :guild-id="guildId" :types="['text', 'announcement']" :placeholder="t('tickets.logChannelPlaceholder')" />
+            </div>
+          </div>
 
-      <div class="row row--toggle">
-        <div>
-          <div class="row__label">{{ t('tickets.claimLabel') }}</div>
-          <div class="row__hint">{{ t('tickets.claimHint') }}</div>
-        </div>
-        <AppToggle v-model="form.claim_enabled" />
-      </div>
+          <div class="row row--toggle">
+            <div>
+              <div class="row__label">{{ t('tickets.claimLabel') }}</div>
+              <div class="row__hint">{{ t('tickets.claimHint') }}</div>
+            </div>
+            <AppToggle v-model="form.claim_enabled" />
+          </div>
 
-      <div class="row row--toggle">
-        <div>
-          <div class="row__label">{{ t('tickets.closeConfirmLabel') }}</div>
-          <div class="row__hint">{{ t('tickets.closeConfirmHint') }}</div>
-        </div>
-        <AppToggle v-model="form.close_confirm" />
-      </div>
-    </section>
-
-    <!-- ===== Panel design ===== -->
-    <section class="form-card">
-      <div class="card-title">{{ t('tickets.sectionPanel') }}</div>
-
-      <div class="row">
-        <label class="row__label">{{ t('tickets.panelTypeLabel') }}</label>
-        <div class="row__hint">{{ t('tickets.panelTypeHint') }}</div>
-        <div class="segmented">
-          <button type="button" class="segmented__btn" :class="{ 'is-active': form.panel_type === 'dropdown' }" @click="form.panel_type = 'dropdown'">{{ t('tickets.panelTypeDropdown') }}</button>
-          <button type="button" class="segmented__btn" :class="{ 'is-active': form.panel_type === 'buttons' }" @click="form.panel_type = 'buttons'">{{ t('tickets.panelTypeButtons') }}</button>
-        </div>
-      </div>
-
-      <div class="embed-split">
-        <div class="embed-split__editor row">
-          <label class="row__label">{{ t('tickets.panelEmbedLabel') }}</label>
-          <div class="row__hint">{{ t('tickets.panelEmbedHint') }}</div>
-          <EmbedEditor v-model="form.panel_embed" />
+          <div class="row row--toggle">
+            <div>
+              <div class="row__label">{{ t('tickets.closeConfirmLabel') }}</div>
+              <div class="row__hint">{{ t('tickets.closeConfirmHint') }}</div>
+            </div>
+            <AppToggle v-model="form.close_confirm" />
+          </div>
         </div>
 
-        <aside class="embed-split__preview">
-          <div class="preview__label">{{ t('tickets.livePreview') }}</div>
+        <!-- ===== Panel design ===== -->
+        <div class="form-card">
+          <div class="card-title">{{ t('tickets.sectionPanel') }}</div>
+
+          <div class="row">
+            <label class="row__label">{{ t('tickets.panelTypeLabel') }}</label>
+            <div class="row__hint">{{ t('tickets.panelTypeHint') }}</div>
+            <div class="segmented">
+              <button type="button" class="segmented__btn" :class="{ 'is-active': form.panel_type === 'dropdown' }" @click="form.panel_type = 'dropdown'">{{ t('tickets.panelTypeDropdown') }}</button>
+              <button type="button" class="segmented__btn" :class="{ 'is-active': form.panel_type === 'buttons' }" @click="form.panel_type = 'buttons'">{{ t('tickets.panelTypeButtons') }}</button>
+            </div>
+          </div>
+
+          <div class="row">
+            <label class="row__label">{{ t('tickets.panelEmbedLabel') }}</label>
+            <div class="row__hint">{{ t('tickets.panelEmbedHint') }}</div>
+            <EmbedEditor v-model="form.panel_embed" />
+          </div>
+
+          <details class="fallback">
+            <summary>{{ t('tickets.fallbackTitle') }}</summary>
+            <div class="fallback__body">
+              <div class="row__hint">{{ t('tickets.fallbackHint') }}</div>
+              <div class="row">
+                <label class="row__label" for="tk-btn">{{ t('tickets.buttonLabel') }}</label>
+                <input id="tk-btn" v-model="form.button_label" class="input input--narrow" type="text" maxlength="80" placeholder="Open Ticket" />
+              </div>
+              <div class="row">
+                <label class="row__label" for="tk-msg">{{ t('tickets.messageLabel') }}</label>
+                <textarea id="tk-msg" v-model="form.panel_message" class="input input--textarea" rows="2" maxlength="2000"></textarea>
+              </div>
+            </div>
+          </details>
+        </div>
+
+        <!-- ===== Welcome message ===== -->
+        <div class="form-card">
+          <div class="card-title">{{ t('tickets.sectionWelcome') }}</div>
+          <div class="row__hint">{{ t('tickets.welcomeHint') }}</div>
+          <EmbedEditor v-model="form.welcome_embed" />
+        </div>
+
+        <!-- ===== Rating ===== -->
+        <div class="form-card">
+          <div class="card-title">{{ t('tickets.sectionRating') }}</div>
+
+          <div class="row row--toggle">
+            <div>
+              <div class="row__label">{{ t('tickets.ratingLabel') }}</div>
+              <div class="row__hint">{{ t('tickets.ratingHint') }}</div>
+            </div>
+            <AppToggle v-model="form.rating_enabled" />
+          </div>
+
+          <div class="row" :class="{ 'is-disabled': !form.rating_enabled }">
+            <label class="row__label">{{ t('tickets.ratingModeLabel') }}</label>
+            <div class="row__hint">{{ t('tickets.ratingModeHint') }}</div>
+            <div class="segmented">
+              <button type="button" class="segmented__btn" :class="{ 'is-active': form.rating_mode === 'channel' }" :disabled="!form.rating_enabled" @click="form.rating_mode = 'channel'">{{ t('tickets.ratingModeChannel') }}</button>
+              <button type="button" class="segmented__btn" :class="{ 'is-active': form.rating_mode === 'dm' }" :disabled="!form.rating_enabled" @click="form.rating_mode = 'dm'">{{ t('tickets.ratingModeDm') }}</button>
+              <button type="button" class="segmented__btn" :class="{ 'is-active': form.rating_mode === 'both' }" :disabled="!form.rating_enabled" @click="form.rating_mode = 'both'">{{ t('tickets.ratingModeBoth') }}</button>
+            </div>
+          </div>
+          <div class="row__hint">{{ t('tickets.ratingLogNote') }}</div>
+        </div>
+
+        <div class="form-card__note">{{ t('tickets.permNote') }}</div>
+        <div class="form-card__note form-card__note--info">{{ t('tickets.usageNote') }}</div>
+
+        <div class="settings-actions">
+          <AppButton variant="gradient" :loading="saving" :disabled="!dirty" @click="save">{{ t('common.saveChanges') }}</AppButton>
+        </div>
+      </section>
+
+      <aside class="config__preview">
+        <div class="preview-block">
+          <div class="preview__label">{{ t('tickets.sectionPanel') }}</div>
           <DiscordMessagePreview mode="embed" :embed="form.panel_embed" :guild-name="guildName" channel-name="tickets">
             <template #components>
               <div v-if="enabledCats.length && form.panel_type === 'dropdown'" class="dc-select">
@@ -120,37 +177,10 @@
               </div>
             </template>
           </DiscordMessagePreview>
-        </aside>
-      </div>
-
-      <details class="fallback">
-        <summary>{{ t('tickets.fallbackTitle') }}</summary>
-        <div class="fallback__body">
-          <div class="row__hint">{{ t('tickets.fallbackHint') }}</div>
-          <div class="row">
-            <label class="row__label" for="tk-btn">{{ t('tickets.buttonLabel') }}</label>
-            <input id="tk-btn" v-model="form.button_label" class="input input--narrow" type="text" maxlength="80" placeholder="Open Ticket" />
-          </div>
-          <div class="row">
-            <label class="row__label" for="tk-msg">{{ t('tickets.messageLabel') }}</label>
-            <textarea id="tk-msg" v-model="form.panel_message" class="input input--textarea" rows="2" maxlength="2000"></textarea>
-          </div>
-        </div>
-      </details>
-    </section>
-
-    <!-- ===== Welcome message ===== -->
-    <section class="form-card">
-      <div class="card-title">{{ t('tickets.sectionWelcome') }}</div>
-      <div class="row__hint">{{ t('tickets.welcomeHint') }}</div>
-
-      <div class="embed-split">
-        <div class="embed-split__editor">
-          <EmbedEditor v-model="form.welcome_embed" />
         </div>
 
-        <aside class="embed-split__preview">
-          <div class="preview__label">{{ t('tickets.livePreview') }}</div>
+        <div class="preview-block">
+          <div class="preview__label">{{ t('tickets.sectionWelcome') }}</div>
           <DiscordMessagePreview mode="embed" :embed="form.welcome_embed" :guild-name="guildName" channel-name="ticket-alex" :ping-user="true">
             <template #components>
               <div class="dc-row">
@@ -161,39 +191,8 @@
               </div>
             </template>
           </DiscordMessagePreview>
-        </aside>
-      </div>
-    </section>
-
-    <!-- ===== Rating ===== -->
-    <section class="form-card">
-      <div class="card-title">{{ t('tickets.sectionRating') }}</div>
-
-      <div class="row row--toggle">
-        <div>
-          <div class="row__label">{{ t('tickets.ratingLabel') }}</div>
-          <div class="row__hint">{{ t('tickets.ratingHint') }}</div>
         </div>
-        <AppToggle v-model="form.rating_enabled" />
-      </div>
-
-      <div class="row" :class="{ 'is-disabled': !form.rating_enabled }">
-        <label class="row__label">{{ t('tickets.ratingModeLabel') }}</label>
-        <div class="row__hint">{{ t('tickets.ratingModeHint') }}</div>
-        <div class="segmented">
-          <button type="button" class="segmented__btn" :class="{ 'is-active': form.rating_mode === 'channel' }" :disabled="!form.rating_enabled" @click="form.rating_mode = 'channel'">{{ t('tickets.ratingModeChannel') }}</button>
-          <button type="button" class="segmented__btn" :class="{ 'is-active': form.rating_mode === 'dm' }" :disabled="!form.rating_enabled" @click="form.rating_mode = 'dm'">{{ t('tickets.ratingModeDm') }}</button>
-          <button type="button" class="segmented__btn" :class="{ 'is-active': form.rating_mode === 'both' }" :disabled="!form.rating_enabled" @click="form.rating_mode = 'both'">{{ t('tickets.ratingModeBoth') }}</button>
-        </div>
-      </div>
-      <div class="row__hint">{{ t('tickets.ratingLogNote') }}</div>
-    </section>
-
-    <div class="form-card__note">{{ t('tickets.permNote') }}</div>
-    <div class="form-card__note form-card__note--info">{{ t('tickets.usageNote') }}</div>
-
-    <div class="settings-actions">
-      <AppButton variant="gradient" :loading="saving" :disabled="!dirty" @click="save">{{ t('common.saveChanges') }}</AppButton>
+      </aside>
     </div>
 
     <!-- ===== Categories ===== -->
@@ -448,7 +447,13 @@ watch(guildId, loadAll)
 .config__title { font-size: clamp(1.6rem, 2.5vw, 2rem); letter-spacing: -0.02em; margin-bottom: var(--space-2); }
 .config__sub { color: var(--color-text-muted); }
 
-.form-card { max-width: 920px; background: var(--color-surface); background-image: var(--gradient-card); border: 1px solid var(--color-border); border-radius: var(--radius-xl); padding: var(--space-6); box-shadow: var(--shadow-inset); display: flex; flex-direction: column; gap: var(--space-5); margin-bottom: var(--space-4); }
+/* Form left, sticky live-preview right — like the welcome/leave pages. */
+.config__grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: var(--space-5); align-items: flex-start; }
+.config__form { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+.config__preview { position: sticky; top: calc(var(--nav-height) + var(--space-6)); display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
+.preview-block { min-width: 0; }
+
+.form-card { background: var(--color-surface); background-image: var(--gradient-card); border: 1px solid var(--color-border); border-radius: var(--radius-xl); padding: var(--space-6); box-shadow: var(--shadow-inset); display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
 .card-title { font-family: var(--font-display); font-size: 1.05rem; font-weight: 600; letter-spacing: -0.01em; }
 
 .row { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
@@ -472,16 +477,7 @@ watch(guildId, loadAll)
 .fallback summary { cursor: pointer; font-weight: 600; font-size: 0.9rem; color: var(--color-text-muted); }
 .fallback__body { display: flex; flex-direction: column; gap: var(--space-4); margin-top: var(--space-4); }
 
-.preview { border-top: 1px solid var(--color-border); padding-top: var(--space-4); }
 .preview__label { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-soft); margin-bottom: var(--space-3); }
-/* Embed editor left, live preview right (sticky) — like the welcome/leave pages. */
-.embed-split { display: grid; grid-template-columns: 1.1fr 1fr; gap: var(--space-5); align-items: flex-start; }
-.embed-split__editor { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
-.embed-split__preview { position: sticky; top: calc(var(--nav-height) + var(--space-6)); min-width: 0; }
-@media (max-width: 900px) {
-  .embed-split { grid-template-columns: 1fr; }
-  .embed-split__preview { position: static; }
-}
 
 /* Discord-style mock components rendered inside the preview bubble. */
 .dc-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
@@ -493,12 +489,12 @@ watch(guildId, loadAll)
 .dc-btn--danger { background: #da373c; }
 .dc-select { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; max-width: 420px; padding: 0 12px; height: 40px; border-radius: 4px; background: #1e1f22; border: 1px solid #2b2d31; color: #949ba4; font-size: 0.88rem; }
 
-.form-card__note { max-width: 920px; font-size: 0.82rem; border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); line-height: 1.5; color: var(--color-warning); background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); margin-bottom: var(--space-3); }
+.form-card__note { font-size: 0.82rem; border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); line-height: 1.5; color: var(--color-warning); background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); }
 .form-card__note--info { color: var(--color-text-muted); background: var(--color-bg-elevated); border: 1px solid var(--color-border); }
 
-.settings-actions { max-width: 920px; display: flex; justify-content: flex-end; margin-bottom: var(--space-8); }
+.settings-actions { display: flex; justify-content: flex-end; margin-top: var(--space-2); }
 
-.cats { max-width: 920px; }
+.cats { max-width: 920px; margin-top: var(--space-8); }
 .cats__head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; margin-bottom: var(--space-4); }
 .cats__list { display: flex; flex-direction: column; gap: var(--space-4); }
 .state { color: var(--color-text-muted); text-align: center; }
@@ -508,5 +504,9 @@ watch(guildId, loadAll)
 .dirty-bar-enter-active, .dirty-bar-leave-active { transition: opacity 180ms ease, transform 180ms ease; }
 .dirty-bar-enter-from, .dirty-bar-leave-to { opacity: 0; transform: translateY(-6px); }
 
+@media (max-width: 1100px) {
+  .config__grid { grid-template-columns: 1fr; }
+  .config__preview { position: static; }
+}
 @media (max-width: 640px) { .row--split { grid-template-columns: 1fr; } }
 </style>
