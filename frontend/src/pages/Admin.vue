@@ -297,7 +297,11 @@
               <span class="modal__label">{{ t('admin.pcMaxUses') }}</span>
               <input v-model.number="codeForm.max_uses" class="modal__input" type="number" min="0" max="100000" />
             </label>
-            <AppButton variant="primary" :loading="creatingCode" @click="createCode">{{ t('admin.pcGenerate') }}</AppButton>
+            <label class="code-form__field">
+              <span class="modal__label">{{ t('admin.pcCustomCode') }}</span>
+              <input v-model="codeForm.code" class="modal__input code-form__code" type="text" maxlength="32" :placeholder="t('admin.pcCustomCodePlaceholder')" @input="codeForm.code = codeForm.code.toUpperCase()" />
+            </label>
+            <AppButton variant="primary" :loading="creatingCode" @click="createCode">{{ codeForm.code.trim() ? t('admin.pcCreate') : t('admin.pcGenerate') }}</AppButton>
           </div>
           <p class="code-form__hint">{{ t('admin.pcMaxUsesHint') }}</p>
 
@@ -650,7 +654,7 @@ const sendingBroadcast = ref(false)
 // Premium & Business (Kat. 4)
 const revenue = ref(null)
 const codes = ref([])
-const codeForm = reactive({ tier: 'basic', duration_days: 30, max_uses: 1 })
+const codeForm = reactive({ tier: 'basic', duration_days: 30, max_uses: 1, code: '' })
 const creatingCode = ref(false)
 
 // Analytics (Kat. 2)
@@ -1012,15 +1016,21 @@ async function saveMaintenance() {
 async function createCode() {
   creatingCode.value = true
   try {
+    const custom = (codeForm.code || '').trim()
     const { data } = await api.post('/admin/premium-codes', {
       tier: codeForm.tier,
       duration_days: Number(codeForm.duration_days) || 30,
-      max_uses: Number(codeForm.max_uses) || 0
+      max_uses: Number(codeForm.max_uses) || 0,
+      ...(custom ? { code: custom } : {})
     })
     if (data?.code) codes.value.unshift(data.code)
     toast.success(t('admin.pcCreated', { code: data.code?.code || '' }))
+    codeForm.code = ''
   } catch (err) {
-    toast.error(err.response?.data?.error || t('admin.actionFailed'))
+    const e = err.response?.data?.error
+    if (e === 'code_exists') toast.error(t('admin.pcExists'))
+    else if (e === 'invalid_code') toast.error(t('admin.pcInvalid'))
+    else toast.error(e || t('admin.actionFailed'))
   } finally { creatingCode.value = false }
 }
 
@@ -1293,6 +1303,7 @@ function goBack() { router.push('/dashboard') }
 .code-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3); }
 .code-form__field { display: flex; flex-direction: column; gap: 4px; }
 .code-form__field .modal__input { width: 130px; }
+.code-form__code { width: 190px !important; font-family: var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; }
 .code-form__hint { font-size: 0.78rem; color: var(--color-text-soft); margin-top: var(--space-2); }
 .code-pill { font-family: var(--font-mono); font-size: 0.9rem; background: var(--color-surface-2); padding: 0.15rem 0.5rem; border-radius: var(--radius-sm); cursor: pointer; letter-spacing: 0.04em; }
 .code-pill:hover { color: var(--color-primary); }

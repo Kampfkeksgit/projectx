@@ -401,17 +401,25 @@ router.get('/broadcasts', async (req, res) => {
  */
 router.post('/premium-codes', async (req, res) => {
   try {
-    const { tier, duration_days, max_uses, expires_at } = req.body || {}
+    const { tier, duration_days, max_uses, expires_at, code: customCode } = req.body || {}
     if (!PREMIUM_TIERS.includes(tier) || tier === 'free') {
       return res.status(400).json({ error: 'tier must be basic or pro' })
     }
-    const code = await createPremiumCode({
-      tier,
-      duration_days: Number(duration_days),
-      max_uses: Number(max_uses),
-      expires_at: expires_at ? Number(expires_at) : null,
-      createdBy: req.user.id
-    })
+    let code
+    try {
+      code = await createPremiumCode({
+        tier,
+        duration_days: Number(duration_days),
+        max_uses: Number(max_uses),
+        expires_at: expires_at ? Number(expires_at) : null,
+        createdBy: req.user.id,
+        code: customCode
+      })
+    } catch (err) {
+      if (err && err.code === 'DUPLICATE') return res.status(409).json({ error: 'code_exists' })
+      if (err && err.code === 'VALIDATION') return res.status(400).json({ error: 'invalid_code' })
+      throw err
+    }
     await logAuditAction(req.user.id, null, 'ADMIN_PREMIUM_CODE_CREATE', { code: code.code, tier: code.tier, duration_days: code.duration_days, max_uses: code.max_uses })
     res.json({ success: true, code })
   } catch (error) {
