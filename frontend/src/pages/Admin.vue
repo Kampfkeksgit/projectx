@@ -450,6 +450,53 @@
         </ul>
       </div>
 
+      <!-- TEAM / credits -->
+      <div v-else-if="tab === 'team'">
+        <div class="panel panel--form">
+          <h3 class="panel__title">{{ teamForm.id ? t('admin.teamEditTitle') : t('admin.teamTitle') }}</h3>
+          <p class="panel__desc">{{ t('admin.teamDesc') }}</p>
+          <div class="team-form">
+            <div class="team-form__grid">
+              <label class="tf"><span class="modal__label">{{ t('admin.teamName') }}</span><input v-model="teamForm.name" class="modal__input" maxlength="80" /></label>
+              <label class="tf"><span class="modal__label">{{ t('admin.teamRole') }}</span><input v-model="teamForm.role" class="modal__input" maxlength="80" :placeholder="t('admin.teamRolePlaceholder')" /></label>
+              <label class="tf"><span class="modal__label">{{ t('admin.teamDiscordId') }}</span><input v-model="teamForm.discord_id" class="modal__input" :placeholder="t('admin.teamDiscordIdPlaceholder')" /></label>
+              <label class="tf"><span class="modal__label">{{ t('admin.teamAvatar') }}</span><input v-model="teamForm.avatar_url" class="modal__input" placeholder="https://…" /></label>
+              <label class="tf"><span class="modal__label">{{ t('admin.teamPosition') }}</span><input v-model.number="teamForm.position" class="modal__input" type="number" min="0" /></label>
+            </div>
+            <label class="tf tf--wide"><span class="modal__label">{{ t('admin.teamBio') }}</span><textarea v-model="teamForm.bio" class="modal__input" rows="2" maxlength="500"></textarea></label>
+            <div class="team-form__socials">
+              <label v-for="s in SOCIAL_KEYS" :key="s" class="tf">
+                <span class="modal__label">{{ s }}</span>
+                <input v-model="teamForm.socials[s]" class="modal__input" placeholder="https://…" />
+              </label>
+            </div>
+            <div class="team-form__actions">
+              <AppButton v-if="teamForm.id" variant="ghost" @click="resetTeamForm">{{ t('common.cancel') }}</AppButton>
+              <AppButton variant="primary" :loading="teamSaving" @click="saveTeamMember">{{ teamForm.id ? t('admin.teamUpdate') : t('admin.teamAdd') }}</AppButton>
+            </div>
+            <p class="admin__hint">{{ t('admin.teamResolveHint') }}</p>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3 class="panel__title">{{ t('admin.teamListTitle') }}</h3>
+          <p v-if="!teamMembers.length" class="panel__empty">{{ t('admin.teamEmpty') }}</p>
+          <ul v-else class="team-list">
+            <li v-for="m in teamMembers" :key="m.id" class="team-list__row">
+              <div class="team-list__av" :style="m.avatar_url ? { backgroundImage: `url('${m.avatar_url}')` } : {}">
+                <span v-if="!m.avatar_url">{{ initialsOf(m.name) }}</span>
+              </div>
+              <div class="team-list__meta">
+                <span class="team-list__name">{{ m.name }}</span>
+                <span class="team-list__role"><template v-if="m.discord_username && m.discord_username !== 'unknown'">@{{ m.discord_username }} · </template>{{ m.role || '—' }} · #{{ m.position }}<template v-if="socialsCount(m)"> · {{ socialsCount(m) }} {{ t('admin.teamSocials') }}</template></span>
+              </div>
+              <button class="linkbtn" @click="editTeamMember(m)">{{ t('admin.teamEdit') }}</button>
+              <button class="linkbtn linkbtn--danger" @click="removeTeamMember(m)">{{ t('common.delete') }}</button>
+            </li>
+          </ul>
+        </div>
+      </div>
+
       <!-- SYSTEM (maintenance) -->
       <div v-else-if="tab === 'system'">
         <div class="panel panel--form">
@@ -596,7 +643,7 @@ const router = useRouter()
 const toast = useToast()
 const auth = useAuth()
 
-const tabs = ['overview', 'analytics', 'premium', 'health', 'users', 'guilds', 'audit', 'jobs', 'errors', 'marketplace', 'system']
+const tabs = ['overview', 'analytics', 'premium', 'health', 'users', 'guilds', 'audit', 'jobs', 'errors', 'marketplace', 'team', 'system']
 const tab = ref('overview')
 
 // Feather-style tab icons (16px, stroke=currentColor) — improves scannability of
@@ -824,6 +871,9 @@ async function load() {
     } else if (tab.value === 'marketplace') {
       const { data } = await api.get('/admin/marketplace')
       templates.value = data.templates || []
+    } else if (tab.value === 'team') {
+      const { data } = await api.get('/admin/team')
+      teamMembers.value = data.members || []
     } else if (tab.value === 'system') {
       const [mnt, ann, bc] = await Promise.all([
         api.get('/admin/maintenance'),
@@ -1047,6 +1097,64 @@ function copyCode(code) {
   try { navigator.clipboard?.writeText(code); toast.success(t('admin.pcCopied')) } catch { /* ignore */ }
 }
 
+// ----- Team management -----
+const SOCIAL_KEYS = ['github', 'twitter', 'youtube', 'twitch', 'instagram', 'tiktok', 'website']
+const teamMembers = ref([])
+const teamSaving = ref(false)
+function emptyTeamForm() {
+  return { id: null, name: '', role: '', discord_id: '', avatar_url: '', bio: '', position: 0, socials: Object.fromEntries(SOCIAL_KEYS.map(k => [k, ''])) }
+}
+const teamForm = reactive(emptyTeamForm())
+function resetTeamForm() { Object.assign(teamForm, emptyTeamForm()) }
+function editTeamMember(m) {
+  Object.assign(teamForm, {
+    id: m.id, name: m.name || '', role: m.role || '', discord_id: m.discord_id || '',
+    avatar_url: m.avatar_url || '', bio: m.bio || '', position: m.position || 0,
+    socials: { ...emptyTeamForm().socials, ...(m.socials || {}) }
+  })
+  if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+function initialsOf(name) {
+  return String(name || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase()
+}
+function socialsCount(m) {
+  return Object.values(m.socials || {}).filter(v => typeof v === 'string' && v.trim()).length
+}
+async function saveTeamMember() {
+  if (!teamForm.name.trim() && !teamForm.discord_id.trim()) { toast.error(t('admin.teamNameOrId')); return }
+  teamSaving.value = true
+  const body = {
+    name: teamForm.name.trim(), role: teamForm.role.trim(), discord_id: teamForm.discord_id.trim() || null,
+    avatar_url: teamForm.avatar_url.trim(), bio: teamForm.bio.trim(), position: Number(teamForm.position) || 0,
+    socials: teamForm.socials
+  }
+  try {
+    if (teamForm.id) {
+      const { data } = await api.put(`/admin/team/${teamForm.id}`, body)
+      const i = teamMembers.value.findIndex(x => x.id === teamForm.id)
+      if (i >= 0 && data?.member) teamMembers.value.splice(i, 1, data.member)
+    } else {
+      const { data } = await api.post('/admin/team', body)
+      if (data?.member) teamMembers.value.push(data.member)
+    }
+    teamMembers.value.sort((a, b) => (a.position - b.position) || 0)
+    resetTeamForm()
+    toast.success(t('admin.teamSaved'))
+  } catch (err) {
+    toast.error(err.response?.data?.error === 'name_required' ? t('admin.teamNameRequired') : (err.response?.data?.error || t('admin.actionFailed')))
+  } finally { teamSaving.value = false }
+}
+async function removeTeamMember(m) {
+  if (typeof window !== 'undefined' && !window.confirm(t('admin.teamDeleteConfirm', { name: m.name }))) return
+  try {
+    await api.delete(`/admin/team/${m.id}`)
+    teamMembers.value = teamMembers.value.filter(x => x.id !== m.id)
+    if (teamForm.id === m.id) resetTeamForm()
+  } catch (err) {
+    toast.error(err.response?.data?.error || t('admin.actionFailed'))
+  }
+}
+
 async function saveAnnouncement() {
   savingAnnouncement.value = true
   try {
@@ -1245,6 +1353,22 @@ function goBack() { router.push('/dashboard') }
 .card__value { font-size: 2rem; font-weight: 800; letter-spacing: -0.02em; margin: 4px 0; }
 .card__meta { font-size: 0.78rem; color: var(--color-text-muted); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .linkbtn { color: var(--color-primary); font-weight: 600; cursor: pointer; }
+.linkbtn--danger { color: var(--color-danger); }
+
+/* Team management */
+.team-form { display: flex; flex-direction: column; gap: var(--space-4); }
+.team-form__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-3); }
+.team-form__socials { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-3); }
+.tf { display: flex; flex-direction: column; gap: 4px; }
+.tf .modal__label { text-transform: capitalize; }
+.tf--wide { width: 100%; }
+.team-form__actions { display: flex; justify-content: flex-end; gap: var(--space-3); }
+.team-list { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-3); }
+.team-list__row { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface-2); }
+.team-list__av { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; color: #fff; background-color: var(--color-primary); }
+.team-list__meta { display: flex; flex-direction: column; min-width: 0; margin-right: auto; }
+.team-list__name { font-weight: 600; }
+.team-list__role { font-size: 0.8rem; color: var(--color-text-muted); }
 
 .pill { font-size: 0.7rem; font-weight: 700; padding: 0.2rem 0.55rem; border-radius: var(--radius-full); background: var(--color-surface-2); color: var(--color-text-soft); display: inline-flex; align-items: center; gap: 4px; }
 .pill--basic { background: rgba(99, 102, 241, 0.18); color: #a5b4fc; }

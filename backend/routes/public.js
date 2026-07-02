@@ -1,8 +1,20 @@
 import express from 'express'
 import { getPublicStats } from '../state/botStats.js'
-import { PLAN_CATALOG, getMaintenanceState, getAnnouncementState } from '../db.js'
+import { PLAN_CATALOG, getMaintenanceState, getAnnouncementState, getTeamMembers } from '../db.js'
 
 const router = express.Router()
+
+/** Public team / credits list — no auth. Used by the /team page. */
+router.get('/team', async (req, res) => {
+  try {
+    const members = await getTeamMembers()
+    res.set('Cache-Control', 'public, max-age=60')
+    res.json({ members })
+  } catch (error) {
+    console.error('Public team error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch team' })
+  }
+})
 
 /**
  * Public stats — no auth. Used by the landing page.
