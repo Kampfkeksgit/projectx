@@ -9,13 +9,20 @@ show "Configure" (bot is in the guild) or "Invite" (bot is missing). We sync:
 """
 
 import time
+import platform
 import aiohttp
+import discord
 from discord.ext import commands, tasks
 import config
 
 
 SYNC_INTERVAL_MINUTES = 5
 REQUEST_TIMEOUT_SECONDS = 10
+
+# Real runtime versions — always accurate to the running process, so the admin
+# health panel shows current version info without any manual bumping.
+PY_VERSION = platform.python_version()
+DPY_VERSION = getattr(discord, "__version__", None)
 
 
 class Presence(commands.Cog):
@@ -110,6 +117,8 @@ class Presence(commands.Cog):
                         "started_at": self.started_at or int(time.time()),
                         "latency_ms": latency_ms,
                         "version": getattr(config, "BOT_VERSION", None),
+                        "py_version": PY_VERSION,
+                        "dpy_version": DPY_VERSION,
                     },
                     headers={"X-Bot-Token": self.api_key},
                     timeout=aiohttp.ClientTimeout(total=REQUEST_TIMEOUT_SECONDS),

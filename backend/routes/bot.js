@@ -192,13 +192,15 @@ router.put('/premium', requireBotToken, async (req, res) => {
  */
 router.put('/stats', requireBotToken, (req, res) => {
   try {
-    const { guild_count, user_count, started_at, latency_ms, version } = req.body || {}
+    const { guild_count, user_count, started_at, latency_ms, version, py_version, dpy_version } = req.body || {}
     setBotStats({
       guild_count: Number(guild_count),
       user_count: Number(user_count),
       started_at: Number(started_at),
       latency_ms: Number(latency_ms),
-      version: typeof version === 'string' ? version : undefined
+      version: typeof version === 'string' ? version : undefined,
+      py_version: typeof py_version === 'string' ? py_version : undefined,
+      dpy_version: typeof dpy_version === 'string' ? dpy_version : undefined
     })
     return res.json({ success: true })
   } catch (error) {

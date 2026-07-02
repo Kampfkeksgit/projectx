@@ -44,8 +44,12 @@ import { requireSession, requireOwner, isOwner } from '../middleware/session.js'
 import { createRequire } from 'module'
 
 const require = createRequire(import.meta.url)
-let BACKEND_VERSION = null
-try { BACKEND_VERSION = require('../package.json').version || null } catch { BACKEND_VERSION = null }
+// Prefer an APP_VERSION injected at deploy (e.g. git short SHA) so the panel
+// reflects the actual build; fall back to package.json.
+let BACKEND_VERSION = process.env.APP_VERSION || null
+if (!BACKEND_VERSION) {
+  try { BACKEND_VERSION = require('../package.json').version || null } catch { BACKEND_VERSION = null }
+}
 
 const router = express.Router()
 

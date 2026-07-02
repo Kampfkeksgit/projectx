@@ -15,15 +15,19 @@ const state = {
   started_at: null,   // unix seconds; when the bot connected to the gateway
   last_updated: 0,    // unix ms; when we last received a stats ping
   latency_ms: null,   // gateway heartbeat latency (ms), reported by the bot
-  version: null       // bot version string, reported by the bot
+  version: null,      // bot app version string, reported by the bot
+  py_version: null,   // Python runtime version, reported by the bot
+  dpy_version: null   // discord.py version, reported by the bot
 }
 
-export function setBotStats({ guild_count, user_count, started_at, latency_ms, version }) {
+export function setBotStats({ guild_count, user_count, started_at, latency_ms, version, py_version, dpy_version }) {
   if (Number.isFinite(guild_count)) state.guild_count = Math.max(0, Math.floor(guild_count))
   if (Number.isFinite(user_count))  state.user_count  = Math.max(0, Math.floor(user_count))
   if (Number.isFinite(started_at) && started_at > 0) state.started_at = Math.floor(started_at)
   if (Number.isFinite(latency_ms) && latency_ms >= 0) state.latency_ms = Math.round(latency_ms)
   if (typeof version === 'string' && version.trim()) state.version = version.trim().slice(0, 40)
+  if (typeof py_version === 'string' && py_version.trim()) state.py_version = py_version.trim().slice(0, 20)
+  if (typeof dpy_version === 'string' && dpy_version.trim()) state.dpy_version = dpy_version.trim().slice(0, 20)
   state.last_updated = Date.now()
 }
 
@@ -46,6 +50,8 @@ export function getBotHealth() {
     last_seen_seconds_ago: state.last_updated ? Math.max(0, Math.floor((nowMs - state.last_updated) / 1000)) : null,
     latency_ms: state.latency_ms,
     version: state.version,
+    py_version: state.py_version,
+    dpy_version: state.dpy_version,
     stale_after_ms: STALE_AFTER_MS
   }
 }
