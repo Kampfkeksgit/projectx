@@ -95,30 +95,32 @@
         </div>
       </div>
 
-      <div class="row">
-        <label class="row__label">{{ t('tickets.panelEmbedLabel') }}</label>
-        <div class="row__hint">{{ t('tickets.panelEmbedHint') }}</div>
-        <EmbedEditor v-model="form.panel_embed" />
-      </div>
+      <div class="embed-split">
+        <div class="embed-split__editor row">
+          <label class="row__label">{{ t('tickets.panelEmbedLabel') }}</label>
+          <div class="row__hint">{{ t('tickets.panelEmbedHint') }}</div>
+          <EmbedEditor v-model="form.panel_embed" />
+        </div>
 
-      <div class="preview">
-        <div class="preview__label">{{ t('tickets.livePreview') }}</div>
-        <DiscordMessagePreview mode="embed" :embed="form.panel_embed" :guild-name="guildName" channel-name="tickets">
-          <template #components>
-            <div v-if="enabledCats.length && form.panel_type === 'dropdown'" class="dc-select">
-              <span>{{ t('tickets.previewSelectPlaceholder') }}</span>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-            </div>
-            <div v-else class="dc-row">
-              <template v-if="enabledCats.length">
-                <span v-for="c in enabledCats" :key="c.id" class="dc-btn" :class="`dc-btn--${c.button_style || 'primary'}`">
-                  <span v-if="c.emoji" class="dc-btn__emoji">{{ c.emoji }}</span>{{ c.label || 'Ticket' }}
-                </span>
-              </template>
-              <span v-else class="dc-btn dc-btn--primary"><span class="dc-btn__emoji">🎫</span>{{ form.button_label || 'Open Ticket' }}</span>
-            </div>
-          </template>
-        </DiscordMessagePreview>
+        <aside class="embed-split__preview">
+          <div class="preview__label">{{ t('tickets.livePreview') }}</div>
+          <DiscordMessagePreview mode="embed" :embed="form.panel_embed" :guild-name="guildName" channel-name="tickets">
+            <template #components>
+              <div v-if="enabledCats.length && form.panel_type === 'dropdown'" class="dc-select">
+                <span>{{ t('tickets.previewSelectPlaceholder') }}</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
+              <div v-else class="dc-row">
+                <template v-if="enabledCats.length">
+                  <span v-for="c in enabledCats" :key="c.id" class="dc-btn" :class="`dc-btn--${c.button_style || 'primary'}`">
+                    <span v-if="c.emoji" class="dc-btn__emoji">{{ c.emoji }}</span>{{ c.label || 'Ticket' }}
+                  </span>
+                </template>
+                <span v-else class="dc-btn dc-btn--primary"><span class="dc-btn__emoji">🎫</span>{{ form.button_label || 'Open Ticket' }}</span>
+              </div>
+            </template>
+          </DiscordMessagePreview>
+        </aside>
       </div>
 
       <details class="fallback">
@@ -141,20 +143,25 @@
     <section class="form-card">
       <div class="card-title">{{ t('tickets.sectionWelcome') }}</div>
       <div class="row__hint">{{ t('tickets.welcomeHint') }}</div>
-      <EmbedEditor v-model="form.welcome_embed" />
 
-      <div class="preview">
-        <div class="preview__label">{{ t('tickets.livePreview') }}</div>
-        <DiscordMessagePreview mode="embed" :embed="form.welcome_embed" :guild-name="guildName" channel-name="ticket-alex" :ping-user="true">
-          <template #components>
-            <div class="dc-row">
-              <span v-if="form.claim_enabled" class="dc-btn dc-btn--success"><span class="dc-btn__emoji">🙋</span>Claim</span>
-              <span class="dc-btn dc-btn--secondary"><span class="dc-btn__emoji">➕</span>Add user</span>
-              <span class="dc-btn dc-btn--secondary"><span class="dc-btn__emoji">➖</span>Remove user</span>
-              <span class="dc-btn dc-btn--danger"><span class="dc-btn__emoji">🔒</span>Close</span>
-            </div>
-          </template>
-        </DiscordMessagePreview>
+      <div class="embed-split">
+        <div class="embed-split__editor">
+          <EmbedEditor v-model="form.welcome_embed" />
+        </div>
+
+        <aside class="embed-split__preview">
+          <div class="preview__label">{{ t('tickets.livePreview') }}</div>
+          <DiscordMessagePreview mode="embed" :embed="form.welcome_embed" :guild-name="guildName" channel-name="ticket-alex" :ping-user="true">
+            <template #components>
+              <div class="dc-row">
+                <span v-if="form.claim_enabled" class="dc-btn dc-btn--success"><span class="dc-btn__emoji">🙋</span>Claim</span>
+                <span class="dc-btn dc-btn--secondary"><span class="dc-btn__emoji">➕</span>Add user</span>
+                <span class="dc-btn dc-btn--secondary"><span class="dc-btn__emoji">➖</span>Remove user</span>
+                <span class="dc-btn dc-btn--danger"><span class="dc-btn__emoji">🔒</span>Close</span>
+              </div>
+            </template>
+          </DiscordMessagePreview>
+        </aside>
       </div>
     </section>
 
@@ -467,6 +474,14 @@ watch(guildId, loadAll)
 
 .preview { border-top: 1px solid var(--color-border); padding-top: var(--space-4); }
 .preview__label { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-soft); margin-bottom: var(--space-3); }
+/* Embed editor left, live preview right (sticky) — like the welcome/leave pages. */
+.embed-split { display: grid; grid-template-columns: 1.1fr 1fr; gap: var(--space-5); align-items: flex-start; }
+.embed-split__editor { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.embed-split__preview { position: sticky; top: calc(var(--nav-height) + var(--space-6)); min-width: 0; }
+@media (max-width: 900px) {
+  .embed-split { grid-template-columns: 1fr; }
+  .embed-split__preview { position: static; }
+}
 
 /* Discord-style mock components rendered inside the preview bubble. */
 .dc-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
