@@ -188,6 +188,7 @@ export default {
     ovExpiringEmpty: 'No premium subscriptions expire within 7 days.',
     ovExpiresIn: 'until {date}',
     ovAdoptionTitle: 'Module adoption',
+    ovAdoptionActive: '{active} of {total} in use',
     premiumUntil: 'Premium until {date}',
     blockedUntil: 'Blocked until {date}',
     durationLabel: 'Duration',

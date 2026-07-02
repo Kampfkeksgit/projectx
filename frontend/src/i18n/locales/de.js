@@ -188,6 +188,7 @@ export default {
     ovExpiringEmpty: 'Kein Premium läuft innerhalb von 7 Tagen ab.',
     ovExpiresIn: 'bis {date}',
     ovAdoptionTitle: 'Modul-Nutzung',
+    ovAdoptionActive: '{active} von {total} genutzt',
     premiumUntil: 'Premium bis {date}',
     blockedUntil: 'Gesperrt bis {date}',
     durationLabel: 'Dauer',

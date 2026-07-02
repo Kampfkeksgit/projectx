@@ -188,6 +188,7 @@ export default {
     ovExpiringEmpty: 'Żadna subskrypcja premium nie wygasa w ciągu 7 dni.',
     ovExpiresIn: 'do {date}',
     ovAdoptionTitle: 'Wykorzystanie modułów',
+    ovAdoptionActive: 'używane {active} z {total}',
     premiumUntil: 'Premium do {date}',
     blockedUntil: 'Zablokowano do {date}',
     durationLabel: 'Czas trwania',

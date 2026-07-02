@@ -188,6 +188,7 @@ export default {
     ovExpiringEmpty: '7 gün içinde sona erecek premium abonelik yok.',
     ovExpiresIn: '{date} tarihine kadar',
     ovAdoptionTitle: 'Modül kullanımı',
+    ovAdoptionActive: '{total} modülden {active} tanesi kullanımda',
     premiumUntil: '{date} tarihine kadar Premium',
     blockedUntil: '{date} tarihine kadar engellendi',
     durationLabel: 'Süre',
