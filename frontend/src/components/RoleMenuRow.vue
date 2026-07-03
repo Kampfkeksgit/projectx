@@ -22,6 +22,8 @@
     </div>
 
     <div v-show="!collapsed" class="rm-row__body">
+    <div class="rm-row__split">
+    <div class="rm-row__fields">
     <div class="rm-row__grid">
       <div class="form-row">
         <label class="form-row__label" :for="`rm-name-${rowKey}`">{{ t('rolemenus.nameLabel') }}</label>
@@ -75,8 +77,9 @@
       <div class="form-row__hint">{{ t('rolemenus.embedHint') }}</div>
       <EmbedEditor v-model="local.embed" />
     </div>
+    </div>
 
-    <div class="form-row">
+    <aside class="rm-row__preview-col">
       <div class="rm-preview__label">{{ t('rolemenus.livePreview') }}</div>
       <DiscordMessagePreview mode="embed" :embed="previewEmbed" :guild-name="guildName" channel-name="roles">
         <template #components>
@@ -91,6 +94,7 @@
           </div>
         </template>
       </DiscordMessagePreview>
+    </aside>
     </div>
 
     <div class="rm-row__actions">
@@ -200,6 +204,14 @@ function removeOption(i) { local.options.splice(i, 1); if (local.options.length 
 .rm-row__collapse:hover { color: var(--color-primary); background: var(--color-surface-2); }
 .rm-row__collapse.is-collapsed { transform: rotate(-90deg); }
 .rm-row__body { display: flex; flex-direction: column; gap: var(--space-4); }
+/* Fields left, live preview right (sticky) — like the welcome/leave pages. */
+.rm-row__split { display: grid; grid-template-columns: 1.15fr 1fr; gap: var(--space-5); align-items: flex-start; }
+.rm-row__fields { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+.rm-row__preview-col { position: sticky; top: calc(var(--nav-height) + var(--space-6)); min-width: 0; }
+@media (max-width: 900px) {
+  .rm-row__split { grid-template-columns: 1fr; }
+  .rm-row__preview-col { position: static; }
+}
 .rm-row__count { font-family: var(--font-mono); font-size: 0.72rem; font-weight: 700; color: var(--color-text-soft); background: var(--color-surface-2); border-radius: var(--radius-sm); padding: 1px 7px; }
 .rm-row__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-warning); box-shadow: 0 0 0 3px rgba(245,158,11,0.18); }
 .rm-row__badge { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; color: #fff; padding: 2px 8px; border-radius: var(--radius-sm); background: linear-gradient(135deg, #8b5cf6, #ec4899); }
