@@ -283,7 +283,7 @@ projectx/
 │       │   │                   # localStorage projectx_force_mobile) + applyMobileClass() (setzt .mobile-ui auf <html>)
 │       │   ├── mobile.css      # Globale Mobile-Schicht unter .mobile-ui (mappt --nav-height auf Top-Bar-Höhe,
 │       │   │                   # Overview einspaltig, Save-Bar über Bottom-Nav heben, Tabellen-Scroll). Greift NICHT auf Desktop.
-│       │   ├── MobileShell.vue # App-Shell für Mobile: TopBar + <router-view> + TabBar + AccountSheet (statt NavBar/Footer/Sidebar)
+│       │   ├── MobileShell.vue # App-Shell für Mobile: TopBar + <router-view> + AppFooter (Rechtliches — im Wrapper .m-shell__footer, --tabbar-Variante hält die fixe Bottom-Nav frei) + TabBar (nur authed) + AccountSheet (statt NavBar/Sidebar)
 │       │   ├── MobileTopBar.vue# Sticky Top-Bar: Zurück (Modul-Seite → Overview-Hub) / Brand, Titel (Route→i18n), Avatar→AccountSheet
 │       │   ├── MobileTabBar.vue# Fixe Bottom-Nav, kontextabhängig (ohne Guild: Home/Server/Konto; in Guild: Server/Module/Premium/Konto)
 │       │   └── MobileAccountSheet.vue # Bottom-Sheet: User, LanguageSwitcher, Server-Link, Admin (Owner), Logout

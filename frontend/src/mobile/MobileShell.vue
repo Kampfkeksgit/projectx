@@ -12,6 +12,13 @@
       </router-view>
     </main>
 
+    <!-- Footer (Brand/Version + Rechtliches: Impressum/Datenschutz/AGB/Team).
+         In einen Wrapper gepackt, damit die fixe Bottom-Nav ihn bei
+         eingeloggten Nutzern nicht überdeckt. -->
+    <div class="m-shell__footer" :class="{ 'm-shell__footer--tabbar': authed }">
+      <AppFooter />
+    </div>
+
     <MobileTabBar v-if="authed" @open-account="accountOpen = true" />
 
     <MobileAccountSheet :open="accountOpen" @close="accountOpen = false" />
@@ -26,6 +33,7 @@ import MobileTabBar from './MobileTabBar.vue'
 import MobileAccountSheet from './MobileAccountSheet.vue'
 import MaintenanceBanner from '../components/MaintenanceBanner.vue'
 import AnnouncementBanner from '../components/AnnouncementBanner.vue'
+import AppFooter from '../components/AppFooter.vue'
 
 const auth = useAuth()
 const accountOpen = ref(false)
@@ -44,12 +52,23 @@ const authed = computed(() => auth.state.status === 'authenticated')
   flex: 1 0 auto;
   display: flex;
   flex-direction: column;
-  /* Platz für die fixe Bottom-Navigation + Geräte-Safe-Area. */
-  padding-bottom: calc(var(--mobile-tabbar-h, 64px) + env(safe-area-inset-bottom, 0px) + var(--space-3));
 }
 
 .m-shell__main > * {
   flex: 1 0 auto;
+}
+
+/* Footer sitzt am Seitenende. Basis-Safe-Area (Gesten-Leiste), damit die
+   Links nicht am Bildschirmrand kleben. */
+.m-shell__footer {
+  flex-shrink: 0;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Eingeloggt: die fixe Bottom-Nav liegt darüber → genug Freiraum lassen,
+   damit die Footer-Links nicht dahinter verschwinden. */
+.m-shell__footer--tabbar {
+  padding-bottom: calc(var(--mobile-tabbar-h, 64px) + env(safe-area-inset-bottom, 0px) + var(--space-3));
 }
 
 .m-page-enter-from {
