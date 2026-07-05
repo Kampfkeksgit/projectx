@@ -41,6 +41,7 @@ const ConnectFour = () => import('../pages/ConnectFour.vue')
 const Hangman = () => import('../pages/Hangman.vue')
 const Poker = () => import('../pages/Poker.vue')
 const Backup = () => import('../pages/Backup.vue')
+const Minecraft = () => import('../pages/Minecraft.vue')
 const General = () => import('../pages/General.vue')
 const Premium = () => import('../pages/Premium.vue')
 const Impressum = () => import('../pages/legal/Impressum.vue')
@@ -90,6 +91,7 @@ const routes = [
       { path: 'leveling', name: 'leveling', component: Leveling },
       { path: 'custom-commands', name: 'custom-commands', component: CustomCommands },
       { path: 'social', name: 'social', component: SocialNotifications },
+      { path: 'minecraft', name: 'minecraft', component: Minecraft },
       { path: 'stats', name: 'stats', component: Stats },
       { path: 'tempvoice', name: 'tempvoice', component: TempVoice },
       { path: 'starboard', name: 'starboard', component: Starboard },

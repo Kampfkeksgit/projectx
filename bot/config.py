@@ -26,6 +26,12 @@ KICK_CLIENT_ID = os.getenv('KICK_CLIENT_ID')
 KICK_CLIENT_SECRET = os.getenv('KICK_CLIENT_SECRET')
 SOCIAL_POLL_INTERVAL = int(os.getenv('SOCIAL_POLL_INTERVAL', '180'))
 
+# --- Minecraft server status ---
+# The minecraft cog maintains one auto-updating live-status message per server
+# (via the public mcsrvstat.us API — no key/dependency needed). Poll interval in
+# seconds; a hard minimum of 60 is enforced in the cog to be nice to the API.
+MINECRAFT_POLL_INTERVAL = int(os.getenv('MINECRAFT_POLL_INTERVAL', '120'))
+
 # --- Premium / SKU monetization (all optional) ---
 # Maps Discord Premium-App-Subscription SKU IDs to the bot's tiers. The
 # premium_sync cog reads the application's entitlements via the Discord API and

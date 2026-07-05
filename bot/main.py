@@ -156,6 +156,11 @@ async def setup_hook():
     except Exception as e:
         print(f'❌ Failed to load Social-Notify cog: {e}')
     try:
+        await bot.load_extension('cogs.minecraft')
+        print('✅​ Minecraft cog loaded')
+    except Exception as e:
+        print(f'❌ Failed to load Minecraft cog: {e}')
+    try:
         await bot.load_extension('cogs.stats')
         print('✅​ Stats cog loaded')
     except Exception as e:

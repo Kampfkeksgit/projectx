@@ -17,6 +17,8 @@ import {
   getCommandConfigForBot,
   getAllEnabledSocialSubscriptions,
   updateSocialSubscriptionState,
+  getAllEnabledMinecraftServers,
+  setMinecraftServerState,
   addModerationWarning,
   getAllEnabledStatsConfigs,
   setStatsCounterChannel,
@@ -699,6 +701,47 @@ router.put('/social/subscriptions/:sub_id/state', requireBotToken, async (req, r
   } catch (error) {
     console.error('Bot update social state error:', error.message)
     res.status(500).json({ error: 'Failed to update social state' })
+  }
+})
+
+/**
+ * Bot-only: every ENABLED Minecraft server across all guilds (with the
+ * bot-maintained live state). The minecraft cog reads this once per poll cycle.
+ *   GET /api/bot/minecraft/servers
+ */
+router.get('/minecraft/servers', requireBotToken, async (req, res) => {
+  try {
+    const servers = await getAllEnabledMinecraftServers()
+    return res.json({ servers })
+  } catch (error) {
+    console.error('Bot get minecraft servers error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch minecraft servers' })
+  }
+})
+
+/**
+ * Bot-only: persist live state for a server after a status check.
+ *   PUT /api/bot/guilds/:guild_id/minecraft/:server_id/state
+ *   Body: { status?, players_online?, players_max?, motd?, version?, status_message_id? }
+ * Only the keys present in the body are written; last_checked_at is stamped and
+ * dirty is cleared server-side.
+ */
+router.put('/guilds/:guild_id/minecraft/:server_id/state', requireBotToken, async (req, res) => {
+  try {
+    const body = req.body || {}
+    const changes = await setMinecraftServerState(req.params.server_id, {
+      status: body.status,
+      players_online: body.players_online,
+      players_max: body.players_max,
+      motd: body.motd,
+      version: body.version,
+      status_message_id: body.status_message_id
+    }, Math.floor(Date.now() / 1000))
+    if (changes === 0) return res.status(404).json({ error: 'Server not found' })
+    return res.json({ success: true })
+  } catch (error) {
+    console.error('Bot update minecraft state error:', error.message)
+    res.status(500).json({ error: 'Failed to update minecraft state' })
   }
 })
 

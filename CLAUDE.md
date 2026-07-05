@@ -108,6 +108,11 @@ projectx/
 │                               # Kick (offizielle API). Erkennt neue Videos / Live-Übergänge,
 │                               # postet Ankündigung (Template-Platzhalter + optional Embed),
 │                               # schreibt Polling-State via PUT zurück. TikTok/Instagram = Stub.
+│       ├── minecraft.py        # tasks.loop (MINECRAFT_POLL_INTERVAL, default 120s, min 60) → pollt GET /api/bot/minecraft/servers,
+│       │                       # fragt pro Server mcsrvstat.us ab (Java /3/, Bedrock /bedrock/3/, rohes aiohttp), rendert
+│       │                       # Live-Status als Klartext ODER Embed (Platzhalter {status}{players}{max}{motd}{version}{address}{name}),
+│       │                       # editiert die Statusnachricht in-place (In-Memory-Cache pro Server gegen unnötige Edits), schreibt
+│       │                       # State via PUT .../minecraft/:id/state zurück. Fehler → status=unknown (nie falsch-offline). i18n mc.*
 │       ├── tempvoice.py        # on_voice_state_update: Join in Hub-Channel → erstellt temp Voice-Channel
 │       │                       # (in Kategorie, user_limit), moved Member rein, löscht bei leer. on_ready-Cleanup.
 │       │                       # Settings-Cache (5min TTL). Tracking via /api/bot/.../tempvoice/channels.
@@ -241,6 +246,7 @@ projectx/
 │   │   ├── backup.js          # /api/guilds/:id/backups (GET Liste+aktive Jobs, GET /templates Snapshots anderer eigener Server, GET /:id voller Snapshot für Vorschau,
 │   │   │                       # POST Snapshot-Job, POST /apply-template {source_guild_id,backup_id,mode}, POST /:id/restore {mode}, DELETE /:id, cookie) — Server-Backup (Pro)
 │   │   ├── general.js          # /api/guilds/:id/general (settings GET/PUT, cookie) — Allgemeine Dashboard-Einstellungen (Free): language/timezone/embed_color/dashboard_theme
+│   │   ├── minecraft.js        # /api/guilds/:id/minecraft (GET/POST/PUT/DELETE, cookie) — Minecraft-Server-Status (Free); Bot: GET /api/bot/minecraft/servers + PUT .../minecraft/:id/state
 │   │   ├── public.js           # /api/public/stats + /api/public/plans (KEIN Auth — Landing-Page Stats + Tarif-Katalog)
 │   │   ├── premium.js          # /api/guilds/:id/premium (GET, cookie) — Tier + Modul-Unlock-Map fürs Dashboard
 │   │   ├── admin.js            # /api/admin/{users,guilds} (GET list + POST .../block[until] + POST .../premium, requireSession+requireOwner)
@@ -338,6 +344,8 @@ projectx/
 │       │   ├── CustomCommandRow.vue # Inline-Editor-Row für CustomCommands (lokales Dirty-Tracking)
 │       │   ├── SocialSubscriptionRow.vue # Inline-Editor-Row für Social-Alerts (Platform/Account/Channel/
 │       │   │                       # Toggles/Mention-Role/Template+Embed; eigene Platzhalter-Liste)
+│       │   ├── MinecraftServerRow.vue # Inline-Editor-Row für Minecraft-Server (Name/Adresse/Edition java|bedrock/
+│       │   │                       # Channel/Modus plain|embed → Template ODER EmbedEditor; Live-Vorschau rechts im Split, sticky)
 │       │   ├── StatsCounterRow.vue # Inline-Editor-Row für Stats-Counter (Metrik-Typ/Name-Template mit
 │       │   │                       # {count}/Modus existing↔auto-create/Voice|Text/Toggle; ChannelSelector)
 │       │   │                       # Einklappbar (Caret im Header; gespeicherte Counter starten eingeklappt, Drafts offen)
@@ -369,6 +377,7 @@ projectx/
 │           ├── CustomCommands.vue   # /dashboard/:guild_id/custom-commands (Server-Prefix + Befehlskatalog aller Module
 │           │                        # mit An/Aus-Toggles je Befehl + eigene Custom-Commands mit per-Row-Save, 3 Match-Types)
 │           ├── SocialNotifications.vue # /dashboard/:guild_id/social (Liste + Inline-Editor; YouTube/Twitch/Kick)
+│           ├── Minecraft.vue         # /dashboard/:guild_id/minecraft (Free) — Liste getrackter Server + Inline-Editor (MinecraftServerRow); Live-Status via Bot
 │           ├── Stats.vue            # /dashboard/:guild_id/stats (Modul-Settings + Counter-Liste + Verlaufs-Graphen)
 │           ├── TempVoice.vue        # /dashboard/:guild_id/tempvoice (Hub/Kategorie/Name/Limit + Steuerungspanel-Toggle/Ziel voice|dm|channel)
 │           ├── Starboard.vue        # /dashboard/:guild_id/starboard (Channel/Emoji/Threshold/Self-Star)
@@ -544,6 +553,8 @@ Portainer: als **Stack** aus dem Git-Repo deployen, Env-Vars im Stack setzen (si
   - `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET` — App-Access-Token (client_credentials) für Helix `Get Streams`.
   - `KICK_CLIENT_ID`, `KICK_CLIENT_SECRET` — App-Token (client_credentials) für die offizielle Kick-API.
   - `SOCIAL_POLL_INTERVAL` — Poll-Intervall in Sekunden (default `180`, hartes Minimum 30).
+- **Minecraft-Server-Status (optional — `minecraft`-Cog nutzt die öffentliche mcsrvstat.us-API, kein Key/Dependency nötig):**
+  - `MINECRAFT_POLL_INTERVAL` — Poll-Intervall in Sekunden (default `120`, hartes Minimum 60). Der Cog pflegt pro getracktem Server eine Live-Status-Nachricht (Java + Bedrock via mcsrvstat.us).
 - **Premium / SKU (alle optional — `premium_sync`-Cog ist ohne SKU-IDs inert; Owner-Override im Dashboard greift trotzdem):**
   - `APPLICATION_ID` — Discord-App-ID für den Entitlements-Endpoint (default = `DISCORD_CLIENT_ID`).
   - `SKU_BASIC_ID`, `SKU_PRO_ID` — Premium-App-Subscription-SKU-IDs aus dem Dev-Portal; werden auf die Tiers `basic`/`pro` gemappt.
@@ -712,7 +723,7 @@ Mount-Points aus [backend/server.js](backend/server.js):
 
 **Premium / Tiers** (Cookie required) — Modul-Gating Free/Basic/Pro (`MODULE_TIERS` in [db.js](backend/db.js) ist Single Source).
 - `GET /api/guilds/:id/premium` → `{ success, tier, source, until, module_tiers: { key: tier }, modules: { key: bool } }`. Liefert dem Dashboard den effektiven Tier (abgelaufenes Premium → `free`) + die Unlock-Map pro Modul-Key (= Dashboard-Route-Segment).
-- **Enforcement:** Cookie-Writes der Premium-Modul-Router laufen durch `requirePremiumModule(key)` ([middleware/premium.js](backend/middleware/premium.js)) → GET frei, PUT/POST/DELETE → **403 `{ error: 'premium_required', module, required_tier, current_tier }`** wenn der Tier nicht reicht (Leveling gated im eigenen Router, da bare-prefix-Mount). Guild-übergreifende Loop-Cog-Queries (social/stats/scheduled/birthday/rolemenus/giveaways) filtern via `tierFilterSql(minTier)` serverseitig; per-Guild Bot-GETs (leveling-xp/tempvoice/starboard/antiraid/tickets/invitetracking/applications/economy) liefern eine `disabled`-Shape über den zentralen `PREMIUM_BOT_GATES`-Guard in [bot.js](backend/routes/bot.js). **Frei:** general/welcome/leave/autorole/logs/moderation/reaction-roles/verification/suggestions/custom-commands/counting/polls. **Basic:** leveling/starboard/tempvoice/birthday/rolemenus/antiraid/invitetracking + Games-Kategorie (games/tictactoe/rps/trivia/connect4/hangman/poker — geteilte `/games`-Settings, Gate-Key `games`). **Pro:** social/stats/tickets/giveaways/scheduled/applications/economy/backup/music. **Music** nutzt den `PREMIUM_BOT_GATES`-Eintrag `/settings/music$` (disabled-Shape `{enabled:false}`), sodass der Cog bei Tier-Verlust nicht mehr abspielt. **Backup** hat keinen Bot-Settings-GET → kein `PREMIUM_BOT_GATES`-Eintrag; stattdessen filtert `getDueBackupJobs()` serverseitig via `tierFilterSql('pro')`, sodass herabgestufte Guilds keine Snapshot-/Restore-Jobs mehr ausgeführt bekommen.
+- **Enforcement:** Cookie-Writes der Premium-Modul-Router laufen durch `requirePremiumModule(key)` ([middleware/premium.js](backend/middleware/premium.js)) → GET frei, PUT/POST/DELETE → **403 `{ error: 'premium_required', module, required_tier, current_tier }`** wenn der Tier nicht reicht (Leveling gated im eigenen Router, da bare-prefix-Mount). Guild-übergreifende Loop-Cog-Queries (social/stats/scheduled/birthday/rolemenus/giveaways) filtern via `tierFilterSql(minTier)` serverseitig; per-Guild Bot-GETs (leveling-xp/tempvoice/starboard/antiraid/tickets/invitetracking/applications/economy) liefern eine `disabled`-Shape über den zentralen `PREMIUM_BOT_GATES`-Guard in [bot.js](backend/routes/bot.js). **Frei:** general/welcome/leave/autorole/logs/moderation/reaction-roles/verification/suggestions/custom-commands/counting/polls/minecraft. **Basic:** leveling/starboard/tempvoice/birthday/rolemenus/antiraid/invitetracking + Games-Kategorie (games/tictactoe/rps/trivia/connect4/hangman/poker — geteilte `/games`-Settings, Gate-Key `games`). **Pro:** social/stats/tickets/giveaways/scheduled/applications/economy/backup/music. **Music** nutzt den `PREMIUM_BOT_GATES`-Eintrag `/settings/music$` (disabled-Shape `{enabled:false}`), sodass der Cog bei Tier-Verlust nicht mehr abspielt. **Backup** hat keinen Bot-Settings-GET → kein `PREMIUM_BOT_GATES`-Eintrag; stattdessen filtert `getDueBackupJobs()` serverseitig via `tierFilterSql('pro')`, sodass herabgestufte Guilds keine Snapshot-/Restore-Jobs mehr ausgeführt bekommen.
 
 > **Enforcement gesperrter Entities:** Gesperrte **User** werden von `requireSession` (403 `{ blocked: true }`), `/auth/me` (403 + Cookie-Clear) und dem OAuth-Callback (403, kein Cookie) abgewiesen — der Owner ist immer ausgenommen. Gesperrte **Guilds** bleiben im Server-Picker sichtbar (`getUserManageableGuilds` liefert das `blocked`-Flag mit), werden dort aber rot umrandet + nicht klickbar gerendert ([Servers.vue](frontend/src/pages/Servers.vue)); `requireGuildAccess` liefert 403, die Bot-Endpoints unter `/api/bot/guilds/:id/*` liefern 403 (Bot wird dort inert), und alle guild-übergreifenden Loop-Cog-Queries (social/stats/tempvoice/birthday/scheduled/rolemenus/giveaways) filtern `blocked = 1` per `NOT IN (SELECT id FROM guilds WHERE blocked = 1)`.
 
@@ -835,9 +846,9 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - Engine: **SQLite3** (Datei via `DATABASE_URL`, default `./data/bot.db`)
 - Connection: [backend/db.js](backend/db.js)
 - Migrations: [backend/migrations.js](backend/migrations.js)
-  - **Aktuelle Schema-Version: `45`**
+  - **Aktuelle Schema-Version: `46`**
   - `CURRENT_SCHEMA_VERSION` Konstante steuert Upgrades.
-  - `applyMigrations(from, to)` mappt Versionsnummern → Migration-Funktionen (`migrationV1`, …, `migrationV45`). v23–v45 nutzen den `runSchemaBatch(version, statements)`-Helper.
+  - `applyMigrations(from, to)` mappt Versionsnummern → Migration-Funktionen (`migrationV1`, …, `migrationV46`). v23–v46 nutzen den `runSchemaBatch(version, statements)`-Helper.
   - Versionstabelle: `schema_version (version PK, applied_at)`.
   - `migrationV2` fügt `users.token_expires_at INTEGER` hinzu (idempotent).
   - `migrationV3` legt `guild_autorole_settings`, `guild_log_settings`, `guild_moderation_settings` an (`CREATE TABLE IF NOT EXISTS` — idempotent; werden parallel auch im `initializeDatabase()`-Pfad erzeugt, damit Fresh-DBs auch ohne Migrations-Run funktionieren).
@@ -885,6 +896,7 @@ Mount-Points aus [backend/server.js](backend/server.js):
   - `migrationV43` (Music-Modul, Pro): legt 3 Tabellen an (idempotent + Mirror in `initializeDatabase()`): `guild_music_settings` (DJ-Rolle, Default-Volume, Auto-Disconnect, max. Queue, Quellen-Toggles — **kein YouTube**), `guild_music_state` (vom Bot gepushter Live-Snapshot: current/queue/paused/volume/loop/voice-channel — für die Dashboard-Anzeige), `guild_music_commands` (Dashboard-Steuerungs-Queue: pause/resume/skip/stop/volume/remove/clear/shuffle/loop — Bot pollt, führt aus, löscht). db.js-Helfer: `get|upsertMusicSettings`, `get|upsertMusicState`, `enqueueMusicCommand`/`getAllMusicCommands`/`deleteMusicCommand` + Konstanten `MUSIC_SOURCES`/`MUSIC_LOOP_MODES`/`MUSIC_COMMAND_ACTIONS`/`MUSIC_DEFAULTS`. `MODULE_TIERS.music = 'pro'`.
   - `migrationV44` (Team-/Credits-Seite): legt `team_members` an (`id` UUID, `discord_id`, `name`, `role`, `avatar_url`, `bio`, `socials` JSON, `position`, `created_at`; `idx_team_members_pos`). Idempotent + Mirror. Owner verwaltet die Mitglieder im Admin-Bereich (per Discord-ID/Tag + Socials), eine öffentliche `/team`-Seite listet sie. db.js: `getTeamMembers` (public, LEFT JOIN auf `users` für Avatar-Fallback), `createTeamMember`/`updateTeamMember`/`deleteTeamMember`, `sanitizeSocials` + Konstante `TEAM_SOCIALS` (`github|twitter|youtube|twitch|instagram|tiktok|website`).
   - `migrationV45` (Verification-Embed + Live-Update, 3 idempotente ALTERs auf `guild_verification_settings` + Mirror): `use_embed` (Panel als gestaltetes Embed statt Plain-Nachricht), `embed` (JSON, gleiche Shape wie Welcome/Tickets/Rollen-Menüs), `dirty` (bei jeder Dashboard-Änderung 1 → Bot editiert das gepostete Panel in-place). db.js: `getVerificationSettings`/`upsertVerificationSettings` um `use_embed`/`embed` erweitert (Upsert setzt `dirty=1`), `setVerificationPanelMessage` setzt `dirty=0`, neuer `getPendingVerificationPanels` (enabled + Channel + Rolle gesetzt, unposted ODER dirty).
+  - `migrationV46` (Minecraft-Server-Status, Free): legt `guild_minecraft_servers` an (`id` UUID, FK CASCADE, `idx_minecraft_servers_guild`) — pro Guild eine Liste getrackter Server. Spalten: Anzeige-Config (`name`/`address`/`edition` java|bedrock/`channel_id`/`notify_mode` plain|embed/`message_template`/`embed` JSON/`enabled`) + bot-gepflegter Live-State (`status` online|offline|unknown/`players_online`/`players_max`/`motd`/`version`/`status_message_id`/`last_checked_at`/`dirty`). Idempotent + Mirror. db.js: `MINECRAFT_EDITIONS`/`MINECRAFT_NOTIFY_MODES`/`MINECRAFT_DEFAULTS` + `getMinecraftServers`/`getAllEnabledMinecraftServers` (Bot, enabled + nicht-blocked)/`createMinecraftServer`/`updateMinecraftServer` (Edit → `dirty=1`; Adress-/Edition-/Channel-Wechsel resettet Live-State + `status_message_id`)/`deleteMinecraftServer`/`setMinecraftServerState` (Bot, schreibt Status zurück + `dirty=0`). `MODULE_TIERS.minecraft='free'`, in `COUNT_MODULE_TABLES` (aktiv wenn ≥1 enabled Server).
   - `migrationV18` (Ticket-Überarbeitung, idempotente ALTERs + neue Tabelle + Mirror): `guild_ticket_settings` +10 Spalten (`panel_type ∈ {dropdown|buttons}`, `panel_embed`/`welcome_embed` JSON, `ping_role_id`, `naming_template`, `claim_enabled`, `close_confirm`, `rating_enabled`, `rating_mode ∈ {channel|dm|both}`, `log_channel_id`); `guild_tickets` +8 Spalten (`ticket_category_id`, `number`, `claimed_by`, `rating`, `rating_comment`, `closed_by`, `closed_at`, `extra_user_ids` JSON); neue Tabelle `guild_ticket_categories` (`id` UUID, `idx_ticket_categories_guild`, FK CASCADE) — Ticket-Typen mit Label/Emoji/Desc + Kategorie-/Support-Rollen-/Ping-Rollen-Override, Welcome-Text, `button_style`, Position, Enabled.
 
 **Kern-Tabellen** (Details: [backend/DATABASE_SCHEMA.md](backend/DATABASE_SCHEMA.md), [backend/DATABASE_FUNCTIONS.md](backend/DATABASE_FUNCTIONS.md))
@@ -915,6 +927,7 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - `guild_starboard_entries` — `(guild_id, message_id) PK`, `channel_id`, `star_message_id`, `count` — Mapping Quell-Message → gepostete Starboard-Message
 - `guild_suggestion_settings` — `guild_id PK`, `enabled`, `suggest_channel_id`, `upvote_emoji`, `downvote_emoji` — Vorschläge
 - `guild_general_settings` — `guild_id PK`, `language`, `timezone`, `embed_color`, `dashboard_theme` — Allgemeine Dashboard-Einstellungen (Free, kein `enabled`-Toggle)
+- `guild_minecraft_servers` — `id` UUID, `guild_id`, Anzeige-Config (`name`/`address`/`edition` java|bedrock/`channel_id`/`notify_mode` plain|embed/`message_template`/`embed` JSON/`enabled`) + bot-gepflegter Live-State (`status` online|offline|unknown/`players_online`/`players_max`/`motd`/`version`/`status_message_id`/`last_checked_at`/`dirty`) — Minecraft-Server-Status (Free). Der Bot pflegt eine Live-Status-Nachricht pro Server (edit-in-place).
 - `guild_birthday_settings` — `guild_id PK`, `enabled`, `announce_channel_id`, `message_template` (`{user}`), `birthday_role_id` — Birthday
 - `guild_birthdays` — `(guild_id, user_id) PK`, `month`, `day`, `year` (nullable) — gespeicherte Geburtstage
 - `guild_scheduled_messages` — `id` UUID, `guild_id`, `channel_id`, `content`, `schedule_type ∈ {once|interval}`, `run_at` (unix), `interval_seconds`, `enabled`, `last_run` — geplante Nachrichten
@@ -1102,6 +1115,14 @@ Empfehlung aus [README.md](README.md): SQLite → PostgreSQL für Multi-Instance
 
 ## 14. Letzte Aktualisierung
 
+- **Datum:** 2026-07-05
+- **Neues Minecraft-Server-Status-Modul (Schema v46, Free):** Server per IP hinzufügen; der Bot pflegt pro Server eine **Live-Status-Nachricht** (online/offline + Spieler/MOTD/Version), die sich automatisch aktualisiert. Darstellung wählbar **Klartext oder Embed** (Embed-Builder + Live-Vorschau rechts, wie überall). Java **und** Bedrock.
+  - **Schema v46:** Tabelle `guild_minecraft_servers` (Liste, mehrere Server/Guild; Anzeige-Config + bot-gepflegter Live-State + `dirty`; idempotent + Mirror). db.js: `MINECRAFT_EDITIONS`/`MINECRAFT_NOTIFY_MODES`/`MINECRAFT_DEFAULTS` + `getMinecraftServers`/`getAllEnabledMinecraftServers`/`createMinecraftServer`/`updateMinecraftServer`/`deleteMinecraftServer`/`setMinecraftServerState`. `MODULE_TIERS.minecraft='free'`, in `COUNT_MODULE_TABLES` (aktiv ab ≥1 enabled Server).
+  - **Backend:** Cookie-Route [minecraft.js](backend/routes/minecraft.js) (`/api/guilds/:id/minecraft` CRUD, Audit `MINECRAFT_*`), Mount in [server.js](backend/server.js) (ohne Premium-Gate). Bot-Endpoints in [bot.js](backend/routes/bot.js): `GET /api/bot/minecraft/servers` (alle enabled + State) + `PUT /api/bot/guilds/:id/minecraft/:sid/state`.
+  - **Bot:** neues Cog [minecraft.py](bot/cogs/minecraft.py) — `tasks.loop` (`MINECRAFT_POLL_INTERVAL`, default 120s, min 60), Status via **mcsrvstat.us** (Java `/3/`, Bedrock `/bedrock/3/`, rohes aiohttp, kein Key/Dependency), edit-in-place Statusnachricht (In-Memory-Cache pro Server), Fehler → `status=unknown` (nie falsch-offline). i18n `mc.*` (10 Keys × 5 Sprachen). [config.py](bot/config.py) `MINECRAFT_POLL_INTERVAL`, Cog in [main.py](bot/main.py) geladen.
+  - **Frontend:** Seite [Minecraft.vue](frontend/src/pages/Minecraft.vue) + Zeile [MinecraftServerRow.vue](frontend/src/components/MinecraftServerRow.vue) (Adresse/Edition/Channel/Modus + EmbedEditor, **Live-Vorschau rechts im Split** mit Beispielwerten). Router-Child `minecraft`, Sidebar-Link (Community-Gruppe), Overview-Card. i18n-Namespace `minecraft` (42 Keys) + `sidebar.linkMinecraft` + `overview.minecraft*` in **allen 5 Sprachen** (TR/RU/PL via Sub-Agents; Parität verifiziert).
+  - **Umsetzung mit Sub-Agents:** Schema/db/API-Vertrag selbst gebaut, dann Bot-Cog + Frontend parallel, danach 3 Übersetzungs-Agents (TR/RU/PL).
+  - Verifiziert: Migration v46 + DB-Smoke (Create/List/Update-mit-State-Reset/Bot-State/Validierung/Delete) grün, Backend-Syntax OK, Bot kompiliert (`minecraft.py`+i18n-Parität mc.*), Frontend-Build grün, i18n-Parität aller 5 Sprachen grün. **Hinweis:** Statusnachricht erscheint/aktualisiert sich binnen ~2 min (Poll-Intervall); mcsrvstat.us cached ~1 min.
 - **Datum:** 2026-07-03
 - **Verification-Modul erweitert — Embed-Designer + Auto-Update (Schema v45):** Das Verify-Panel kann jetzt ein **voll gestaltetes Embed** sein (statt nur Plain-Nachricht), und das **gepostete Panel aktualisiert sich automatisch**, wenn man es im Dashboard ändert (Muster wie beim Rollen-Menü-Live-Update).
   - **Schema v45:** 3 ALTERs auf `guild_verification_settings` (`use_embed`, `embed` JSON, `dirty`). db.js: `getVerificationSettings`/`upsertVerificationSettings` (Upsert setzt `dirty=1`) + `embed` via `sanitizeEmbed`/`parseEmbedColumn`, `setVerificationPanelMessage` setzt `dirty=0`, neuer `getPendingVerificationPanels`.
