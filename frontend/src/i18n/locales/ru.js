@@ -23,6 +23,9 @@ export default {
   },
   nav: {
     brandSubtitle: 'Панель управления Discord-ботом',
+    linkTeam: 'Команда',
+    linkSupport: 'Поддержка',
+    linkDocs: 'Документация',
     yourServers: 'Ваши серверы',
     adminPanel: 'Панель администратора',
     logout: 'Выйти',

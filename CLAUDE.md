@@ -324,7 +324,7 @@ projectx/
 │       │   └── useGuildResources.js # Per-Guild-Cache (channels + roles) mit 5min stale-while-revalidate
 │       │                       # Wird von ChannelSelector + RoleSelector gemeinsam genutzt
 │       ├── components/
-│       │   ├── AppNavBar.vue   # Top-Bar mit User-Pill + LanguageSwitcher
+│       │   ├── AppNavBar.vue   # Top-Bar (Desktop-Shell): Brand + Nav-Links (Team→/team, Support→VITE_SUPPORT_URL, Docs→VITE_DOCS_URL, extern; unter 720px ausgeblendet) + LanguageSwitcher + User-Pill
 │       │   ├── LanguageSwitcher.vue # Sprach-Dropdown EN/DE in der NavBar
 │       │   ├── AppButton.vue   # variant: primary | ghost | danger
 │       │   ├── AppCard.vue
@@ -584,6 +584,8 @@ Beim Start warnt der Server laut (aber crasht nicht), wenn `SESSION_SECRET` oder
 - `VITE_BACKEND_URL` — z. B. `http://localhost:3000` oder `http://localhost:3000/api`
 - `VITE_DISCORD_CLIENT_ID`
 - `VITE_DISCORD_REDIRECT_URI`
+- `VITE_SUPPORT_URL` — **optional**; Ziel des „Support"-Links in der NavBar (i. d. R. Discord-Invite). Ungesetzt → Fallback `github.com/.../issues`.
+- `VITE_DOCS_URL` — **optional**; Ziel des „Docs"-Links in der NavBar (i. d. R. GitBook). Ungesetzt → Fallback `github.com/.../tree/main/docs`. (Beide sind Build-Args in [docker-compose.yml](docker-compose.yml).)
 
 Production-Pendants: `.env.production.backend`, `.env.production.bot`, `.env.production.frontend` (im Root, hidden).
 

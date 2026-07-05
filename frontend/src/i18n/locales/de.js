@@ -23,6 +23,9 @@ export default {
   },
   nav: {
     brandSubtitle: 'Discord-Bot-Dashboard',
+    linkTeam: 'Team',
+    linkSupport: 'Support',
+    linkDocs: 'Doku',
     yourServers: 'Deine Server',
     adminPanel: 'Admin-Bereich',
     logout: 'Abmelden',
