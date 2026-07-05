@@ -269,9 +269,10 @@ function cloneLocal() {
   return { ...local, embed: { ...local.embed } }
 }
 
-// Re-baseline when the parent swaps the row in (e.g. after a save).
+// Re-baseline when the parent swaps the row in (e.g. after a save). Skip while
+// this row has unsaved edits so a background auto-refresh never clobbers them.
 watch(() => props.modelValue, (next) => {
-  if (!next) return
+  if (!next || dirty.value) return
   Object.assign(local, hydrate(next))
   initial = JSON.stringify(local)
 }, { deep: true })

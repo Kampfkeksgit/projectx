@@ -57,6 +57,7 @@ import MinecraftServerRow from '../components/MinecraftServerRow.vue'
 import api from '../services/api.js'
 import { useToast } from '../composables/useToast.js'
 import { useI18n } from '../i18n/index.js'
+import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 const route = useRoute()
 const toast = useToast()
@@ -119,6 +120,9 @@ async function load() {
 
 onMounted(load)
 watch(() => guildId.value, load)
+// Keep the server list + live status fresh; skip while adding a new draft.
+// Individual rows keep their own unsaved edits (no re-hydrate while dirty).
+useAutoRefresh(load, { isDirty: () => !!draftRow.value })
 
 function addDraft() {
   draftRow.value = emptyDraft()

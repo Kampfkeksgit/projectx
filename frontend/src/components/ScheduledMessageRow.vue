@@ -92,7 +92,7 @@ const rowKey = computed(() => local.id || 'draft')
 const dirty = computed(() => JSON.stringify(local) !== initial)
 
 watch(() => props.modelValue, (next) => {
-  if (!next) return
+  if (!next || dirty.value) return
   Object.assign(local, hydrate(next))
   initial = JSON.stringify(local)
 }, { deep: true })

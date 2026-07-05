@@ -100,6 +100,7 @@ import GuildAvatar from '../components/GuildAvatar.vue'
 import LoadingPage from '../components/LoadingPage.vue'
 import { useToast } from '../composables/useToast.js'
 import { useI18n } from '../i18n/index.js'
+import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 const { t } = useI18n()
 
@@ -114,6 +115,10 @@ const error = ref(null)
 onMounted(() => {
   loadGuilds()
 })
+
+// Read-only guild list — refresh on focus/interval so newly added servers show
+// up. This re-reads the cached list; the manual button also re-syncs Discord.
+useAutoRefresh(loadGuilds)
 
 async function loadGuilds() {
   loading.value = true

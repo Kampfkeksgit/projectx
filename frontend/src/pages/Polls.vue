@@ -37,6 +37,7 @@ import AppButton from '../components/AppButton.vue'
 import api from '../services/api.js'
 import { useToast } from '../composables/useToast.js'
 import { useI18n } from '../i18n/index.js'
+import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 const route = useRoute()
 const toast = useToast()
@@ -63,6 +64,8 @@ async function load() {
 
 onMounted(load)
 watch(guildId, load)
+// Read-only list — keep it fresh (new/closed polls appear without a reload).
+useAutoRefresh(load)
 
 async function confirmDelete(p) {
   if (typeof window !== 'undefined' && !window.confirm(t('polls.deleteConfirm'))) return

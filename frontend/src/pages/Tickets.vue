@@ -249,6 +249,7 @@ import TicketCategoryRow from '../components/TicketCategoryRow.vue'
 import api from '../services/api.js'
 import { useToast } from '../composables/useToast.js'
 import { useI18n } from '../i18n/index.js'
+import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 import { useGuildSettings } from '../stores/guildSettings.js'
 
 const route = useRoute()
@@ -439,6 +440,9 @@ async function confirmDelete(row) {
 function loadAll() { loadSettings(); loadCategories() }
 onMounted(loadAll)
 watch(guildId, loadAll)
+// Keep settings + categories fresh; skip while the settings form is dirty or a
+// category draft is open. Existing category rows keep their own unsaved edits.
+useAutoRefresh(loadAll, { isDirty: () => dirty.value || !!draftRow.value })
 </script>
 
 <style scoped>

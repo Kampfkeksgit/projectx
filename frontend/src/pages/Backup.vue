@@ -358,6 +358,7 @@ import api from '../services/api.js'
 import { useToast } from '../composables/useToast.js'
 import { useI18n } from '../i18n/index.js'
 import { useAuth } from '../stores/auth.js'
+import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 const route = useRoute()
 const toast = useToast()
@@ -571,6 +572,11 @@ function stopPolling() {
 onMounted(load)
 watch(guildId, () => { stopPolling(); load() })
 onBeforeUnmount(stopPolling)
+// Keep the snapshot/job list fresh (the 4s poller only runs while a job is
+// active). Skip while any modal is open so a refresh doesn't disrupt editing.
+useAutoRefresh(poll, {
+  isDirty: () => !!(detailTarget.value || restoreTarget.value || deleteTarget.value || publishTarget.value || templateOpen.value)
+})
 
 async function createSnapshot() {
   if (!guildId.value || snapshotJobActive.value) return

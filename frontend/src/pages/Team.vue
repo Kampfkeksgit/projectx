@@ -41,6 +41,7 @@
 import { onMounted, ref } from 'vue'
 import api from '../services/api.js'
 import { useI18n } from '../i18n/index.js'
+import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 const { t } = useI18n()
 const members = ref([])
@@ -87,12 +88,16 @@ function avatarStyle(m) {
   return { background: `linear-gradient(135deg, hsl(${h},60%,45%), hsl(${(h + 40) % 360},60%,55%))` }
 }
 
-onMounted(async () => {
+async function loadTeam() {
   try {
     const { data } = await api.get('/public/team')
     members.value = Array.isArray(data?.members) ? data.members : []
   } catch { members.value = [] } finally { loading.value = false }
-})
+}
+
+onMounted(loadTeam)
+// Public read-only list — keep it fresh on focus/interval.
+useAutoRefresh(loadTeam)
 </script>
 
 <style scoped>
