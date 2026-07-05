@@ -127,6 +127,10 @@ services:
         VITE_BACKEND_URL: ${VITE_BACKEND_URL:-/api}
         VITE_DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
         VITE_DISCORD_REDIRECT_URI: ${DISCORD_REDIRECT_URI}
+        # Navbar links (optional): Support = Discord-Invite, Docs = GitBook-Link.
+        # Ungesetzt → funktionierende GitHub-Fallbacks (Issues bzw. docs/).
+        VITE_SUPPORT_URL: ${VITE_SUPPORT_URL:-}
+        VITE_DOCS_URL: ${VITE_DOCS_URL:-}
     restart: unless-stopped
     ports:
       # Direct/LAN access at http://<host>:8080. NPM still reaches the container

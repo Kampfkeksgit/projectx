@@ -9,6 +9,12 @@
         </span>
       </router-link>
 
+      <nav class="navbar__links" :aria-label="t('nav.brandSubtitle')">
+        <router-link to="/team" class="navbar__link">{{ t('nav.linkTeam') }}</router-link>
+        <a :href="supportUrl" class="navbar__link" target="_blank" rel="noopener noreferrer">{{ t('nav.linkSupport') }}</a>
+        <a :href="docsUrl" class="navbar__link" target="_blank" rel="noopener noreferrer">{{ t('nav.linkDocs') }}</a>
+      </nav>
+
       <div class="navbar__actions">
         <LanguageSwitcher />
 
@@ -77,6 +83,12 @@ const { t } = useI18n()
 const router = useRouter()
 const auth = useAuth()
 const menuOpen = ref(false)
+
+// Support (Discord) + Docs (GitBook) targets. Set VITE_SUPPORT_URL /
+// VITE_DOCS_URL beim Deploy; die Fallbacks sind funktionierende Ziele im
+// GitHub-Repo, damit die Links nie ins Leere zeigen.
+const supportUrl = import.meta.env.VITE_SUPPORT_URL || 'https://github.com/Kampfkeksgit/projectx/issues'
+const docsUrl = import.meta.env.VITE_DOCS_URL || 'https://github.com/Kampfkeksgit/projectx/tree/main/docs'
 
 const initials = computed(() => {
   const n = auth.state.user?.username || '?'
@@ -166,6 +178,29 @@ onBeforeUnmount(() => {
   color: var(--color-text-soft);
   letter-spacing: 0.05em;
   text-transform: uppercase;
+}
+
+.navbar__links {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+  margin-right: var(--space-2);
+}
+
+.navbar__link {
+  padding: 0.4rem 0.7rem;
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.navbar__link:hover,
+.navbar__link.router-link-active {
+  color: var(--color-text);
+  background: var(--color-surface-2);
 }
 
 .navbar__actions {
@@ -304,6 +339,14 @@ onBeforeUnmount(() => {
   }
   .navbar__inner {
     padding: 0 var(--space-4);
+  }
+}
+
+/* Avoid crowding the bar on narrow screens (these links also live in the
+   footer / mobile shell). */
+@media (max-width: 720px) {
+  .navbar__links {
+    display: none;
   }
 }
 </style>

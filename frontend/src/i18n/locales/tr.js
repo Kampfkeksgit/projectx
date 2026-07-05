@@ -23,6 +23,9 @@ export default {
   },
   nav: {
     brandSubtitle: 'Discord Bot Paneli',
+    linkTeam: 'Ekip',
+    linkSupport: 'Destek',
+    linkDocs: 'Belgeler',
     yourServers: 'Sunucularınız',
     adminPanel: 'Yönetici paneli',
     logout: 'Çıkış yap',
