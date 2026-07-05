@@ -1120,6 +1120,8 @@ Empfehlung aus [README.md](README.md): SQLite → PostgreSQL für Multi-Instance
 
 ## 14. Letzte Aktualisierung
 
+- **Datum:** 2026-07-06
+- **Landing-Page-Modul-Übersicht aktualisiert (kein Schema-Change):** Die Modul-Showcase in [Landing.vue](frontend/src/pages/Landing.vue) zeigte nur 20 Module — jetzt um die fehlenden ergänzt: **Counting, Polls, Minecraft, Invite-Tracking, Games (Sammelkarte), Applications, Economy, Server-Backup, Music** (9 neue Karten je mit Icon/Tier/Tone). `landing.modules.title` von der veralteten festen Zahl („Einundzwanzig Tools") auf zahllos („Alle Module, ein Dashboard") umgestellt. i18n: 18 neue `landing.modules.*Title/Body`-Keys + geänderter `title` in **allen 5 Sprachen** (TR/RU/PL via Sub-Agents; Parität verifiziert: `landing.modules` 64 Keys/Locale, gesamt 1627/Locale). Build grün.
 - **Datum:** 2026-07-05
 - **Dashboard-Auto-Refresh (kein Schema-Change):** Das Dashboard hält seine Daten jetzt **automatisch aktuell** — kein manueller Reload mehr nötig, egal ob Live-Zähler, Bestenlisten, Server-/Bot-Status, Job-Queue oder Einstellungen.
   - **Composable** [useAutoRefresh.js](frontend/src/composables/useAutoRefresh.js): `useAutoRefresh(refetchFn, {isDirty?,enabled?,interval?})` — ruft `refetchFn` bei **Tab-Fokus / visibilitychange** + auf einem **sanften Poll** (default 25s, min 5s) auf. Fetcht **nie** wenn der Tab versteckt ist (kein Hintergrund-Traffic), **nie** überlappend, und **überspringt den Refresh solange `isDirty()` true ist** → ungespeicherte Formular-Eingaben werden nie überschrieben.
