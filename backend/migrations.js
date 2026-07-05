@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 45;
+const CURRENT_SCHEMA_VERSION = 46;
 
 /**
  * Initialize schema version tracking
@@ -104,7 +104,8 @@ async function applyMigrations(fromVersion, toVersion) {
     42: migrationV42,
     43: migrationV43,
     44: migrationV44,
-    45: migrationV45
+    45: migrationV45,
+    46: migrationV46
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -2155,6 +2156,44 @@ function migrationV45() {
     'ALTER TABLE guild_verification_settings ADD COLUMN use_embed BOOLEAN DEFAULT 0',
     'ALTER TABLE guild_verification_settings ADD COLUMN embed TEXT',
     'ALTER TABLE guild_verification_settings ADD COLUMN dirty INTEGER DEFAULT 0'
+  ]);
+}
+
+/**
+ * Migration V46: Minecraft server status monitoring (Free).
+ *   - guild_minecraft_servers: a list of tracked servers per guild. Each holds the
+ *     display config (name/address/edition java|bedrock/channel/notify_mode plain|embed/
+ *     message_template/embed JSON) plus bot-maintained live state (status/players/
+ *     motd/version/status_message_id/last_checked_at). `dirty` is set on any dashboard
+ *     edit so the bot re-renders the posted status message in place (like rolemenus/
+ *     verification); the bot also updates it on every poll when the status changes.
+ * Idempotent; mirrored in initializeDatabase().
+ */
+function migrationV46() {
+  return runSchemaBatch(46, [
+    `CREATE TABLE IF NOT EXISTS guild_minecraft_servers (
+      id                TEXT PRIMARY KEY,
+      guild_id          TEXT NOT NULL,
+      name              TEXT,
+      address           TEXT,
+      edition           TEXT DEFAULT 'java',
+      channel_id        TEXT,
+      notify_mode       TEXT DEFAULT 'embed',
+      message_template  TEXT,
+      embed             TEXT,
+      enabled           INTEGER DEFAULT 1,
+      status            TEXT DEFAULT 'unknown',
+      players_online    INTEGER DEFAULT 0,
+      players_max       INTEGER DEFAULT 0,
+      motd              TEXT,
+      version           TEXT,
+      status_message_id TEXT,
+      last_checked_at   INTEGER DEFAULT 0,
+      dirty             INTEGER DEFAULT 0,
+      created_at        INTEGER DEFAULT 0,
+      FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_minecraft_servers_guild ON guild_minecraft_servers(guild_id)'
   ]);
 }
 

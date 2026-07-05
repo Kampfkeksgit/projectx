@@ -244,6 +244,28 @@
         </div>
       </article>
 
+      <article class="config-card">
+        <div class="config-card__head">
+          <div class="config-card__icon config-card__icon--minecraft">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+          </div>
+          <div>
+            <h3 class="config-card__title">{{ t('overview.minecraftTitle') }}</h3>
+            <p class="config-card__desc">{{ t('overview.minecraftDesc') }}</p>
+          </div>
+        </div>
+        <div class="config-card__meta">
+          <span class="status" :class="extraEnabled.minecraft ? 'status--on' : 'status--off'">
+            <span class="status__dot"></span>
+            {{ extraEnabled.minecraft ? t('common.enabled') : t('common.disabled') }}
+          </span>
+        </div>
+        <div class="config-card__cta">
+          <AppButton v-if="botPresent" tag="router-link" :to="`/dashboard/${guildId}/minecraft`" variant="gradient">{{ t('common.configure') }}</AppButton>
+          <AppButton v-else tag="a" :href="inviteUrl" target="_blank" rel="noopener noreferrer" variant="ghost">{{ t('common.invite') }}</AppButton>
+        </div>
+      </article>
+
       <article class="config-card" :class="{ 'config-card--locked': isLocked('stats') }" :data-lock="lockLabel('stats')">
         <div class="config-card__head">
           <div class="config-card__icon config-card__icon--stats">
@@ -784,7 +806,8 @@ const extraEnabled = reactive({
   hangman: false,
   poker: false,
   backupCount: 0,
-  music: false
+  music: false,
+  minecraft: false
 })
 
 // Games category — one shared /games settings row drives all five cards.
@@ -801,7 +824,7 @@ async function fetchExtraStatus() {
   const id = guildId.value
   if (!id) return
   const endpoints = ['autorole', 'logs', 'moderation', 'leveling']
-  const [general, autorole, logs, moderation, leveling, rr, cmds, social, stats, tempvoice, starboard, suggestions, birthday, scheduled, antiraid, verification, rolemenus, tickets, giveaways, counting, polls, invitetracking, applications, economy, games, backups, music] = await Promise.all([
+  const [general, autorole, logs, moderation, leveling, rr, cmds, social, stats, tempvoice, starboard, suggestions, birthday, scheduled, antiraid, verification, rolemenus, tickets, giveaways, counting, polls, invitetracking, applications, economy, games, backups, music, minecraft] = await Promise.all([
     api.get(`/guilds/${id}/general`).then(r => r.data).catch(() => null),
     api.get(`/guilds/${id}/settings/autorole`).then(r => r.data).catch(() => null),
     api.get(`/guilds/${id}/settings/logs`).then(r => r.data).catch(() => null),
@@ -828,7 +851,8 @@ async function fetchExtraStatus() {
     api.get(`/guilds/${id}/economy`).then(r => r.data).catch(() => null),
     api.get(`/guilds/${id}/games`).then(r => r.data).catch(() => null),
     api.get(`/guilds/${id}/backups`).then(r => r.data).catch(() => null),
-    api.get(`/guilds/${id}/music`).then(r => r.data).catch(() => null)
+    api.get(`/guilds/${id}/music`).then(r => r.data).catch(() => null),
+    api.get(`/guilds/${id}/minecraft`).then(r => r.data).catch(() => null)
   ])
   void endpoints
   extraEnabled.generalLanguage = (general?.success && general.settings?.language) ? general.settings.language : 'en'
@@ -868,6 +892,7 @@ async function fetchExtraStatus() {
   extraEnabled.poker = !!gs.poker_enabled
   extraEnabled.backupCount = (backups?.success && Array.isArray(backups.snapshots)) ? backups.snapshots.length : 0
   extraEnabled.music = !!(music?.success && music.settings?.enabled)
+  extraEnabled.minecraft = !!(minecraft?.success && Array.isArray(minecraft.servers) && minecraft.servers.some(s => s?.enabled))
 }
 
 onMounted(fetchExtraStatus)
@@ -1055,6 +1080,7 @@ onMounted(() => {
 .config-card__icon--games { background: linear-gradient(135deg, #ec4899, #8b5cf6); }
 .config-card__icon--backup { background: linear-gradient(135deg, #14b8a6, #22d3ee); }
 .config-card__icon--music { background: linear-gradient(135deg, #1db954, #1ed760); }
+.config-card__icon--minecraft { background: linear-gradient(135deg, #5a7d3c, #8bab5a); }
 
 .config-card__title {
   font-size: 1.1rem;

@@ -325,6 +325,17 @@ _EN = {
     "tv.invited": "➕ Allowed: {names}",
     "tv.removed": "➖ Removed: {names}",
     "tv.noChanges": "No changes made.",
+    # --- minecraft ---
+    "mc.online": "Online",
+    "mc.offline": "Offline",
+    "mc.unknown": "Unknown",
+    "mc.statusField": "Status",
+    "mc.playersField": "Players",
+    "mc.versionField": "Version",
+    "mc.defaultName": "Minecraft Server",
+    "mc.defaultOnline": "🟢 **{name}** is online — {players}/{max} players",
+    "mc.defaultOffline": "🔴 **{name}** is offline",
+    "mc.defaultUnknown": "⚪ **{name}** — status unknown",
 }
 
 _DE = {
@@ -629,6 +640,17 @@ _DE = {
     "tv.invited": "➕ Erlaubt: {names}",
     "tv.removed": "➖ Entfernt: {names}",
     "tv.noChanges": "Keine Änderungen vorgenommen.",
+    # --- minecraft ---
+    "mc.online": "Online",
+    "mc.offline": "Offline",
+    "mc.unknown": "Unbekannt",
+    "mc.statusField": "Status",
+    "mc.playersField": "Spieler",
+    "mc.versionField": "Version",
+    "mc.defaultName": "Minecraft-Server",
+    "mc.defaultOnline": "🟢 **{name}** ist online — {players}/{max} Spieler",
+    "mc.defaultOffline": "🔴 **{name}** ist offline",
+    "mc.defaultUnknown": "⚪ **{name}** — Status unbekannt",
 }
 
 _TR = {
@@ -933,6 +955,17 @@ _TR = {
     "tv.invited": "➕ İzin verildi: {names}",
     "tv.removed": "➖ Çıkarıldı: {names}",
     "tv.noChanges": "Değişiklik yapılmadı.",
+    # --- minecraft ---
+    "mc.online": "Çevrimiçi",
+    "mc.offline": "Çevrimdışı",
+    "mc.unknown": "Bilinmiyor",
+    "mc.statusField": "Durum",
+    "mc.playersField": "Oyuncular",
+    "mc.versionField": "Sürüm",
+    "mc.defaultName": "Minecraft Sunucusu",
+    "mc.defaultOnline": "🟢 **{name}** çevrimiçi — {players}/{max} oyuncu",
+    "mc.defaultOffline": "🔴 **{name}** çevrimdışı",
+    "mc.defaultUnknown": "⚪ **{name}** — durum bilinmiyor",
 }
 
 _RU = {
@@ -1237,6 +1270,17 @@ _RU = {
     "tv.invited": "➕ Разрешено: {names}",
     "tv.removed": "➖ Удалено: {names}",
     "tv.noChanges": "Изменений не внесено.",
+    # --- minecraft ---
+    "mc.online": "В сети",
+    "mc.offline": "Не в сети",
+    "mc.unknown": "Неизвестно",
+    "mc.statusField": "Статус",
+    "mc.playersField": "Игроки",
+    "mc.versionField": "Версия",
+    "mc.defaultName": "Сервер Minecraft",
+    "mc.defaultOnline": "🟢 **{name}** в сети — {players}/{max} игроков",
+    "mc.defaultOffline": "🔴 **{name}** не в сети",
+    "mc.defaultUnknown": "⚪ **{name}** — статус неизвестен",
 }
 
 _PL = {
@@ -1541,6 +1585,17 @@ _PL = {
     "tv.invited": "➕ Dozwoleni: {names}",
     "tv.removed": "➖ Usunięci: {names}",
     "tv.noChanges": "Nie wprowadzono zmian.",
+    # --- minecraft ---
+    "mc.online": "Online",
+    "mc.offline": "Offline",
+    "mc.unknown": "Nieznany",
+    "mc.statusField": "Status",
+    "mc.playersField": "Gracze",
+    "mc.versionField": "Wersja",
+    "mc.defaultName": "Serwer Minecraft",
+    "mc.defaultOnline": "🟢 **{name}** jest online — {players}/{max} graczy",
+    "mc.defaultOffline": "🔴 **{name}** jest offline",
+    "mc.defaultUnknown": "⚪ **{name}** — status nieznany",
 }
 
 STRINGS = {"en": _EN, "de": _DE, "tr": _TR, "ru": _RU, "pl": _PL}

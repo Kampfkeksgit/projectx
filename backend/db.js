@@ -1175,6 +1175,35 @@ function initializeDatabase() {
       if (err) console.error('Error creating idx_team_members_pos:', err);
     });
 
+    // ----- Minecraft server status monitoring (v46, Free) -----
+    db.run(`
+      CREATE TABLE IF NOT EXISTS guild_minecraft_servers (
+        id                TEXT PRIMARY KEY,
+        guild_id          TEXT NOT NULL,
+        name              TEXT,
+        address           TEXT,
+        edition           TEXT DEFAULT 'java',
+        channel_id        TEXT,
+        notify_mode       TEXT DEFAULT 'embed',
+        message_template  TEXT,
+        embed             TEXT,
+        enabled           INTEGER DEFAULT 1,
+        status            TEXT DEFAULT 'unknown',
+        players_online    INTEGER DEFAULT 0,
+        players_max       INTEGER DEFAULT 0,
+        motd              TEXT,
+        version           TEXT,
+        status_message_id TEXT,
+        last_checked_at   INTEGER DEFAULT 0,
+        dirty             INTEGER DEFAULT 0,
+        created_at        INTEGER DEFAULT 0,
+        FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+      )
+    `, (err) => { if (err) console.error('Error creating guild_minecraft_servers table:', err); });
+    db.run('CREATE INDEX IF NOT EXISTS idx_minecraft_servers_guild ON guild_minecraft_servers(guild_id)', (err) => {
+      if (err) console.error('Error creating idx_minecraft_servers_guild:', err);
+    });
+
     // ----- New modules (v23-v27): Counting / Polls / Invite-Tracking / Applications / Economy -----
 
     db.run(`
@@ -1499,7 +1528,7 @@ export const MODULE_TIERS = {
   games: 'basic', tictactoe: 'basic', rps: 'basic', trivia: 'basic', connect4: 'basic', hangman: 'basic', poker: 'basic',
   social: 'pro', stats: 'pro', tickets: 'pro', giveaways: 'pro', scheduled: 'pro',
   applications: 'pro', economy: 'pro', backup: 'pro', music: 'pro',
-  general: 'free'
+  general: 'free', minecraft: 'free'
 };
 
 /** Marketing/pricing catalog surfaced on the public landing page. */
@@ -2319,7 +2348,8 @@ const COUNT_MODULE_TABLES = [
   { key: 'rolemenus', table: 'guild_role_menus' },
   { key: 'giveaways', table: 'guild_giveaways', where: 'ended = 0' },
   { key: 'polls', table: 'guild_polls', where: 'ended = 0' },
-  { key: 'applications', table: 'guild_application_forms', where: 'enabled = 1' }
+  { key: 'applications', table: 'guild_application_forms', where: 'enabled = 1' },
+  { key: 'minecraft', table: 'guild_minecraft_servers', where: 'enabled = 1' }
 ];
 
 function dbGet(sql, params = []) {
@@ -4989,6 +5019,270 @@ export function updateSocialSubscriptionState(subId, state, now) {
 
     db.run(
       `UPDATE guild_social_subscriptions SET ${fields.join(', ')} WHERE id = ?`,
+      values,
+      function (err) {
+        if (err) reject(err);
+        else resolve(this.changes);
+      }
+    );
+  });
+}
+
+// ===== Module: Minecraft server status (v46, Free) =====
+
+export const MINECRAFT_EDITIONS = ['java', 'bedrock'];
+export const MINECRAFT_NOTIFY_MODES = ['plain', 'embed'];
+const MINECRAFT_NAME_MAX = 100;
+const MINECRAFT_ADDRESS_MAX = 253;
+const MINECRAFT_MESSAGE_MAX = 1000;
+// host or host:port — loose validation (DNS names, IPs, optional :port).
+const MINECRAFT_ADDRESS_RE = /^[a-zA-Z0-9](?:[a-zA-Z0-9._-]{0,251}[a-zA-Z0-9])?(?::\d{1,5})?$/;
+
+export const MINECRAFT_DEFAULTS = {
+  name: '',
+  address: '',
+  edition: 'java',
+  channel_id: null,
+  notify_mode: 'embed',
+  message_template: '',
+  embed: { ...DEFAULT_EMBED },
+  enabled: true
+};
+
+function normalizeMinecraftAddress(address) {
+  if (typeof address !== 'string') return '';
+  let a = address.trim().toLowerCase();
+  // Strip a scheme if a user pasted one (mc://, tcp://, http://…).
+  a = a.replace(/^[a-z]+:\/\//, '');
+  return a.slice(0, MINECRAFT_ADDRESS_MAX);
+}
+
+function shapeMinecraftRow(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    guild_id: row.guild_id,
+    name: row.name ?? '',
+    address: row.address ?? '',
+    edition: MINECRAFT_EDITIONS.includes(row.edition) ? row.edition : 'java',
+    channel_id: row.channel_id ?? null,
+    notify_mode: MINECRAFT_NOTIFY_MODES.includes(row.notify_mode) ? row.notify_mode : 'embed',
+    message_template: row.message_template ?? '',
+    embed: parseEmbedColumn(row.embed),
+    enabled: !!row.enabled,
+    // Bot-maintained live state.
+    status: ['online', 'offline', 'unknown'].includes(row.status) ? row.status : 'unknown',
+    players_online: row.players_online ?? 0,
+    players_max: row.players_max ?? 0,
+    motd: row.motd ?? '',
+    version: row.version ?? '',
+    status_message_id: row.status_message_id ?? null,
+    last_checked_at: row.last_checked_at ?? 0,
+    created_at: row.created_at ?? null
+  };
+}
+
+/** Dashboard: all tracked Minecraft servers for a guild (oldest first). */
+export function getMinecraftServers(guildId) {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `SELECT * FROM guild_minecraft_servers WHERE guild_id = ? ORDER BY created_at ASC, id ASC`,
+      [guildId],
+      (err, rows) => {
+        if (err) return reject(err);
+        resolve((rows || []).map(shapeMinecraftRow));
+      }
+    );
+  });
+}
+
+/**
+ * Bot: every ENABLED server across all (non-blocked) guilds — the minecraft
+ * poller reads this once per cycle. Free tier → no premium filter.
+ */
+export function getAllEnabledMinecraftServers() {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `SELECT * FROM guild_minecraft_servers
+       WHERE enabled = 1
+         AND guild_id NOT IN (SELECT id FROM guilds WHERE blocked = 1)
+       ORDER BY guild_id ASC, id ASC`,
+      [],
+      (err, rows) => {
+        if (err) return reject(err);
+        resolve((rows || []).map(shapeMinecraftRow));
+      }
+    );
+  });
+}
+
+/** Validate + coerce a create/update payload. Throws code 'VALIDATION' on bad input. */
+function buildMinecraftValues(payload, base) {
+  const pick = (key) => (payload[key] !== undefined ? payload[key] : base[key]);
+
+  const address = normalizeMinecraftAddress(pick('address'));
+  if (!address || !MINECRAFT_ADDRESS_RE.test(address)) {
+    throw Object.assign(new Error('address must be a valid host or host:port'), { code: 'VALIDATION' });
+  }
+
+  const edition = MINECRAFT_EDITIONS.includes(pick('edition')) ? pick('edition') : 'java';
+
+  const channelId = pick('channel_id');
+  if (!isSnowflake(channelId)) {
+    throw Object.assign(new Error('channel_id must be a Discord snowflake'), { code: 'VALIDATION' });
+  }
+
+  const notifyMode = MINECRAFT_NOTIFY_MODES.includes(pick('notify_mode')) ? pick('notify_mode') : 'embed';
+  const name = truncate(pick('name') || '', MINECRAFT_NAME_MAX);
+  const messageTemplate = truncate(pick('message_template') || '', MINECRAFT_MESSAGE_MAX);
+  const embed = sanitizeEmbed(pick('embed'));
+
+  return {
+    name,
+    address,
+    edition,
+    channel_id: channelId,
+    notify_mode: notifyMode,
+    message_template: messageTemplate,
+    embed: JSON.stringify(embed),
+    enabled: pick('enabled') ? 1 : 0
+  };
+}
+
+/** Create a tracked Minecraft server (server-side UUID). */
+export function createMinecraftServer(guildId, payload) {
+  return new Promise((resolve, reject) => {
+    let v;
+    try {
+      v = buildMinecraftValues(payload || {}, MINECRAFT_DEFAULTS);
+    } catch (err) {
+      return reject(err);
+    }
+    const id = randomUUID();
+    const now = Math.floor(Date.now() / 1000);
+
+    db.run(
+      `INSERT INTO guild_minecraft_servers
+         (id, guild_id, name, address, edition, channel_id, notify_mode,
+          message_template, embed, enabled, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, guildId, v.name, v.address, v.edition, v.channel_id, v.notify_mode,
+       v.message_template, v.embed, v.enabled, now],
+      function (err) {
+        if (err) return reject(err);
+        db.get(`SELECT * FROM guild_minecraft_servers WHERE id = ?`, [id], (gErr, row) => {
+          if (gErr) reject(gErr);
+          else resolve(shapeMinecraftRow(row));
+        });
+      }
+    );
+  });
+}
+
+/**
+ * Update a server. Any edit sets dirty=1 so the bot re-renders the posted
+ * status message. Changing address/edition/channel abandons the old status
+ * message (clear status_message_id → the bot posts a fresh one, and resets the
+ * cached status so the next poll re-detects it). NOT_FOUND if missing.
+ */
+export function updateMinecraftServer(guildId, id, patch) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      `SELECT * FROM guild_minecraft_servers WHERE guild_id = ? AND id = ?`,
+      [guildId, id],
+      (gErr, row) => {
+        if (gErr) return reject(gErr);
+        if (!row) return reject(Object.assign(new Error('Server not found'), { code: 'NOT_FOUND' }));
+
+        const base = shapeMinecraftRow(row);
+        let v;
+        try {
+          v = buildMinecraftValues(patch || {}, base);
+        } catch (err) {
+          return reject(err);
+        }
+
+        const retarget = v.address !== base.address || v.edition !== base.edition || v.channel_id !== base.channel_id;
+        const resetClause = retarget
+          ? ", status_message_id = NULL, status = 'unknown', players_online = 0, players_max = 0, motd = '', version = '', last_checked_at = 0"
+          : '';
+
+        db.run(
+          `UPDATE guild_minecraft_servers
+             SET name = ?, address = ?, edition = ?, channel_id = ?, notify_mode = ?,
+                 message_template = ?, embed = ?, enabled = ?, dirty = 1${resetClause}
+           WHERE guild_id = ? AND id = ?`,
+          [v.name, v.address, v.edition, v.channel_id, v.notify_mode,
+           v.message_template, v.embed, v.enabled, guildId, id],
+          function (upErr) {
+            if (upErr) return reject(upErr);
+            db.get(`SELECT * FROM guild_minecraft_servers WHERE id = ?`, [id], (g2Err, updated) => {
+              if (g2Err) reject(g2Err);
+              else resolve(shapeMinecraftRow(updated));
+            });
+          }
+        );
+      }
+    );
+  });
+}
+
+/** Delete a tracked server. Returns deleted row count. */
+export function deleteMinecraftServer(guildId, id) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `DELETE FROM guild_minecraft_servers WHERE guild_id = ? AND id = ?`,
+      [guildId, id],
+      function (err) {
+        if (err) reject(err);
+        else resolve(this.changes);
+      }
+    );
+  });
+}
+
+/**
+ * Bot-only: persist live state after a status check. Only keys present in
+ * `state` are written (status, players_online, players_max, motd, version,
+ * status_message_id); last_checked_at is always stamped and dirty cleared.
+ */
+export function setMinecraftServerState(id, state, now) {
+  return new Promise((resolve, reject) => {
+    const s = state || {};
+    const ts = Number.isFinite(now) ? Math.floor(now) : Math.floor(Date.now() / 1000);
+
+    const fields = ['last_checked_at = ?', 'dirty = 0'];
+    const values = [ts];
+
+    if (s.status !== undefined) {
+      fields.push('status = ?');
+      values.push(['online', 'offline', 'unknown'].includes(s.status) ? s.status : 'unknown');
+    }
+    if (s.players_online !== undefined) {
+      fields.push('players_online = ?');
+      values.push(Number.isFinite(Number(s.players_online)) ? Math.max(0, Math.floor(Number(s.players_online))) : 0);
+    }
+    if (s.players_max !== undefined) {
+      fields.push('players_max = ?');
+      values.push(Number.isFinite(Number(s.players_max)) ? Math.max(0, Math.floor(Number(s.players_max))) : 0);
+    }
+    if (s.motd !== undefined) {
+      fields.push('motd = ?');
+      values.push(typeof s.motd === 'string' ? s.motd.slice(0, 500) : '');
+    }
+    if (s.version !== undefined) {
+      fields.push('version = ?');
+      values.push(typeof s.version === 'string' ? s.version.slice(0, 100) : '');
+    }
+    if (s.status_message_id !== undefined) {
+      fields.push('status_message_id = ?');
+      values.push(typeof s.status_message_id === 'string' ? s.status_message_id : null);
+    }
+
+    values.push(id);
+
+    db.run(
+      `UPDATE guild_minecraft_servers SET ${fields.join(', ')} WHERE id = ?`,
       values,
       function (err) {
         if (err) reject(err);
