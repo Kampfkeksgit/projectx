@@ -701,6 +701,7 @@ import { usePremium } from '../stores/premium.js'
 import { useTour } from '../composables/useTour.js'
 import { isMobileUI } from '../mobile/platform.js'
 import { useI18n } from '../i18n/index.js'
+import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 const { t } = useI18n()
 
@@ -897,6 +898,8 @@ async function fetchExtraStatus() {
 
 onMounted(fetchExtraStatus)
 watch(() => guildId.value, fetchExtraStatus)
+// Read-only status view → keep the module cards' live enabled-state fresh.
+useAutoRefresh(fetchExtraStatus)
 
 // Kick off the onboarding tour on the first dashboard visit (desktop shell only).
 // Small delay so the sidebar + grid have laid out before we measure targets.

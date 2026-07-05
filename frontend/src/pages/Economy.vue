@@ -114,6 +114,7 @@ import RoleSelector from '../components/RoleSelector.vue'
 import api from '../services/api.js'
 import { useToast } from '../composables/useToast.js'
 import { useI18n } from '../i18n/index.js'
+import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 const route = useRoute()
 const toast = useToast()
@@ -161,6 +162,8 @@ async function loadLeaderboard() {
 
 onMounted(load)
 watch(guildId, load)
+// Keep settings + shop + leaderboard fresh; skip while the settings form is dirty.
+useAutoRefresh(load, { isDirty: () => dirty.value })
 
 async function save() {
   saving.value = true

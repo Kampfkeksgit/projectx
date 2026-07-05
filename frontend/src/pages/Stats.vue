@@ -168,6 +168,7 @@ import StatsChart from '../components/StatsChart.vue'
 import api from '../services/api.js'
 import { useToast } from '../composables/useToast.js'
 import { useI18n } from '../i18n/index.js'
+import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 const route = useRoute()
 const toast = useToast()
@@ -277,6 +278,9 @@ async function loadHistory() {
 
 onMounted(() => { load(); loadHistory() })
 watch(() => guildId.value, () => { load(); loadHistory() })
+// Keep settings + counters + history fresh; skip while the settings form is
+// dirty or a counter draft is open. Existing counter rows keep their own edits.
+useAutoRefresh(() => { load(); loadHistory() }, { isDirty: () => settingsDirty.value || !!draftRow.value })
 
 function setRange(opt) {
   if (range.value === opt) return

@@ -639,6 +639,7 @@ import StatsChart from '../components/StatsChart.vue'
 import { useToast } from '../composables/useToast.js'
 import { useAuth } from '../stores/auth.js'
 import { useI18n } from '../i18n/index.js'
+import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 const { t, locale } = useI18n()
 const router = useRouter()
@@ -779,6 +780,13 @@ const premiumLines = computed(() => [
 ])
 
 onMounted(() => load())
+
+// Auto-refresh the active tab's data on focus + interval. Skip on the 'system'
+// tab (its load() re-hydrates the editable maintenance/announcement forms) and
+// while a modal is open, so nothing the owner is editing gets clobbered.
+useAutoRefresh(() => load(), {
+  isDirty: () => tab.value === 'system' || !!inspect.value || !!confirmTarget.value
+})
 
 function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1) }
 function isMe(id) { return auth.state.user?.id === id }

@@ -193,6 +193,7 @@ import api from '../services/api.js'
 import { useGuildResources } from '../composables/useGuildResources.js'
 import { useToast } from '../composables/useToast.js'
 import { useI18n } from '../i18n/index.js'
+import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 const route = useRoute()
 const toast = useToast()
@@ -270,6 +271,9 @@ async function load() {
 
 onMounted(load)
 watch(() => guildId.value, load)
+// Auto-refresh the list; skip while the inline editor is open so unsaved edits
+// aren't clobbered. Individual rows re-render from the list state on refresh.
+useAutoRefresh(load, { isDirty: () => editorOpen.value })
 
 function openEditorForNew() {
   editingId.value = null

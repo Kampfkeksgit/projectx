@@ -102,6 +102,7 @@ import { PLACEHOLDERS } from '../components/embedPlaceholders.js'
 import api from '../services/api.js'
 import { useToast } from '../composables/useToast.js'
 import { useI18n } from '../i18n/index.js'
+import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 const route = useRoute()
 const toast = useToast()
@@ -239,6 +240,9 @@ function normalize(c) {
 function loadAll() { load(); loadCatalog() }
 onMounted(loadAll)
 watch(() => guildId.value, loadAll)
+// Auto-refresh list + built-in catalog; skip while a new custom-command draft is
+// open. Saved rows keep their own unsaved edits (they don't re-hydrate dirty).
+useAutoRefresh(loadAll, { isDirty: () => !!draftRow.value })
 
 function addDraft() {
   draftRow.value = emptyDraft()

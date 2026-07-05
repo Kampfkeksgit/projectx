@@ -75,6 +75,7 @@ import api from '../services/api.js'
 import { usePremium, TIER_RANK } from '../stores/premium.js'
 import { useI18n } from '../i18n/index.js'
 import { useToast } from '../composables/useToast.js'
+import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -149,6 +150,13 @@ async function loadPlans() {
 onMounted(() => {
   loadPlans()
   if (guildId.value) premium.load(guildId.value)
+})
+
+// Read-only view — keep tier/plan fresh (e.g. after a code redeem elsewhere).
+// The redeem input is a separate ref and isn't touched by a refresh.
+useAutoRefresh(() => {
+  loadPlans()
+  if (guildId.value) return premium.load(guildId.value, { force: true })
 })
 </script>
 

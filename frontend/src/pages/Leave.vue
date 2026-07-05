@@ -167,6 +167,7 @@ import { PLACEHOLDERS, insertAtCaret } from '../components/embedPlaceholders.js'
 import { useGuildSettings } from '../stores/guildSettings.js'
 import { useToast } from '../composables/useToast.js'
 import { useI18n } from '../i18n/index.js'
+import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 const route = useRoute()
 const store = useGuildSettings()
@@ -228,6 +229,11 @@ async function ensureLoaded() {
 onMounted(ensureLoaded)
 watch(() => store.cache.settings, hydrateFromCache, { deep: false })
 watch(() => guildId.value, ensureLoaded)
+// Auto-refresh: force a fresh load (skipped while the form is dirty, so unsaved
+// edits are never clobbered). The store watcher above re-hydrates on new data.
+useAutoRefresh(async () => {
+  if (guildId.value) await store.loadFull(guildId.value)
+}, { isDirty: () => dirty.value })
 
 watch(() => form.leave_delete_after, (v) => {
   const c = clamp(v)

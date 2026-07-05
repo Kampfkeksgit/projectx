@@ -125,6 +125,7 @@ import RoleSelector from '../components/RoleSelector.vue'
 import api from '../services/api.js'
 import { useToast } from '../composables/useToast.js'
 import { useI18n } from '../i18n/index.js'
+import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 const route = useRoute()
 const toast = useToast()
@@ -200,6 +201,9 @@ async function load() {
 
 onMounted(load)
 watch(guildId, load)
+// Auto-refresh the giveaway list; skip while the create panel is open (the
+// refresh only touches `rows`, but this keeps parity with the draft pattern).
+useAutoRefresh(load, { isDirty: () => showCreate.value })
 
 async function createGiveaway() {
   const durationSeconds = Math.floor((form.duration_value || 0) * (UNIT_SECONDS[form.duration_unit] || 60))

@@ -123,7 +123,7 @@ const matchLabel = computed(() => {
 
 // When the parent replaces the row (e.g. after save), re-baseline.
 watch(() => props.modelValue, (next) => {
-  if (!next) return
+  if (!next || dirty.value) return
   local.id = next.id
   local.trigger = next.trigger || ''
   local.response = next.response || ''

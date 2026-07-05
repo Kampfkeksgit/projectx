@@ -128,6 +128,7 @@ import RoleSelector from '../components/RoleSelector.vue'
 import api from '../services/api.js'
 import { useToast } from '../composables/useToast.js'
 import { useI18n } from '../i18n/index.js'
+import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 const route = useRoute()
 const toast = useToast()
@@ -215,6 +216,9 @@ function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = 
 onMounted(() => { loadSettings(); startPolling() })
 onUnmounted(stopPolling)
 watch(guildId, () => { loadSettings(); startPolling() })
+// Refresh only the settings on focus/interval; skip while the form is dirty.
+// The live player state keeps its own 4s polling loop above (untouched).
+useAutoRefresh(loadSettings, { isDirty: () => dirty.value })
 </script>
 
 <style scoped>

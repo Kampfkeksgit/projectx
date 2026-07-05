@@ -47,6 +47,7 @@ import ScheduledMessageRow from '../components/ScheduledMessageRow.vue'
 import api from '../services/api.js'
 import { useToast } from '../composables/useToast.js'
 import { useI18n } from '../i18n/index.js'
+import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 const route = useRoute()
 const toast = useToast()
@@ -80,6 +81,9 @@ async function load() {
 
 onMounted(load)
 watch(guildId, load)
+// Auto-refresh the list; skip while a new draft is open. Saved rows keep their
+// own unsaved edits (they don't re-hydrate while dirty).
+useAutoRefresh(load, { isDirty: () => !!draftRow.value })
 
 function addDraft() { draftRow.value = emptyDraft() }
 function cancelDraft() { draftRow.value = null }

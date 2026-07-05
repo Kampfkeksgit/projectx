@@ -80,6 +80,7 @@ import GameLanguagePicker from '../components/GameLanguagePicker.vue'
 import api from '../services/api.js'
 import { useToast } from '../composables/useToast.js'
 import { useI18n } from '../i18n/index.js'
+import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 const gameKey = 'poker'
 const route = useRoute()
@@ -127,6 +128,8 @@ async function load() {
 
 onMounted(load)
 watch(guildId, load)
+// Keep leaderboard + settings fresh; skip while editing.
+useAutoRefresh(load, { isDirty: () => dirty.value })
 
 async function save() {
   saving.value = true

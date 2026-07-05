@@ -64,6 +64,7 @@ import ChannelSelector from '../components/ChannelSelector.vue'
 import api from '../services/api.js'
 import { useToast } from '../composables/useToast.js'
 import { useI18n } from '../i18n/index.js'
+import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 const route = useRoute()
 const toast = useToast()
@@ -98,6 +99,8 @@ async function load() {
 
 onMounted(load)
 watch(guildId, load)
+// Keep live values (current/high) + settings fresh; skip while editing.
+useAutoRefresh(load, { isDirty: () => dirty.value })
 
 async function save() {
   saving.value = true
