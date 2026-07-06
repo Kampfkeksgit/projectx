@@ -1,6 +1,6 @@
 # Module
 
-projectx bietet über 34 Module, aufgeteilt auf drei Tarife: **Free** (dauerhaft kostenlos), **Basic** und **Pro**. Welche Tarife was kosten, steht unter [Premium & Tarife](premium.md).
+projectx bietet über 35 Module, aufgeteilt auf drei Tarife: **Free** (dauerhaft kostenlos), **Basic** und **Pro**. Welche Tarife was kosten, steht unter [Premium & Tarife](premium.md).
 
 ## Free – dauerhaft kostenlos
 
@@ -16,6 +16,7 @@ projectx bietet über 34 Module, aufgeteilt auf drei Tarife: **Free** (dauerhaft
 - **Eigene Befehle** – Selbst definierte Text-Befehle und Verwaltung aller eingebauten Befehle (Prefix, an/aus).
 - **Counting (Zählen)** – Gemeinsamer Zähl-Kanal, in dem der Bot jede Zahl prüft.
 - **Umfragen (Polls)** – Button-Umfragen mit Live-Auszählung.
+- **Minecraft-Status** – Zeigt für deine Minecraft-Server (Java **und** Bedrock) live an, ob sie online oder offline sind – inklusive Spielerzahl, direkt in einem Kanal.
 
 ## Basic
 
@@ -38,5 +39,6 @@ projectx bietet über 34 Module, aufgeteilt auf drei Tarife: **Free** (dauerhaft
 - **Bewerbungen** – Bewerbungsformulare mit Fragen, Prüfung per Annehmen/Ablehnen und Rollenvergabe.
 - **Wirtschaft (Economy)** – Server-Währung mit Daily, Work, Bezahlen, Shop und Bestenliste.
 - **Server-Backup** – Snapshots der Server-Struktur (Kanäle & Rollen) speichern und wiederherstellen, inklusive Vorlagen.
+- **Musik** – Spielt Musik in Sprachkanälen (SoundCloud, Bandcamp, Twitch, Radio-Streams) – steuerbar direkt im Dashboard, mit Warteschlange und DJ-Rolle.
 
 ➡️ Tarife und Preise: [Premium & Tarife](premium.md)
