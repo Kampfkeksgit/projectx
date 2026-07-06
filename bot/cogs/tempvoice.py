@@ -100,6 +100,8 @@ class LimitModal(discord.ui.Modal):
             await self.channel.edit(user_limit=limit, reason="Temp-Voice panel")
             value = t(self.lang, "tv.unlimited") if limit == 0 else limit
             await interaction.response.send_message(t(self.lang, "tv.limitSet", value=value), ephemeral=True)
+        except discord.Forbidden:
+            await interaction.response.send_message(t(self.lang, "tv.missingPermChannels"), ephemeral=True)
         except Exception as exc:
             await interaction.response.send_message(t(self.lang, "tv.limitFailed", error=str(exc)[:80]), ephemeral=True)
 
@@ -125,6 +127,8 @@ class RenameModal(discord.ui.Modal):
         try:
             await self.channel.edit(name=name, reason="Temp-Voice panel")
             await interaction.response.send_message(t(self.lang, "tv.renamed", name=name), ephemeral=True)
+        except discord.Forbidden:
+            await interaction.response.send_message(t(self.lang, "tv.missingPermChannels"), ephemeral=True)
         except Exception as exc:
             await interaction.response.send_message(t(self.lang, "tv.renameFailed", error=str(exc)[:80]), ephemeral=True)
 
@@ -324,6 +328,12 @@ class TempVoice(commands.Cog):
             return
         try:
             await self._handle_action(interaction, action, channel, lang)
+        except discord.Forbidden as exc:
+            # Editing @everyone / member overwrites (lock/unlock/hide/show) needs
+            # the "Manage Roles" permission on the channel. Tell the user exactly
+            # what's missing instead of a bare "Missing Access".
+            print(f"[tempvoice] panel action '{action}' forbidden in {channel.guild.id}: {exc}")
+            await self._respond(interaction, t(lang, "tv.missingPermRoles"))
         except Exception as exc:
             print(f"[tempvoice] panel action '{action}' failed: {exc}")
             await self._respond(interaction, t(lang, "tv.somethingWrong"))
@@ -412,6 +422,7 @@ class TempVoice(commands.Cog):
         guild = channel.guild
         ids = (interaction.data or {}).get("values") or []
         done = []
+        forbidden = False
         for uid in ids:
             member = guild.get_member(int(uid)) if uid.isdigit() else None
             if member is None:
@@ -419,12 +430,16 @@ class TempVoice(commands.Cog):
             try:
                 await self._set_overwrite(channel, member, connect=True, view_channel=True)
                 done.append(member)
+            except discord.Forbidden:
+                forbidden = True
             except Exception as exc:
                 print(f"[tempvoice] invite failed: {exc}")
         lang = await lang_for(self.backend_url, self.api_key, guild.id)
         if done:
             names = ", ".join(m.mention for m in done)
             await interaction.followup.send(t(lang, "tv.invited", names=names), ephemeral=True)
+        elif forbidden:
+            await interaction.followup.send(t(lang, "tv.missingPermRoles"), ephemeral=True)
         else:
             await interaction.followup.send(t(lang, "tv.noChanges"), ephemeral=True)
 
@@ -433,6 +448,7 @@ class TempVoice(commands.Cog):
         guild = channel.guild
         ids = (interaction.data or {}).get("values") or []
         done = []
+        forbidden = False
         for uid in ids:
             member = guild.get_member(int(uid)) if uid.isdigit() else None
             if member is None or member.id == interaction.user.id:
@@ -442,12 +458,16 @@ class TempVoice(commands.Cog):
                 if member.voice and member.voice.channel and member.voice.channel.id == channel.id:
                     await member.move_to(None, reason="Temp-Voice: kicked from channel")
                 done.append(member)
+            except discord.Forbidden:
+                forbidden = True
             except Exception as exc:
                 print(f"[tempvoice] kick failed: {exc}")
         lang = await lang_for(self.backend_url, self.api_key, guild.id)
         if done:
             names = ", ".join(m.mention for m in done)
             await interaction.followup.send(t(lang, "tv.removed", names=names), ephemeral=True)
+        elif forbidden:
+            await interaction.followup.send(t(lang, "tv.missingPermRoles"), ephemeral=True)
         else:
             await interaction.followup.send(t(lang, "tv.noChanges"), ephemeral=True)
 
