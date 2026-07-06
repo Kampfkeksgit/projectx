@@ -1128,7 +1128,7 @@ export default {
   },
   commandManager: {
     prefixTitle: 'Server-Prefix',
-    prefixHint: 'Das/die Zeichen vor Prefix-Befehlen auf diesem Server (z. B. ! → !ticketpanel). Die Bot-Erwähnung funktioniert immer zusätzlich.',
+    prefixHint: 'Das/die Zeichen vor Prefix-Befehlen auf diesem Server (z. B. ! → !suggest). Die Bot-Erwähnung funktioniert immer zusätzlich.',
     prefixSaved: 'Prefix aktualisiert',
     catalogTitle: 'Alle Befehle',
     catalogHint: 'Alle eingebauten Befehle über alle Module. Umschalten, um sie auf diesem Server zu aktivieren oder zu deaktivieren.',
@@ -1303,7 +1303,7 @@ export default {
     ratingModeBoth: 'Beides',
     ratingLogNote: 'Abgegebene Bewertungen werden im obigen Log-Channel gepostet.',
     permNote: 'Benötigt die Berechtigung „Kanäle verwalten“, um Ticket-Channels zu erstellen.',
-    usageNote: 'Nach dem Speichern !ticketpanel im Server ausführen (Admin), um das Ticket-Panel zu posten.',
+    usageNote: 'Nach dem Speichern /ticketpanel im Server ausführen (Admin), um das Ticket-Panel zu posten.',
     loadError: 'Ticket-Einstellungen konnten nicht geladen werden',
     categoriesHint: 'Jede Kategorie ist eine Option im Panel – mit eigenem Channel, Support-Rolle und Willkommenstext.',
     addCategory: 'Kategorie hinzufügen',

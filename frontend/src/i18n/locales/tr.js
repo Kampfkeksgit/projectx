@@ -1086,7 +1086,7 @@ export default {
   },
   commandManager: {
     prefixTitle: 'Sunucu öneki',
-    prefixHint: 'Bu sunucudaki önek komutlarından önceki karakter(ler) (örn. ! → !ticketpanel). Bot etiketi de her zaman çalışır.',
+    prefixHint: 'Bu sunucudaki önek komutlarından önceki karakter(ler) (örn. ! → !suggest). Bot etiketi de her zaman çalışır.',
     prefixSaved: 'Önek güncellendi',
     catalogTitle: 'Tüm komutlar',
     catalogHint: 'Tüm modüllerdeki yerleşik komutların tamamı. Bu sunucuda etkinleştirmek veya devre dışı bırakmak için açıp kapatın.',
@@ -1261,7 +1261,7 @@ export default {
     ratingModeBoth: 'Her ikisi',
     ratingLogNote: 'Gönderilen puanlamalar yukarıdaki kayıt kanalına yayınlanır.',
     permNote: 'Talep kanalları oluşturmak için Kanalları Yönet yetkisi gerektirir.',
-    usageNote: 'Kaydettikten sonra, talep panelini yayınlamak için sunucuda (yönetici) !ticketpanel komutunu çalıştırın.',
+    usageNote: 'Kaydettikten sonra, talep panelini yayınlamak için sunucuda (yönetici) /ticketpanel komutunu çalıştırın.',
     loadError: 'Talep ayarları yüklenemedi',
     categoriesHint: 'Her kategori, kendi kanalı, destek rolü ve karşılama metni ile panelde bir seçenektir.',
     addCategory: 'Kategori ekle',
