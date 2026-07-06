@@ -1128,7 +1128,7 @@ export default {
   },
   commandManager: {
     prefixTitle: 'Server prefix',
-    prefixHint: 'The character(s) before prefix commands on this server (e.g. ! → !ticketpanel). The bot mention always works too.',
+    prefixHint: 'The character(s) before prefix commands on this server (e.g. ! → !suggest). The bot mention always works too.',
     prefixSaved: 'Prefix updated',
     catalogTitle: 'All commands',
     catalogHint: 'Every built-in command across all modules. Toggle to enable or disable it on this server.',
@@ -1303,7 +1303,7 @@ export default {
     ratingModeBoth: 'Both',
     ratingLogNote: 'Submitted ratings are posted to the log channel above.',
     permNote: 'Requires the Manage Channels permission to create ticket channels.',
-    usageNote: 'After saving, run !ticketpanel in the server (admin) to post the ticket panel.',
+    usageNote: 'After saving, run /ticketpanel in the server (admin) to post the ticket panel.',
     loadError: 'Failed to load ticket settings',
     categoriesHint: 'Each category is one option on the panel, with its own channel, support role and welcome text.',
     addCategory: 'Add category',

@@ -10,7 +10,7 @@ A configurable support-ticket system:
     opener (in the channel and/or via DM).
 
 Component interactions are handled via on_interaction (custom_ids below) so they
-survive restarts. Admins post/refresh the panel with `!ticketpanel`.
+survive restarts. Admins post/refresh the panel with the `/ticketpanel` slash command.
 
 custom_id scheme:
   ticket_open                         single default open button
@@ -30,6 +30,7 @@ import io
 import time
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 import config
@@ -268,30 +269,35 @@ class Tickets(commands.Cog):
 
     # ----- Panel command -----
 
-    @commands.command(name="ticketpanel")
-    @commands.has_permissions(administrator=True)
-    @commands.guild_only()
-    async def ticketpanel(self, ctx):
-        lang = await lang_for(self.backend_url, self.api_key, ctx.guild.id)
-        settings = await self._get_settings(ctx.guild.id, force=True)
+    @app_commands.command(name="ticketpanel", description="Post or refresh the ticket panel.")
+    @app_commands.guild_only()
+    @app_commands.default_permissions(administrator=True)
+    async def ticketpanel(self, interaction: discord.Interaction):
+        lang = await lang_for(self.backend_url, self.api_key, interaction.guild.id)
+        perms = getattr(interaction.user, "guild_permissions", None)
+        if not (perms and perms.administrator):
+            await interaction.response.send_message(t(lang, "ticket.adminOnly"), ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=True)
+        settings = await self._get_settings(interaction.guild.id, force=True)
         if not settings or not settings.get("enabled"):
-            await ctx.reply(t(lang, "ticket.notEnabled"), mention_author=False)
+            await interaction.followup.send(t(lang, "ticket.notEnabled"), ephemeral=True)
             return
         channel_id = settings.get("panel_channel_id")
-        channel = ctx.guild.get_channel(int(channel_id)) if channel_id else ctx.channel
+        channel = interaction.guild.get_channel(int(channel_id)) if channel_id else interaction.channel
         embed = build_embed(
             settings.get("panel_embed"),
-            guild=ctx.guild,
+            guild=interaction.guild,
             fallback_desc=settings.get("panel_message") or t(lang, "ticket.fallbackPanelDesc"),
         )
         try:
             msg = await channel.send(embed=embed, view=build_panel_view(settings, lang=lang))
         except discord.Forbidden:
-            await ctx.reply(t(lang, "ticket.cantPostPanel"), mention_author=False)
+            await interaction.followup.send(t(lang, "ticket.cantPostPanel"), ephemeral=True)
             return
-        await bot_put(self.backend_url, self.api_key, f"/api/bot/guilds/{ctx.guild.id}/tickets/panel", {"message_id": str(msg.id)})
-        if channel.id != ctx.channel.id:
-            await ctx.reply(t(lang, "ticket.panelPosted", channel=channel.mention), mention_author=False)
+        await bot_put(self.backend_url, self.api_key, f"/api/bot/guilds/{interaction.guild.id}/tickets/panel", {"message_id": str(msg.id)})
+        await interaction.followup.send(t(lang, "ticket.panelPosted", channel=channel.mention), ephemeral=True)
 
     # ----- Interaction dispatch -----
 

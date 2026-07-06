@@ -1086,7 +1086,7 @@ export default {
   },
   commandManager: {
     prefixTitle: 'Prefiks serwera',
-    prefixHint: 'Znak(i) przed komendami z prefiksem na tym serwerze (np. ! → !ticketpanel). Wzmianka o bocie również zawsze działa.',
+    prefixHint: 'Znak(i) przed komendami z prefiksem na tym serwerze (np. ! → !suggest). Wzmianka o bocie również zawsze działa.',
     prefixSaved: 'Prefiks zaktualizowany',
     catalogTitle: 'Wszystkie komendy',
     catalogHint: 'Każda wbudowana komenda we wszystkich modułach. Przełącz, aby włączyć lub wyłączyć ją na tym serwerze.',
@@ -1261,7 +1261,7 @@ export default {
     ratingModeBoth: 'Oba',
     ratingLogNote: 'Przesłane oceny są publikowane na powyższym kanale logów.',
     permNote: 'Wymaga uprawnienia Zarządzanie kanałami do tworzenia kanałów zgłoszeń.',
-    usageNote: 'Po zapisaniu uruchom !ticketpanel na serwerze (administrator), aby opublikować panel zgłoszeń.',
+    usageNote: 'Po zapisaniu uruchom /ticketpanel na serwerze (administrator), aby opublikować panel zgłoszeń.',
     loadError: 'Nie udało się załadować ustawień zgłoszeń',
     categoriesHint: 'Każda kategoria to jedna opcja na panelu, z własnym kanałem, rolą wsparcia i tekstem powitalnym.',
     addCategory: 'Dodaj kategorię',
