@@ -4,7 +4,7 @@
 
 ## Was kann projectx?
 
-Über **34 Module** decken alles ab, was eine aktive Community braucht – von Begrüßungsnachrichten und Moderation über Level-System, Tickets und Umfragen bis hin zu kleinen Spielen und automatischen Server-Backups.
+Über **35 Module** decken alles ab, was eine aktive Community braucht – von Begrüßungsnachrichten und Moderation über Level-System, Tickets und Umfragen bis hin zu kleinen Spielen, Musik, Minecraft-Server-Status und automatischen Server-Backups.
 
 - **Kostenlos starten:** Viele Module sind dauerhaft gratis – du kannst sofort loslegen.
 - **Klick-Konfiguration:** Jedes Modul hat eine eigene Dashboard-Seite mit verständlichen Optionen.
