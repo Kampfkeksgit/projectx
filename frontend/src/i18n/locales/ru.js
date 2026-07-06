@@ -1269,6 +1269,7 @@ export default {
     catsEmptyBody: 'Без категорий панель показывает одну кнопку «Открыть тикет». Добавьте одну для панели с несколькими опциями.',
     catNamePlaceholder: 'например Общая поддержка',
     catDisabled: 'Отключено',
+    catToggleDetails: 'Развернуть/свернуть',
     catLabelLabel: 'Название',
     catEmojiLabel: 'Эмодзи',
     catDescLabel: 'Описание',

@@ -1311,6 +1311,7 @@ export default {
     catsEmptyBody: 'Without categories the panel shows a single "Open Ticket" button. Add one for a multi-option panel.',
     catNamePlaceholder: 'e.g. General Support',
     catDisabled: 'Disabled',
+    catToggleDetails: 'Expand/collapse',
     catLabelLabel: 'Name',
     catEmojiLabel: 'Emoji',
     catDescLabel: 'Description',

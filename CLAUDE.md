@@ -358,6 +358,7 @@ projectx/
 │       │   │                   # Einklappbar (Caret + klickbarer Header; gespeicherte Menüs starten eingeklappt, Drafts offen) wie StatsCounterRow
 │       │   ├── TicketCategoryRow.vue # Inline-Editor-Row für Ticket-Kategorien (Label/Emoji/Desc/
 │       │   │                       # Kategorie+Support-Rolle+Ping-Rolle-Override/Button-Style/Welcome/Toggle)
+│       │   │                       # Einklappbar (Caret + klickbarer Header; gespeicherte Kategorien starten eingeklappt, Drafts offen) wie StatsCounterRow/RoleMenuRow
 │       │   ├── PremiumLock.vue # Sperrseite für Premium-Module (in DashboardLayout statt router-view gerendert, wenn Tier < Modul)
 │       │   ├── Sidebar.vue     # Dashboard-Sidebar mit 6 einklappbaren Gruppen (Configuration/Moderation/Engagement/Community/Games/Server)
 │       │   │                   # + Premium-Link + Lock-Icons; Collapse-Zustand pro Gruppe (key config|moderation|engagement|community|games|server)
