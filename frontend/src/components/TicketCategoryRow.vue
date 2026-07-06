@@ -1,17 +1,29 @@
 <template>
   <div class="form-card tc-row" :class="{ 'is-draft': isDraft }">
-    <div class="tc-row__head">
+    <div class="tc-row__head" @click="collapsed = !collapsed">
       <div class="tc-row__title">
+        <button
+          type="button"
+          class="tc-row__collapse"
+          :class="{ 'is-collapsed': collapsed }"
+          :title="t('tickets.catToggleDetails')"
+          :aria-label="t('tickets.catToggleDetails')"
+          :aria-expanded="!collapsed"
+          @click.stop="collapsed = !collapsed"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
         <span v-if="dirty" class="tc-row__dot" :title="t('tickets.unsavedDot')" aria-hidden="true"></span>
         <span class="tc-row__emoji">{{ local.emoji || '🎫' }}</span>
         <span class="tc-row__name">{{ local.label || t('tickets.catNamePlaceholder') }}</span>
         <span v-if="!local.enabled" class="tc-row__off">{{ t('tickets.catDisabled') }}</span>
       </div>
-      <label class="tc-row__toggle">
+      <label class="tc-row__toggle" @click.stop>
         <AppToggle v-model="local.enabled" />
       </label>
     </div>
 
+    <div v-show="!collapsed" class="tc-row__body">
     <div class="tc-row__grid">
       <div class="form-row">
         <label class="form-row__label" :for="`tc-label-${rowKey}`">{{ t('tickets.catLabelLabel') }}</label>
@@ -65,11 +77,12 @@
       <AppButton v-if="isDraft" variant="ghost" :disabled="saving" @click="$emit('cancel')">{{ t('common.cancel') }}</AppButton>
       <AppButton variant="gradient" :loading="saving" :disabled="!isDraft && !dirty" @click="$emit('save', cloneLocal())">{{ t('common.saveChanges') }}</AppButton>
     </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { computed, reactive, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import AppButton from './AppButton.vue'
 import AppToggle from './AppToggle.vue'
 import ChannelSelector from './ChannelSelector.vue'
@@ -104,6 +117,10 @@ function hydrate(src) {
 }
 
 const local = reactive(hydrate(props.modelValue))
+
+// Saved categories start collapsed (tidy list); new drafts open for editing.
+const collapsed = ref(!props.isDraft)
+
 let initial = JSON.stringify(local)
 const rowKey = computed(() => local.id || 'draft')
 const dirty = computed(() => JSON.stringify(local) !== initial)
@@ -122,8 +139,12 @@ watch(() => props.modelValue, (next) => {
 <style scoped>
 .form-card { background: var(--color-surface); background-image: var(--gradient-card); border: 1px solid var(--color-border); border-radius: var(--radius-xl); padding: var(--space-5) var(--space-6); display: flex; flex-direction: column; gap: var(--space-4); box-shadow: var(--shadow-inset); }
 .tc-row.is-draft { border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-soft), var(--shadow-inset); }
-.tc-row__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.tc-row__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; cursor: pointer; }
 .tc-row__title { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 0; flex-wrap: wrap; }
+.tc-row__collapse { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; flex-shrink: 0; color: var(--color-text-soft); border-radius: var(--radius-sm); transition: color var(--transition), background var(--transition), transform var(--transition); }
+.tc-row__collapse:hover { color: var(--color-primary); background: var(--color-surface-2); }
+.tc-row__collapse.is-collapsed { transform: rotate(-90deg); }
+.tc-row__body { display: flex; flex-direction: column; gap: var(--space-4); }
 .tc-row__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-warning); box-shadow: 0 0 0 3px rgba(245,158,11,0.18); }
 .tc-row__emoji { font-size: 1.1rem; }
 .tc-row__name { font-weight: 600; color: var(--color-text); }

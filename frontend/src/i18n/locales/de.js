@@ -1311,6 +1311,7 @@ export default {
     catsEmptyBody: 'Ohne Kategorien zeigt das Panel einen einzelnen „Ticket öffnen“-Button. Füge eine hinzu für ein Mehr-Optionen-Panel.',
     catNamePlaceholder: 'z. B. Allgemeiner Support',
     catDisabled: 'Inaktiv',
+    catToggleDetails: 'Auf-/Zuklappen',
     catLabelLabel: 'Name',
     catEmojiLabel: 'Emoji',
     catDescLabel: 'Beschreibung',

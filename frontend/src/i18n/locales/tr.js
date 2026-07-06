@@ -1269,6 +1269,7 @@ export default {
     catsEmptyBody: 'Kategoriler olmadan panel tek bir "Talep Aç" düğmesi gösterir. Çok seçenekli bir panel için bir tane ekleyin.',
     catNamePlaceholder: 'örn. Genel Destek',
     catDisabled: 'Devre dışı',
+    catToggleDetails: 'Genişlet/daralt',
     catLabelLabel: 'Ad',
     catEmojiLabel: 'Emoji',
     catDescLabel: 'Açıklama',

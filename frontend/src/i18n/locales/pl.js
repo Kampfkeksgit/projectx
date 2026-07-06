@@ -1269,6 +1269,7 @@ export default {
     catsEmptyBody: 'Bez kategorii panel pokazuje pojedynczy przycisk „Otwórz zgłoszenie”. Dodaj jedną, aby uzyskać panel z wieloma opcjami.',
     catNamePlaceholder: 'np. Wsparcie ogólne',
     catDisabled: 'Wyłączone',
+    catToggleDetails: 'Rozwiń/zwiń',
     catLabelLabel: 'Nazwa',
     catEmojiLabel: 'Emoji',
     catDescLabel: 'Opis',
