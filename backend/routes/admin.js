@@ -39,6 +39,10 @@ import {
   createTeamMember,
   updateTeamMember,
   deleteTeamMember,
+  getChangelogEntries,
+  createChangelogEntry,
+  updateChangelogEntry,
+  deleteChangelogEntry,
   getPremiumCodes,
   deletePremiumCode,
   getRevenue
@@ -509,6 +513,64 @@ router.delete('/team/:id', async (req, res) => {
   } catch (error) {
     console.error('Admin delete team member error:', error.message)
     res.status(500).json({ error: 'Failed to delete team member' })
+  }
+})
+
+// ----- Changelog publisher (owner-only) -----
+
+router.get('/changelog', async (req, res) => {
+  try {
+    res.json({ success: true, entries: await getChangelogEntries() })
+  } catch (error) {
+    console.error('Admin get changelog error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch changelog' })
+  }
+})
+
+router.post('/changelog', async (req, res) => {
+  try {
+    let entry
+    try {
+      entry = await createChangelogEntry(req.body || {})
+    } catch (err) {
+      if (err && err.code === 'VALIDATION') return res.status(400).json({ error: 'title_required' })
+      throw err
+    }
+    await logAuditAction(req.user.id, null, 'ADMIN_CHANGELOG_CREATE', { id: entry.id, version: entry.version, published: entry.published })
+    res.json({ success: true, entry })
+  } catch (error) {
+    console.error('Admin create changelog error:', error.message)
+    res.status(500).json({ error: 'Failed to create changelog entry' })
+  }
+})
+
+router.put('/changelog/:id', async (req, res) => {
+  try {
+    let entry
+    try {
+      entry = await updateChangelogEntry(req.params.id, req.body || {})
+    } catch (err) {
+      if (err && err.code === 'NOT_FOUND') return res.status(404).json({ error: 'not_found' })
+      if (err && err.code === 'VALIDATION') return res.status(400).json({ error: 'title_required' })
+      throw err
+    }
+    await logAuditAction(req.user.id, null, 'ADMIN_CHANGELOG_UPDATE', { id: entry.id, published: entry.published })
+    res.json({ success: true, entry })
+  } catch (error) {
+    console.error('Admin update changelog error:', error.message)
+    res.status(500).json({ error: 'Failed to update changelog entry' })
+  }
+})
+
+router.delete('/changelog/:id', async (req, res) => {
+  try {
+    const changes = await deleteChangelogEntry(req.params.id)
+    if (changes === 0) return res.status(404).json({ error: 'not_found' })
+    await logAuditAction(req.user.id, null, 'ADMIN_CHANGELOG_DELETE', { id: req.params.id })
+    res.json({ success: true })
+  } catch (error) {
+    console.error('Admin delete changelog error:', error.message)
+    res.status(500).json({ error: 'Failed to delete changelog entry' })
   }
 })
 

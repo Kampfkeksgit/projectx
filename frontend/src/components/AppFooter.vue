@@ -22,6 +22,9 @@
             <router-link to="/team">{{ t('team.title') }}</router-link>
           </li>
           <li>
+            <router-link to="/changelog">{{ t('footer.changelog') }}</router-link>
+          </li>
+          <li>
             <router-link to="/legal/impressum">{{ t('legal.impressum.title') }}</router-link>
           </li>
           <li>

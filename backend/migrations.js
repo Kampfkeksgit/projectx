@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 46;
+const CURRENT_SCHEMA_VERSION = 47;
 
 /**
  * Initialize schema version tracking
@@ -105,7 +105,8 @@ async function applyMigrations(fromVersion, toVersion) {
     43: migrationV43,
     44: migrationV44,
     45: migrationV45,
-    46: migrationV46
+    46: migrationV46,
+    47: migrationV47
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -2194,6 +2195,30 @@ function migrationV46() {
       FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
     )`,
     'CREATE INDEX IF NOT EXISTS idx_minecraft_servers_guild ON guild_minecraft_servers(guild_id)'
+  ]);
+}
+
+/**
+ * Migration V47: Changelog publisher.
+ *   - changelog_entries: owner-authored release notes. Managed in the admin area;
+ *     published entries are shown on a public /changelog page. `body` is Markdown.
+ *     `published` gates draft vs. public; `entry_date` (unix-seconds) is the shown
+ *     release date (defaults to created_at).
+ * Idempotent; mirrored in initializeDatabase().
+ */
+function migrationV47() {
+  return runSchemaBatch(47, [
+    `CREATE TABLE IF NOT EXISTS changelog_entries (
+      id          TEXT PRIMARY KEY,
+      version     TEXT,
+      title       TEXT NOT NULL,
+      body        TEXT,
+      published   INTEGER DEFAULT 1,
+      entry_date  INTEGER DEFAULT 0,
+      created_at  INTEGER DEFAULT 0,
+      updated_at  INTEGER DEFAULT 0
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_changelog_date ON changelog_entries(entry_date)'
   ]);
 }
 

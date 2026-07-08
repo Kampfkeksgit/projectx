@@ -1175,6 +1175,23 @@ function initializeDatabase() {
       if (err) console.error('Error creating idx_team_members_pos:', err);
     });
 
+    // ----- Changelog publisher (v47) -----
+    db.run(`
+      CREATE TABLE IF NOT EXISTS changelog_entries (
+        id          TEXT PRIMARY KEY,
+        version     TEXT,
+        title       TEXT NOT NULL,
+        body        TEXT,
+        published   INTEGER DEFAULT 1,
+        entry_date  INTEGER DEFAULT 0,
+        created_at  INTEGER DEFAULT 0,
+        updated_at  INTEGER DEFAULT 0
+      )
+    `, (err) => { if (err) console.error('Error creating changelog_entries table:', err); });
+    db.run('CREATE INDEX IF NOT EXISTS idx_changelog_date ON changelog_entries(entry_date)', (err) => {
+      if (err) console.error('Error creating idx_changelog_date:', err);
+    });
+
     // ----- Minecraft server status monitoring (v46, Free) -----
     db.run(`
       CREATE TABLE IF NOT EXISTS guild_minecraft_servers (
@@ -2933,6 +2950,104 @@ export function resolveTeamMember(id, { username, name, avatar_url } = {}) {
       [uname, dispName, avatar || null, id],
       function (err) { if (err) reject(err); else resolve(this.changes); }
     );
+  });
+}
+
+// ===== Changelog publisher (v47) =====
+
+const CHANGELOG_TITLE_MAX = 150;
+const CHANGELOG_VERSION_MAX = 40;
+const CHANGELOG_BODY_MAX = 8000;
+
+function shapeChangelogEntry(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    version: row.version ?? '',
+    title: row.title ?? '',
+    body: row.body ?? '',
+    published: !!row.published,
+    entry_date: row.entry_date ?? row.created_at ?? 0,
+    created_at: row.created_at ?? 0,
+    updated_at: row.updated_at ?? 0
+  };
+}
+
+/** Admin: all entries (drafts + published), newest first. */
+export function getChangelogEntries() {
+  return dbAll(
+    `SELECT * FROM changelog_entries ORDER BY entry_date DESC, created_at DESC`
+  ).then((rows) => (rows || []).map(shapeChangelogEntry));
+}
+
+/** Public: only published entries, newest first (optional limit). */
+export function getPublishedChangelog(limit = 50) {
+  const n = clampRange(limit, 1, 200, 50);
+  return dbAll(
+    `SELECT * FROM changelog_entries WHERE published = 1 ORDER BY entry_date DESC, created_at DESC LIMIT ?`,
+    [n]
+  ).then((rows) => (rows || []).map(shapeChangelogEntry));
+}
+
+function getChangelogEntryById(id) {
+  return dbGet('SELECT * FROM changelog_entries WHERE id = ?', [id]).then(shapeChangelogEntry);
+}
+
+/** Validate/coerce a changelog date input (unix-seconds or ms) → unix-seconds, 0 if absent. */
+function sanitizeEntryDate(value, fallback) {
+  if (value === undefined || value === null || value === '') return fallback;
+  let n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  if (n > 1e12) n = Math.floor(n / 1000); // caller passed ms
+  n = Math.floor(n);
+  return n > 0 ? n : fallback;
+}
+
+export function createChangelogEntry(payload = {}) {
+  const p = payload || {};
+  const title = truncate(String(p.title || '').trim(), CHANGELOG_TITLE_MAX);
+  if (!title) return Promise.reject(Object.assign(new Error('title required'), { code: 'VALIDATION' }));
+  const id = randomUUID();
+  const version = truncate(String(p.version || '').trim(), CHANGELOG_VERSION_MAX);
+  const body = truncate(String(p.body || ''), CHANGELOG_BODY_MAX);
+  const published = p.published === false ? 0 : 1;
+  const now = Math.floor(Date.now() / 1000);
+  const entryDate = sanitizeEntryDate(p.entry_date, now);
+  return new Promise((resolve, reject) => {
+    db.run(
+      'INSERT INTO changelog_entries (id, version, title, body, published, entry_date, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, version, title, body, published, entryDate, now, now],
+      (err) => (err ? reject(err) : getChangelogEntryById(id).then(resolve).catch(reject))
+    );
+  });
+}
+
+export function updateChangelogEntry(id, patch = {}) {
+  return new Promise((resolve, reject) => {
+    dbGet('SELECT * FROM changelog_entries WHERE id = ?', [id]).then((existing) => {
+      if (!existing) return reject(Object.assign(new Error('not found'), { code: 'NOT_FOUND' }));
+      const p = patch || {};
+      const title = p.title !== undefined ? truncate(String(p.title || '').trim(), CHANGELOG_TITLE_MAX) : existing.title;
+      if (!title) return reject(Object.assign(new Error('title required'), { code: 'VALIDATION' }));
+      const version = p.version !== undefined ? truncate(String(p.version || '').trim(), CHANGELOG_VERSION_MAX) : existing.version;
+      const body = p.body !== undefined ? truncate(String(p.body || ''), CHANGELOG_BODY_MAX) : existing.body;
+      const published = p.published !== undefined ? (p.published ? 1 : 0) : existing.published;
+      const entryDate = p.entry_date !== undefined ? sanitizeEntryDate(p.entry_date, existing.entry_date) : existing.entry_date;
+      const now = Math.floor(Date.now() / 1000);
+      db.run(
+        'UPDATE changelog_entries SET version = ?, title = ?, body = ?, published = ?, entry_date = ?, updated_at = ? WHERE id = ?',
+        [version, title, body, published, entryDate, now, id],
+        (err) => (err ? reject(err) : getChangelogEntryById(id).then(resolve).catch(reject))
+      );
+    }).catch(reject);
+  });
+}
+
+export function deleteChangelogEntry(id) {
+  return new Promise((resolve, reject) => {
+    db.run('DELETE FROM changelog_entries WHERE id = ?', [id], function (err) {
+      if (err) reject(err); else resolve(this.changes);
+    });
   });
 }
 
