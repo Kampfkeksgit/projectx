@@ -80,6 +80,13 @@ def parse_emoji(value):
     if not value:
         return None
     try:
+        # Strip surrounding whitespace + zero-width space / BOM that sneak in via
+        # copy-paste — a leading space in the emoji field makes Discord reject the
+        # whole component with "Invalid emoji" (50035). Do NOT strip ZWJ (U+200D),
+        # it's part of legit emoji sequences (e.g. 🏳️‍🌈).
+        value = str(value).replace("​", "").replace("﻿", "").strip()
+        if not value:
+            return None
         if value.startswith("<") and ":" in value:
             return discord.PartialEmoji.from_str(value)
         return value
@@ -87,7 +94,16 @@ def parse_emoji(value):
         return None
 
 
-def build_menu_view(menu, lang="en"):
+def _is_emoji_http_error(exc):
+    """True if a Discord HTTPException is about an invalid option/button emoji."""
+    text = (getattr(exc, "text", "") or str(exc) or "").lower()
+    return "emoji" in text
+
+
+def build_menu_view(menu, lang="en", drop_emojis=False):
+    """Build the buttons/select for a menu. When drop_emojis is True, every
+    option's emoji is omitted — used as a fallback retry if Discord rejects one
+    emoji so the whole menu can still be posted (just without the icons)."""
     options = menu.get("options") or []
     view = discord.ui.View(timeout=None)
     if menu.get("menu_type") == "select":
@@ -96,7 +112,7 @@ def build_menu_view(menu, lang="en"):
             select_options.append(discord.SelectOption(
                 label=(o.get("label") or t(lang, "rm.roleFallback"))[:100],
                 value=str(o.get("role_id")),
-                emoji=parse_emoji(o.get("emoji")),
+                emoji=None if drop_emojis else parse_emoji(o.get("emoji")),
             ))
         if select_options:
             exclusive = bool(menu.get("exclusive"))
@@ -113,7 +129,7 @@ def build_menu_view(menu, lang="en"):
                 style=discord.ButtonStyle.secondary,
                 label=(o.get("label") or t(lang, "rm.roleFallback"))[:80],
                 custom_id=f"rr:{o.get('role_id')}",
-                emoji=parse_emoji(o.get("emoji")),
+                emoji=None if drop_emojis else parse_emoji(o.get("emoji")),
             ))
     return view
 
@@ -181,7 +197,15 @@ class RoleMenus(commands.Cog):
         if existing_id:
             try:
                 existing = await channel.fetch_message(int(existing_id))
-                await existing.edit(embed=embed, view=view)
+                try:
+                    await existing.edit(embed=embed, view=view)
+                except discord.HTTPException as exc:
+                    if not _is_emoji_http_error(exc):
+                        raise
+                    # One option's emoji is invalid → re-render without emojis so
+                    # the menu still updates instead of failing entirely.
+                    print(f"[rolemenus] invalid emoji in menu {menu.get('id')} → editing without emojis")
+                    await existing.edit(embed=embed, view=build_menu_view(menu, lang=lang, drop_emojis=True))
                 msg = existing
             except (discord.NotFound, discord.Forbidden, ValueError):
                 msg = None  # message gone / unreachable → repost below
@@ -194,6 +218,16 @@ class RoleMenus(commands.Cog):
             except discord.Forbidden:
                 print(f"[rolemenus] missing permission to post in {channel.id}")
                 return
+            except discord.HTTPException as exc:
+                if not _is_emoji_http_error(exc):
+                    print(f"[rolemenus] post failed for {menu.get('id')}: {exc}")
+                    return
+                print(f"[rolemenus] invalid emoji in menu {menu.get('id')} → posting without emojis")
+                try:
+                    msg = await channel.send(embed=embed, view=build_menu_view(menu, lang=lang, drop_emojis=True))
+                except Exception as exc2:
+                    print(f"[rolemenus] post retry failed for {menu.get('id')}: {exc2}")
+                    return
 
         await bot_put(
             self.backend_url, self.api_key,
