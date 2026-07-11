@@ -3,6 +3,7 @@ import { useAuth } from '../stores/auth.js'
 
 const Landing = () => import('../pages/Landing.vue')
 const Team = () => import('../pages/Team.vue')
+const Changelog = () => import('../pages/Changelog.vue')
 const Servers = () => import('../pages/Servers.vue')
 const AuthCallback = () => import('../pages/AuthCallback.vue')
 const Admin = () => import('../pages/Admin.vue')
@@ -58,6 +59,11 @@ const routes = [
     path: '/team',
     name: 'team',
     component: Team
+  },
+  {
+    path: '/changelog',
+    name: 'changelog',
+    component: Changelog
   },
   {
     path: '/auth/callback',
