@@ -887,7 +887,11 @@ export default {
     addImage: '+ Изображение',
     sepDivider: 'Показывать линию-разделитель',
     sepLarge: 'Большой отступ',
-    placeholdersV2Intro: 'Нажмите на подстановку, чтобы вставить её в выбранный блок текста.'
+    placeholdersV2Intro: 'Нажмите на подстановку, чтобы вставить её в выбранный блок текста.',
+    block_section: 'Текст + изображение',
+    addSection: '+ Текст + изображение',
+    sectionTextPlaceholder: 'Текст слева от миниатюры…',
+    sectionThumbLabel: 'Миниатюра (справа)'
   },
   welcome: {
     eyebrow: 'Настройка',

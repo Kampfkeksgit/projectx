@@ -887,7 +887,11 @@ export default {
     addImage: '+ Görsel',
     sepDivider: 'Ayırıcı çizgiyi göster',
     sepLarge: 'Geniş boşluk',
-    placeholdersV2Intro: 'Odaklanılan metin bloğuna eklemek için bir yer tutucuya tıklayın.'
+    placeholdersV2Intro: 'Odaklanılan metin bloğuna eklemek için bir yer tutucuya tıklayın.',
+    block_section: 'Metin + görsel',
+    addSection: '+ Metin + görsel',
+    sectionTextPlaceholder: 'Küçük resmin solunda gösterilen metin…',
+    sectionThumbLabel: 'Küçük resim (sağda)'
   },
   welcome: {
     eyebrow: 'Yapılandırma',

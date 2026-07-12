@@ -331,10 +331,44 @@
               <img :src="block.url" alt="" @error="onImgErr($event)" />
             </div>
           </template>
+
+          <template v-else-if="block.type === 'section'">
+            <div class="ee-v2-sectionrow">
+              <textarea
+                class="ee-input ee-input--textarea"
+                rows="3"
+                maxlength="4000"
+                :disabled="disabled"
+                :ref="el => setBlockRef(i, el)"
+                :value="block.content"
+                :placeholder="t('embedEditor.sectionTextPlaceholder')"
+                @focus="focusedBlock = i"
+                @input="patchBlock(i, { content: $event.target.value })"
+              ></textarea>
+              <div class="ee-v2-section-thumb">
+                <label class="ee-label ee-label--sm">{{ t('embedEditor.sectionThumbLabel') }}</label>
+                <div class="ee-input-row">
+                  <input
+                    class="ee-input"
+                    type="text"
+                    :disabled="disabled"
+                    :value="block.thumbnail"
+                    placeholder="https://…"
+                    @input="patchBlock(i, { thumbnail: $event.target.value })"
+                  />
+                  <button type="button" class="ee-mini-btn" :disabled="disabled" @click="patchBlock(i, { thumbnail: '{user.avatar}' })">{{ t('embedEditor.useUserAvatar') }}</button>
+                </div>
+                <div v-if="isHttpUrl(block.thumbnail)" class="ee-mini-preview">
+                  <img :src="block.thumbnail" alt="" @error="onImgErr($event)" />
+                </div>
+              </div>
+            </div>
+          </template>
         </div>
 
         <div class="ee-v2-add">
           <button type="button" class="ee-mini-btn" :disabled="disabled || atMax" @click="addBlock('text')">{{ t('embedEditor.addText') }}</button>
+          <button type="button" class="ee-mini-btn" :disabled="disabled || atMax" @click="addBlock('section')">{{ t('embedEditor.addSection') }}</button>
           <button type="button" class="ee-mini-btn" :disabled="disabled || atMax" @click="addBlock('separator')">{{ t('embedEditor.addSeparator') }}</button>
           <button type="button" class="ee-mini-btn" :disabled="disabled || atMax" @click="addBlock('image')">{{ t('embedEditor.addImage') }}</button>
         </div>
@@ -503,6 +537,7 @@ function addBlock(type) {
   if (type === 'text') blocks.push({ type: 'text', content: '' })
   else if (type === 'separator') blocks.push({ type: 'separator', divider: true, spacing: 1 })
   else if (type === 'image') blocks.push({ type: 'image', url: '' })
+  else if (type === 'section') blocks.push({ type: 'section', content: '', thumbnail: '' })
   patch({ blocks })
 }
 
@@ -537,11 +572,12 @@ function setBlockRef(i, el) {
 async function insertPlaceholderV2(token) {
   if (props.disabled) return
   const blocks = [...(model.value.blocks || [])]
+  const hasText = (b) => b && (b.type === 'text' || b.type === 'section')
   let idx = focusedBlock.value
-  if (!(blocks[idx] && blocks[idx].type === 'text')) {
+  if (!hasText(blocks[idx])) {
     idx = -1
     for (let k = blocks.length - 1; k >= 0; k--) {
-      if (blocks[k].type === 'text') { idx = k; break }
+      if (hasText(blocks[k])) { idx = k; break }
     }
     if (idx === -1) {
       blocks.push({ type: 'text', content: '' })
@@ -1047,5 +1083,29 @@ defineExpose({ PLACEHOLDERS })
   gap: var(--space-2);
   flex-wrap: wrap;
   margin-top: var(--space-1);
+}
+
+.ee-v2-sectionrow {
+  display: grid;
+  grid-template-columns: 1fr minmax(0, 220px);
+  gap: var(--space-3);
+  align-items: start;
+}
+
+@media (max-width: 560px) {
+  .ee-v2-sectionrow {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ee-v2-section-thumb {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.ee-label--sm {
+  font-size: 0.8rem;
 }
 </style>

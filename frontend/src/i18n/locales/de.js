@@ -929,7 +929,11 @@ export default {
     addImage: '+ Bild',
     sepDivider: 'Trennlinie anzeigen',
     sepLarge: 'Großer Abstand',
-    placeholdersV2Intro: 'Klicke einen Platzhalter, um ihn in den fokussierten Textblock einzufügen.'
+    placeholdersV2Intro: 'Klicke einen Platzhalter, um ihn in den fokussierten Textblock einzufügen.',
+    block_section: 'Text + Bild',
+    addSection: '+ Text + Bild',
+    sectionTextPlaceholder: 'Text links neben dem Thumbnail…',
+    sectionThumbLabel: 'Thumbnail (rechts)'
   },
   welcome: {
     eyebrow: 'Konfiguration',

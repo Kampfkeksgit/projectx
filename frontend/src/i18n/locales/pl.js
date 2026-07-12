@@ -887,7 +887,11 @@ export default {
     addImage: '+ Obraz',
     sepDivider: 'Pokaż linię separatora',
     sepLarge: 'Duży odstęp',
-    placeholdersV2Intro: 'Kliknij symbol zastępczy, aby wstawić go do wybranego bloku tekstu.'
+    placeholdersV2Intro: 'Kliknij symbol zastępczy, aby wstawić go do wybranego bloku tekstu.',
+    block_section: 'Tekst + obraz',
+    addSection: '+ Tekst + obraz',
+    sectionTextPlaceholder: 'Tekst wyświetlany po lewej od miniatury…',
+    sectionThumbLabel: 'Miniatura (z prawej)'
   },
   welcome: {
     eyebrow: 'Konfiguracja',

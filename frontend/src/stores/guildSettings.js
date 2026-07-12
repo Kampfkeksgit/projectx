@@ -40,6 +40,7 @@ function mergeV2Blocks(provided) {
     if (b.type === 'text') out.push({ type: 'text', content: typeof b.content === 'string' ? b.content : '' })
     else if (b.type === 'separator') out.push({ type: 'separator', divider: b.divider !== false, spacing: b.spacing === 2 ? 2 : 1 })
     else if (b.type === 'image') out.push({ type: 'image', url: typeof b.url === 'string' ? b.url : '' })
+    else if (b.type === 'section') out.push({ type: 'section', content: typeof b.content === 'string' ? b.content : '', thumbnail: typeof b.thumbnail === 'string' ? b.thumbnail : '' })
   }
   return out
 }
