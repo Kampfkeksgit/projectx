@@ -1,6 +1,6 @@
 import express from 'express'
 import { getPublicStats } from '../state/botStats.js'
-import { PLAN_CATALOG, getMaintenanceState, getAnnouncementState, getTeamMembers } from '../db.js'
+import { PLAN_CATALOG, getMaintenanceState, getAnnouncementState, getTeamMembers, getPublishedChangelog } from '../db.js'
 
 const router = express.Router()
 
@@ -13,6 +13,18 @@ router.get('/team', async (req, res) => {
   } catch (error) {
     console.error('Public team error:', error.message)
     res.status(500).json({ error: 'Failed to fetch team' })
+  }
+})
+
+/** Public changelog — no auth. Published release notes for the /changelog page. */
+router.get('/changelog', async (req, res) => {
+  try {
+    const entries = await getPublishedChangelog(50)
+    res.set('Cache-Control', 'public, max-age=60')
+    res.json({ entries })
+  } catch (error) {
+    console.error('Public changelog error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch changelog' })
   }
 })
 

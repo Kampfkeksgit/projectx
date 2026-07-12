@@ -499,6 +499,54 @@
         </div>
       </div>
 
+      <!-- CHANGELOG / release notes -->
+      <div v-else-if="tab === 'changelog'">
+        <div class="panel panel--form">
+          <h3 class="panel__title">{{ clForm.id ? t('admin.clEditTitle') : t('admin.clTitle') }}</h3>
+          <p class="panel__desc">{{ t('admin.clDesc') }}</p>
+          <div class="team-form">
+            <div class="team-form__grid">
+              <label class="tf"><span class="modal__label">{{ t('admin.clVersion') }}</span><input v-model="clForm.version" class="modal__input" maxlength="40" :placeholder="t('admin.clVersionPlaceholder')" /></label>
+              <label class="tf"><span class="modal__label">{{ t('admin.clDate') }}</span><input v-model="clForm.date" class="modal__input" type="date" /></label>
+            </div>
+            <label class="tf tf--wide"><span class="modal__label">{{ t('admin.clTitleField') }}</span><input v-model="clForm.title" class="modal__input" maxlength="150" /></label>
+            <label class="tf tf--wide"><span class="modal__label">{{ t('admin.clBody') }}</span><textarea v-model="clForm.body" class="modal__input" rows="6" maxlength="8000"></textarea></label>
+            <label class="toggle-row">
+              <AppToggle v-model="clForm.published" />
+              <span>{{ clForm.published ? t('admin.clPublished') : t('admin.clDraft') }}</span>
+            </label>
+            <div class="team-form__actions">
+              <AppButton v-if="clForm.id" variant="ghost" @click="resetClForm">{{ t('common.cancel') }}</AppButton>
+              <AppButton variant="primary" :loading="clSaving" @click="saveChangelog">{{ clForm.id ? t('admin.clSave') : t('admin.clAdd') }}</AppButton>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3 class="panel__title">{{ t('admin.clListTitle') }}</h3>
+          <p v-if="!changelog.length" class="panel__empty">{{ t('admin.clEmpty') }}</p>
+          <ul v-else class="rows">
+            <li v-for="e in changelog" :key="e.id" class="row">
+              <div class="row__main">
+                <div class="row__text">
+                  <div class="row__name">
+                    <span v-if="e.version" class="pill">{{ e.version }}</span>
+                    {{ e.title }}
+                    <span v-if="!e.published" class="job-status job-status--pending">{{ t('admin.clDraftBadge') }}</span>
+                  </div>
+                  <div class="row__sub">{{ e.entry_date ? fmtDateTimeUnix(e.entry_date) : fmtDateTimeUnix(e.created_at) }}</div>
+                </div>
+              </div>
+              <div class="row__right">
+                <AppButton variant="subtle" @click="togglePublished(e)">{{ e.published ? t('admin.clUnpublish') : t('admin.clPublish') }}</AppButton>
+                <button class="linkbtn" @click="editChangelog(e)">{{ t('admin.clEdit') }}</button>
+                <button class="linkbtn linkbtn--danger" @click="removeChangelog(e)">{{ t('admin.clDelete') }}</button>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+
       <!-- SYSTEM (maintenance) -->
       <div v-else-if="tab === 'system'">
         <div class="panel panel--form">
@@ -646,7 +694,7 @@ const router = useRouter()
 const toast = useToast()
 const auth = useAuth()
 
-const tabs = ['overview', 'analytics', 'premium', 'health', 'users', 'guilds', 'audit', 'jobs', 'errors', 'marketplace', 'team', 'system']
+const tabs = ['overview', 'analytics', 'premium', 'health', 'users', 'guilds', 'audit', 'jobs', 'errors', 'marketplace', 'team', 'changelog', 'system']
 const tab = ref('overview')
 
 // Feather-style tab icons (16px, stroke=currentColor) — improves scannability of
@@ -663,6 +711,7 @@ const TAB_ICONS = {
   errors: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
   marketplace: '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>',
   team: '<circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 8.5a2.6 2.6 0 1 1 0 5.2"/><path d="M17.5 20a5 5 0 0 0-2.7-4.4"/>',
+  changelog: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/>',
   system: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>'
 }
 function tabIcon(tb) {
@@ -785,7 +834,7 @@ onMounted(() => load())
 // tab (its load() re-hydrates the editable maintenance/announcement forms) and
 // while a modal is open, so nothing the owner is editing gets clobbered.
 useAutoRefresh(() => load(), {
-  isDirty: () => tab.value === 'system' || !!inspect.value || !!confirmTarget.value
+  isDirty: () => tab.value === 'system' || !!inspect.value || !!confirmTarget.value || (tab.value === 'changelog' && clFormDirty())
 })
 
 function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1) }
@@ -884,6 +933,9 @@ async function load() {
     } else if (tab.value === 'team') {
       const { data } = await api.get('/admin/team')
       teamMembers.value = data.members || []
+    } else if (tab.value === 'changelog') {
+      const { data } = await api.get('/admin/changelog')
+      changelog.value = data.entries || []
     } else if (tab.value === 'system') {
       const [mnt, ann, bc] = await Promise.all([
         api.get('/admin/maintenance'),
@@ -1160,6 +1212,80 @@ async function removeTeamMember(m) {
     await api.delete(`/admin/team/${m.id}`)
     teamMembers.value = teamMembers.value.filter(x => x.id !== m.id)
     if (teamForm.id === m.id) resetTeamForm()
+  } catch (err) {
+    toast.error(err.response?.data?.error || t('admin.actionFailed'))
+  }
+}
+
+// ----- Changelog / release notes -----
+const changelog = ref([])
+const clSaving = ref(false)
+function emptyClForm() {
+  return { id: null, version: '', title: '', body: '', published: true, date: '' }
+}
+const clForm = reactive(emptyClForm())
+function resetClForm() { Object.assign(clForm, emptyClForm()) }
+function clFormDirty() {
+  return !!(clForm.id || clForm.version.trim() || clForm.title.trim() || clForm.body.trim())
+}
+// unix seconds → YYYY-MM-DD for <input type="date"> (local date)
+function unixToDateInput(sec) {
+  if (!sec) return ''
+  const d = new Date(Number(sec) * 1000)
+  if (isNaN(d.getTime())) return ''
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+// YYYY-MM-DD → unix seconds (local midnight); empty → null
+function dateInputToUnix(str) {
+  if (!str) return null
+  const d = new Date(`${str}T00:00:00`)
+  return isNaN(d.getTime()) ? null : Math.floor(d.getTime() / 1000)
+}
+function editChangelog(e) {
+  Object.assign(clForm, {
+    id: e.id, version: e.version || '', title: e.title || '', body: e.body || '',
+    published: !!e.published, date: unixToDateInput(e.entry_date)
+  })
+  if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+async function saveChangelog() {
+  if (!clForm.title.trim()) { toast.error(t('admin.clTitleRequired')); return }
+  clSaving.value = true
+  const body = {
+    version: clForm.version.trim(), title: clForm.title.trim(), body: clForm.body,
+    published: clForm.published, entry_date: dateInputToUnix(clForm.date)
+  }
+  try {
+    if (clForm.id) {
+      const { data } = await api.put(`/admin/changelog/${clForm.id}`, body)
+      const i = changelog.value.findIndex(x => x.id === clForm.id)
+      if (i >= 0 && data?.entry) changelog.value.splice(i, 1, data.entry)
+    } else {
+      const { data } = await api.post('/admin/changelog', body)
+      if (data?.entry) changelog.value.unshift(data.entry)
+    }
+    resetClForm()
+    toast.success(t('admin.clSaved'))
+  } catch (err) {
+    toast.error(err.response?.data?.error === 'title_required' ? t('admin.clTitleRequired') : (err.response?.data?.error || t('admin.actionFailed')))
+  } finally { clSaving.value = false }
+}
+async function togglePublished(e) {
+  try {
+    const { data } = await api.put(`/admin/changelog/${e.id}`, { published: !e.published })
+    const i = changelog.value.findIndex(x => x.id === e.id)
+    if (i >= 0 && data?.entry) changelog.value.splice(i, 1, data.entry)
+  } catch (err) {
+    toast.error(err.response?.data?.error || t('admin.actionFailed'))
+  }
+}
+async function removeChangelog(e) {
+  if (typeof window !== 'undefined' && !window.confirm(t('admin.clDeleteConfirm', { title: e.title }))) return
+  try {
+    await api.delete(`/admin/changelog/${e.id}`)
+    changelog.value = changelog.value.filter(x => x.id !== e.id)
+    if (clForm.id === e.id) resetClForm()
   } catch (err) {
     toast.error(err.response?.data?.error || t('admin.actionFailed'))
   }
