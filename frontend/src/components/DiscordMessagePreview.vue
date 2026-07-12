@@ -167,14 +167,63 @@ function resolvePlainText(raw) {
     .replace(/\{user\}/g, `@${props.username || MOCK_USER_NAME}`)
 }
 
-function renderInlineHtml(raw) {
+// --- Discord-flavoured markdown → HTML (preview approximation) -------------
+// Input is HTML-escaped FIRST, so user text can never inject tags; every tag
+// below is our own. Masked links are restricted to http(s) (no javascript:).
+
+/** Inline formatting: bold/italic/underline/strike/code/spoiler/links/mentions.
+ * `text` must already be HTML-escaped. */
+function inlineMd(text) {
+  let h = text
+  // masked link [label](https://…)
+  h = h.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+    (m, label, url) => `<a class="md-link" href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`)
+  // inline code `code`
+  h = h.replace(/`([^`\n]+)`/g, '<code class="md-code">$1</code>')
+  // bold **text**  (before single-* italic)
+  h = h.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+  // underline __text__  (before single-_ italic)
+  h = h.replace(/__([^_\n]+)__/g, '<u>$1</u>')
+  // strikethrough ~~text~~
+  h = h.replace(/~~([^~\n]+)~~/g, '<s>$1</s>')
+  // spoiler ||text||
+  h = h.replace(/\|\|([^|\n]+)\|\|/g, '<span class="md-spoiler">$1</span>')
+  // italic *text* / _text_
+  h = h.replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
+  h = h.replace(/_([^_\n]+)_/g, '<em>$1</em>')
+  // placeholder mentions
+  h = h.replace(/\{user\}/g, `<span class="mention">@${escapeHtml(props.username || MOCK_USER_NAME)}</span>`)
+  h = h.replace(/\{guild\}/g, `<span class="mention mention--soft">${escapeHtml(props.guildName || 'Your Server')}</span>`)
+  return h
+}
+
+/** Full renderer: block-level (headers/quote/list) line by line, then inline.
+ * `allowHeaders` matches Discord: headers render in message content + V2 text
+ * displays, but NOT inside classic embed descriptions. */
+function renderMarkdown(raw, allowHeaders = false) {
   if (typeof raw !== 'string' || !raw) return ''
-  let s = replaceFlat(raw)
-  let html = escapeHtml(s)
-  html = html.replace(/\{user\}/g, `<span class="mention">@${escapeHtml(props.username || MOCK_USER_NAME)}</span>`)
-  html = html.replace(/\{guild\}/g, `<span class="mention mention--soft">${escapeHtml(props.guildName || 'Your Server')}</span>`)
-  html = html.replace(/\n/g, '<br/>')
-  return html
+  const lines = replaceFlat(raw).split('\n')
+  const pieces = [] // { block: bool, html }
+  for (const rawLine of lines) {
+    const line = escapeHtml(rawLine)
+    let m
+    if (allowHeaders && (m = line.match(/^###\s+(.+)$/))) { pieces.push({ block: true, html: `<div class="md-h md-h3">${inlineMd(m[1])}</div>` }); continue }
+    if (allowHeaders && (m = line.match(/^##\s+(.+)$/)))  { pieces.push({ block: true, html: `<div class="md-h md-h2">${inlineMd(m[1])}</div>` }); continue }
+    if (allowHeaders && (m = line.match(/^#\s+(.+)$/)))   { pieces.push({ block: true, html: `<div class="md-h md-h1">${inlineMd(m[1])}</div>` }); continue }
+    if ((m = line.match(/^&gt;\s?(.*)$/)))                { pieces.push({ block: true, html: `<div class="md-quote">${inlineMd(m[1])}</div>` }); continue }
+    if ((m = line.match(/^[-*]\s+(.+)$/)))                { pieces.push({ block: true, html: `<div class="md-li">${inlineMd(m[1])}</div>` }); continue }
+    pieces.push({ block: false, html: inlineMd(line) })
+  }
+  let out = ''
+  for (let i = 0; i < pieces.length; i++) {
+    if (i > 0 && !pieces[i - 1].block && !pieces[i].block) out += '<br/>'
+    out += pieces[i].html
+  }
+  return out
+}
+
+function renderInlineHtml(raw) {
+  return renderMarkdown(raw, false)
 }
 
 // --- Content row above the embed (or for plain mode) ----------------------
@@ -186,7 +235,7 @@ const contentHtml = computed(() => {
     return ''
   }
   const raw = (props.message || '').trim() || '(empty message)'
-  return renderInlineHtml(raw)
+  return renderMarkdown(raw, true)
 })
 
 // --- Embed resolution -----------------------------------------------------
@@ -222,7 +271,7 @@ const v2Blocks = computed(() => {
   const blocks = (props.embed || {}).blocks
   if (!Array.isArray(blocks)) return []
   return blocks.map((b) => {
-    if (b.type === 'text') return { type: 'text', html: renderInlineHtml(b.content || '') }
+    if (b.type === 'text') return { type: 'text', html: renderMarkdown(b.content || '', true) }
     if (b.type === 'separator') return { type: 'separator', divider: b.divider !== false, large: b.spacing === 2 }
     if (b.type === 'image') return { type: 'image', url: resolveImageField(b.url) }
     return { type: 'unknown' }
@@ -596,5 +645,77 @@ const avatarGradient = computed(() => {
 .dmp-v2__empty {
   color: #949ba4;
   font-size: 0.85rem;
+}
+
+/* ---------- Rendered markdown (shared across content / embed desc / V2 text) ---------- */
+.dmp__content :deep(.md-h),
+.dmp-embed__desc :deep(.md-h),
+.dmp-v2__text :deep(.md-h) {
+  font-weight: 700;
+  line-height: 1.3;
+  color: #f2f3f5;
+  margin: 0.25rem 0 0.1rem;
+}
+.dmp__content :deep(.md-h1),
+.dmp-embed__desc :deep(.md-h1),
+.dmp-v2__text :deep(.md-h1) { font-size: 1.4rem; }
+.dmp__content :deep(.md-h2),
+.dmp-embed__desc :deep(.md-h2),
+.dmp-v2__text :deep(.md-h2) { font-size: 1.15rem; }
+.dmp__content :deep(.md-h3),
+.dmp-embed__desc :deep(.md-h3),
+.dmp-v2__text :deep(.md-h3) { font-size: 1rem; }
+
+.dmp__content :deep(.md-code),
+.dmp-embed__desc :deep(.md-code),
+.dmp-v2__text :deep(.md-code) {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.85em;
+  background: #1e1f22;
+  border: 1px solid #111214;
+  border-radius: 4px;
+  padding: 0.05rem 0.3rem;
+}
+
+.dmp__content :deep(.md-link),
+.dmp-embed__desc :deep(.md-link),
+.dmp-v2__text :deep(.md-link) {
+  color: #00a8fc;
+  text-decoration: none;
+}
+.dmp__content :deep(.md-link:hover),
+.dmp-embed__desc :deep(.md-link:hover),
+.dmp-v2__text :deep(.md-link:hover) { text-decoration: underline; }
+
+.dmp__content :deep(.md-spoiler),
+.dmp-embed__desc :deep(.md-spoiler),
+.dmp-v2__text :deep(.md-spoiler) {
+  background: #111214;
+  color: transparent;
+  border-radius: 4px;
+  padding: 0 2px;
+}
+
+.dmp__content :deep(.md-quote),
+.dmp-embed__desc :deep(.md-quote),
+.dmp-v2__text :deep(.md-quote) {
+  border-left: 3px solid #4e5058;
+  padding-left: 0.6rem;
+  margin: 0.1rem 0;
+}
+
+.dmp__content :deep(.md-li),
+.dmp-embed__desc :deep(.md-li),
+.dmp-v2__text :deep(.md-li) {
+  padding-left: 1.1rem;
+  position: relative;
+}
+.dmp__content :deep(.md-li)::before,
+.dmp-embed__desc :deep(.md-li)::before,
+.dmp-v2__text :deep(.md-li)::before {
+  content: '•';
+  position: absolute;
+  left: 0.35rem;
+  color: #b5bac1;
 }
 </style>
