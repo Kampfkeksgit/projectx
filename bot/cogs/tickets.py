@@ -36,6 +36,7 @@ from discord.ext import commands
 import config
 from utils.backend import fetch_bot_settings, bot_get, bot_post, bot_put
 from utils.bot_i18n import t, lang_for
+from utils.rich_message import is_components_v2, build_layout_view
 
 SETTINGS_TTL_SECONDS = 120
 TICKET_COLOR = 0x5865F2
@@ -137,31 +138,31 @@ def build_embed(cfg, *, user=None, guild=None, number=None, category=None, fallb
     return embed
 
 
-def build_panel_view(settings, lang="en"):
-    """Dropdown or buttons depending on panel_type + configured categories."""
-    view = discord.ui.View(timeout=None)
+def build_panel_items(settings, lang="en"):
+    """The panel's interactive items (single button / category buttons / select)."""
     categories = [c for c in (settings.get("categories") or []) if c.get("enabled", True)]
     panel_type = settings.get("panel_type") or "dropdown"
+    items = []
 
     if not categories:
-        view.add_item(discord.ui.Button(
+        items.append(discord.ui.Button(
             style=discord.ButtonStyle.primary,
             label=(settings.get("button_label") or t(lang, "ticket.openButton"))[:80],
             custom_id="ticket_open",
             emoji="🎫",
         ))
-        return view
+        return items
 
     if panel_type == "buttons":
         for cat in categories[:25]:
             style = _BUTTON_STYLES.get(cat.get("button_style"), discord.ButtonStyle.primary)
-            view.add_item(discord.ui.Button(
+            items.append(discord.ui.Button(
                 style=style,
                 label=(cat.get("label") or t(lang, "ticket.ticketFallback"))[:80],
                 custom_id=f"ticketcat:{cat['id']}",
                 emoji=parse_emoji(cat.get("emoji")),
             ))
-        return view
+        return items
 
     # dropdown
     options = []
@@ -172,24 +173,63 @@ def build_panel_view(settings, lang="en"):
             description=(cat.get("description") or "")[:100] or None,
             emoji=parse_emoji(cat.get("emoji")),
         ))
-    view.add_item(discord.ui.Select(
+    items.append(discord.ui.Select(
         custom_id="ticket_select",
         placeholder=t(lang, "ticket.selectPlaceholder"),
         min_values=1,
         max_values=1,
         options=options,
     ))
+    return items
+
+
+def build_panel_view(settings, lang="en"):
+    """Dropdown or buttons depending on panel_type + configured categories."""
+    view = discord.ui.View(timeout=None)
+    for it in build_panel_items(settings, lang):
+        view.add_item(it)
     return view
+
+
+def build_panel_layout(settings, guild, lang="en"):
+    """Components V2 variant of the panel: accent container + panel items."""
+    return build_layout_view(
+        settings.get("panel_embed") or {},
+        resolve_text=lambda s: resolve_placeholders(s or "", guild=guild),
+        resolve_url=lambda s: _avatar_or_url(s, None) or "",
+        action_items=build_panel_items(settings, lang),
+    )
+
+
+def build_control_items(settings, lang="en"):
+    items = []
+    if settings.get("claim_enabled", True):
+        items.append(discord.ui.Button(style=discord.ButtonStyle.success, label=t(lang, "ticket.claim"), custom_id="ticket_claim", emoji="🙋"))
+    items.append(discord.ui.Button(style=discord.ButtonStyle.secondary, label=t(lang, "ticket.addUser"), custom_id="ticket_add", emoji="➕"))
+    items.append(discord.ui.Button(style=discord.ButtonStyle.secondary, label=t(lang, "ticket.removeUser"), custom_id="ticket_remove", emoji="➖"))
+    items.append(discord.ui.Button(style=discord.ButtonStyle.danger, label=t(lang, "ticket.close"), custom_id="ticket_close", emoji="🔒"))
+    return items
 
 
 def build_control_view(settings, lang="en"):
     view = discord.ui.View(timeout=None)
-    if settings.get("claim_enabled", True):
-        view.add_item(discord.ui.Button(style=discord.ButtonStyle.success, label=t(lang, "ticket.claim"), custom_id="ticket_claim", emoji="🙋"))
-    view.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, label=t(lang, "ticket.addUser"), custom_id="ticket_add", emoji="➕"))
-    view.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, label=t(lang, "ticket.removeUser"), custom_id="ticket_remove", emoji="➖"))
-    view.add_item(discord.ui.Button(style=discord.ButtonStyle.danger, label=t(lang, "ticket.close"), custom_id="ticket_close", emoji="🔒"))
+    for it in build_control_items(settings, lang):
+        view.add_item(it)
     return view
+
+
+def build_welcome_layout(settings, guild, lang, *, user, number, category, extra_top=None):
+    """Components V2 variant of the ticket welcome message: accent container
+    (from welcome_embed blocks, with placeholders) + control buttons."""
+    cat_label = (category or {}).get("label") if isinstance(category, dict) else category
+    return build_layout_view(
+        settings.get("welcome_embed") or {},
+        resolve_text=lambda s: resolve_placeholders(
+            s or "", user=user, guild=guild, number=number, category=cat_label),
+        resolve_url=lambda s: _avatar_or_url(s, user) or "",
+        action_items=build_control_items(settings, lang),
+        extra_top=extra_top,
+    )
 
 
 def build_close_confirm_view(lang="en"):
@@ -286,13 +326,20 @@ class Tickets(commands.Cog):
             return
         channel_id = settings.get("panel_channel_id")
         channel = interaction.guild.get_channel(int(channel_id)) if channel_id else interaction.channel
-        embed = build_embed(
-            settings.get("panel_embed"),
-            guild=interaction.guild,
-            fallback_desc=settings.get("panel_message") or t(lang, "ticket.fallbackPanelDesc"),
-        )
+        panel_cfg = settings.get("panel_embed") or {}
+        view = None
+        if is_components_v2(panel_cfg):
+            view = build_panel_layout(settings, interaction.guild, lang=lang)
         try:
-            msg = await channel.send(embed=embed, view=build_panel_view(settings, lang=lang))
+            if view is not None:
+                msg = await channel.send(view=view)
+            else:
+                embed = build_embed(
+                    panel_cfg,
+                    guild=interaction.guild,
+                    fallback_desc=settings.get("panel_message") or t(lang, "ticket.fallbackPanelDesc"),
+                )
+                msg = await channel.send(embed=embed, view=build_panel_view(settings, lang=lang))
         except discord.Forbidden:
             await interaction.followup.send(t(lang, "ticket.cantPostPanel"), ephemeral=True)
             return
@@ -447,7 +494,23 @@ class Tickets(commands.Cog):
         if ping_role is not None and (not support_role or ping_role.id != support_role.id):
             content_bits.append(ping_role.mention)
         try:
-            await channel.send(content=" ".join(content_bits), embed=embed, view=build_control_view(settings, lang=lang))
+            welcome_cfg = settings.get("welcome_embed") or {}
+            if is_components_v2(welcome_cfg):
+                # V2: mentions become a top text block (content isn't allowed next
+                # to a V2 view); allow the pings through explicitly.
+                view = build_welcome_layout(
+                    settings, guild, lang, user=interaction.user, number=number,
+                    category=category, extra_top=" ".join(content_bits),
+                )
+                if view is not None:
+                    await channel.send(
+                        view=view,
+                        allowed_mentions=discord.AllowedMentions(users=True, roles=True),
+                    )
+                else:
+                    await channel.send(content=" ".join(content_bits), embed=embed, view=build_control_view(settings, lang=lang))
+            else:
+                await channel.send(content=" ".join(content_bits), embed=embed, view=build_control_view(settings, lang=lang))
         except Exception as exc:
             print(f"[tickets] post in channel failed: {exc}")
 

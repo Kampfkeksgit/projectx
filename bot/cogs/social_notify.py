@@ -45,6 +45,7 @@ import discord
 from discord.ext import commands, tasks
 
 import config
+from utils.rich_message import is_components_v2, build_layout_view
 
 
 DEFAULT_EMBED_COLOR = 0x5865F2
@@ -798,7 +799,29 @@ class SocialNotify(commands.Cog):
             allowed = discord.AllowedMentions(roles=True)
 
         embed = None
-        if sub.get("use_embed"):
+        view = None
+        cfg = sub.get("embed") if isinstance(sub.get("embed"), dict) else {}
+        if sub.get("use_embed") and is_components_v2(cfg):
+            # Components V2: build the container from blocks. The role mention
+            # (if any) becomes a top text block so it still pings — content is
+            # not allowed alongside a V2 view.
+            def ph(value):
+                return self._apply_placeholders(
+                    value or "", display_name=display_name, platform=platform,
+                    url=url, title=title, event_type=event_type,
+                )
+            mention_top = f"<@&{mention_role_id}>" if mention_role_id else None
+            try:
+                view = build_layout_view(
+                    cfg,
+                    resolve_text=ph,
+                    resolve_url=lambda s: str(s) if _looks_like_url(s) else "",
+                    extra_top=mention_top,
+                )
+            except Exception as exc:
+                print(f"[social] v2 build failed for sub {sub.get('id')}: {exc}")
+                view = None
+        elif sub.get("use_embed"):
             try:
                 embed = self._build_embed(
                     sub, display_name=display_name, platform=platform,
@@ -813,7 +836,10 @@ class SocialNotify(commands.Cog):
         send_content = content if content else None
 
         try:
-            await channel.send(content=send_content, embed=embed, allowed_mentions=allowed)
+            if view is not None:
+                await channel.send(view=view, allowed_mentions=allowed)
+            else:
+                await channel.send(content=send_content, embed=embed, allowed_mentions=allowed)
         except discord.Forbidden:
             print(f"[social] missing permissions to announce in channel {channel_id}")
         except discord.HTTPException as exc:

@@ -29,6 +29,7 @@ import config
 from utils.backend import fetch_bot_settings, bot_get, bot_put
 from utils import general_config
 from utils.bot_i18n import t, lang_for
+from utils.rich_message import is_components_v2, build_layout_view
 
 
 SETTINGS_TTL_SECONDS = 120
@@ -54,15 +55,30 @@ def _parse_color(value, fallback=VERIFY_COLOR):
     return fallback
 
 
-def build_panel_view(label):
-    view = discord.ui.View(timeout=None)
-    view.add_item(discord.ui.Button(
+def build_verify_button(label):
+    return discord.ui.Button(
         style=discord.ButtonStyle.success,
         label=(label or "Verify")[:80],
         custom_id=VERIFY_CUSTOM_ID,
         emoji="✅",
-    ))
+    )
+
+
+def build_panel_view(label):
+    view = discord.ui.View(timeout=None)
+    view.add_item(build_verify_button(label))
     return view
+
+
+def build_panel_layout(settings, guild, lang):
+    """Components V2 variant: accent container (from embed blocks) + verify button."""
+    label = settings.get("button_label") or t(lang, "verify.button")
+    return build_layout_view(
+        settings.get("embed") or {},
+        resolve_text=lambda s: _resolve(s, guild),
+        resolve_url=lambda s: str(s) if str(s or "").startswith("http") else "",
+        action_items=[build_verify_button(label)],
+    )
 
 
 def build_panel_embed(settings, guild, lang, plain_color):
@@ -135,16 +151,37 @@ class Verification(commands.Cog):
             return None
         lang = await lang_for(self.backend_url, self.api_key, guild.id)
         plain_color = await general_config.get_embed_color(self.backend_url, self.api_key, guild.id, fallback=VERIFY_COLOR)
-        embed = build_panel_embed(settings, guild, lang, plain_color)
-        view = build_panel_view(settings.get("button_label") or t(lang, "verify.button"))
+        cfg = settings.get("embed") or {}
+        want_v2 = bool(settings.get("use_embed")) and is_components_v2(cfg)
+
+        embed = None
+        view = None
+        if want_v2:
+            view = build_panel_layout(settings, guild, lang)
+            if view is None:
+                want_v2 = False  # nothing renderable → classic fallback
+        if not want_v2:
+            embed = build_panel_embed(settings, guild, lang, plain_color)
+            view = build_panel_view(settings.get("button_label") or t(lang, "verify.button"))
 
         msg = None
         existing_id = settings.get("panel_message_id")
         if existing_id and not force_new:
             try:
                 existing = await channel.fetch_message(int(existing_id))
-                await existing.edit(embed=embed, view=view)
-                msg = existing
+                if bool(existing.flags.components_v2) != want_v2:
+                    # Format switched across the Components V2 boundary → repost.
+                    try:
+                        await existing.delete()
+                    except Exception:
+                        pass
+                    msg = None
+                else:
+                    if want_v2:
+                        await existing.edit(view=view)
+                    else:
+                        await existing.edit(embed=embed, view=view)
+                    msg = existing
             except (discord.NotFound, discord.Forbidden, ValueError):
                 msg = None  # gone / wrong channel → repost below
             except Exception as exc:
@@ -152,7 +189,10 @@ class Verification(commands.Cog):
                 return None
         if msg is None:
             try:
-                msg = await channel.send(embed=embed, view=view)
+                if want_v2:
+                    msg = await channel.send(view=view)
+                else:
+                    msg = await channel.send(embed=embed, view=view)
             except discord.Forbidden:
                 print(f"[verify] missing permission to post in {channel.id}")
                 return None

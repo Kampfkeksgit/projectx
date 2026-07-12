@@ -25,6 +25,7 @@ import config
 from utils.backend import bot_get, bot_put
 from utils import general_config
 from utils.bot_i18n import t, lang_for
+from utils.rich_message import is_components_v2, build_layout_view
 
 
 POLL_SECONDS = 60
@@ -100,12 +101,12 @@ def _is_emoji_http_error(exc):
     return "emoji" in text
 
 
-def build_menu_view(menu, lang="en", drop_emojis=False):
-    """Build the buttons/select for a menu. When drop_emojis is True, every
-    option's emoji is omitted — used as a fallback retry if Discord rejects one
-    emoji so the whole menu can still be posted (just without the icons)."""
+def build_menu_items(menu, lang="en", drop_emojis=False):
+    """Build the list of interactive items (buttons or a select) for a menu.
+    When drop_emojis is True, every option's emoji is omitted — a fallback retry
+    if Discord rejects one emoji so the menu still posts (just without icons)."""
     options = menu.get("options") or []
-    view = discord.ui.View(timeout=None)
+    items = []
     if menu.get("menu_type") == "select":
         select_options = []
         for o in options[:25]:
@@ -116,7 +117,7 @@ def build_menu_view(menu, lang="en", drop_emojis=False):
             ))
         if select_options:
             exclusive = bool(menu.get("exclusive"))
-            view.add_item(discord.ui.Select(
+            items.append(discord.ui.Select(
                 custom_id="rrselect",
                 placeholder=t(lang, "rm.pickOne") if exclusive else t(lang, "rm.pickMany"),
                 min_values=0,
@@ -125,13 +126,32 @@ def build_menu_view(menu, lang="en", drop_emojis=False):
             ))
     else:
         for o in options[:25]:
-            view.add_item(discord.ui.Button(
+            items.append(discord.ui.Button(
                 style=discord.ButtonStyle.secondary,
                 label=(o.get("label") or t(lang, "rm.roleFallback"))[:80],
                 custom_id=f"rr:{o.get('role_id')}",
                 emoji=None if drop_emojis else parse_emoji(o.get("emoji")),
             ))
+    return items
+
+
+def build_menu_view(menu, lang="en", drop_emojis=False):
+    """Classic-embed variant: wrap the interactive items in a discord.ui.View."""
+    view = discord.ui.View(timeout=None)
+    for it in build_menu_items(menu, lang, drop_emojis):
+        view.add_item(it)
     return view
+
+
+def build_menu_layout(menu, guild, lang="en", drop_emojis=False):
+    """Components V2 variant: an accent container (from the embed blocks) with
+    the interactive items appended as ActionRow(s)."""
+    return build_layout_view(
+        menu.get("embed") or {},
+        resolve_text=lambda s: _resolve(s, guild),
+        resolve_url=lambda s: str(s) if str(s or "").startswith("http") else "",
+        action_items=build_menu_items(menu, lang, drop_emojis),
+    )
 
 
 class RoleMenus(commands.Cog):
@@ -173,23 +193,53 @@ class RoleMenus(commands.Cog):
             return
 
         lang = await lang_for(self.backend_url, self.api_key, guild.id)
-        if menu.get("use_embed"):
-            embed = build_custom_embed(menu.get("embed"), guild)
-            # Empty custom embed → still show something meaningful.
-            if not (embed.title or embed.description or embed.fields or embed.author.name):
-                embed.title = menu.get("name") or t(lang, "rm.menuFallback")
-                embed.description = t(lang, "rm.pickBelow")
-        else:
-            lines = []
-            for o in menu["options"]:
-                emoji = o.get("emoji") or ""
-                lines.append(f"{emoji} {o.get('label') or ''}".strip())
-            embed = discord.Embed(
-                title=menu.get("name") or t(lang, "rm.menuFallback"),
-                description="\n".join(lines) or t(lang, "rm.pickBelow"),
-                color=await general_config.get_embed_color(self.backend_url, self.api_key, guild.id, fallback=MENU_COLOR),
+        cfg = menu.get("embed") or {}
+        want_v2 = bool(menu.get("use_embed")) and is_components_v2(cfg)
+
+        embed = None
+        view = None
+        if want_v2:
+            view = build_menu_layout(menu, guild, lang=lang)
+            if view is None:
+                want_v2 = False  # nothing renderable → classic fallback
+
+        if not want_v2:
+            if menu.get("use_embed"):
+                embed = build_custom_embed(cfg, guild)
+                # Empty custom embed → still show something meaningful.
+                if not (embed.title or embed.description or embed.fields or embed.author.name):
+                    embed.title = menu.get("name") or t(lang, "rm.menuFallback")
+                    embed.description = t(lang, "rm.pickBelow")
+            else:
+                lines = []
+                for o in menu["options"]:
+                    emoji = o.get("emoji") or ""
+                    lines.append(f"{emoji} {o.get('label') or ''}".strip())
+                embed = discord.Embed(
+                    title=menu.get("name") or t(lang, "rm.menuFallback"),
+                    description="\n".join(lines) or t(lang, "rm.pickBelow"),
+                    color=await general_config.get_embed_color(self.backend_url, self.api_key, guild.id, fallback=MENU_COLOR),
+                )
+            view = build_menu_view(menu, lang=lang)
+
+        # Edit/send helpers; `drop` retries once without option emojis.
+        async def _do_edit(existing, drop=False):
+            if want_v2:
+                await existing.edit(view=build_menu_layout(menu, guild, lang=lang, drop_emojis=drop))
+            else:
+                await existing.edit(
+                    embed=embed,
+                    view=build_menu_view(menu, lang=lang, drop_emojis=True) if drop else view,
+                )
+
+        async def _do_send(drop=False):
+            if want_v2:
+                return await channel.send(view=build_menu_layout(menu, guild, lang=lang, drop_emojis=drop))
+            return await channel.send(
+                embed=embed,
+                view=build_menu_view(menu, lang=lang, drop_emojis=True) if drop else view,
             )
-        view = build_menu_view(menu, lang=lang)
+
         existing_id = menu.get("message_id")
         msg = None
         # Already posted (dirty after a dashboard edit) → edit the message in place
@@ -197,16 +247,24 @@ class RoleMenus(commands.Cog):
         if existing_id:
             try:
                 existing = await channel.fetch_message(int(existing_id))
-                try:
-                    await existing.edit(embed=embed, view=view)
-                except discord.HTTPException as exc:
-                    if not _is_emoji_http_error(exc):
-                        raise
-                    # One option's emoji is invalid → re-render without emojis so
-                    # the menu still updates instead of failing entirely.
-                    print(f"[rolemenus] invalid emoji in menu {menu.get('id')} → editing without emojis")
-                    await existing.edit(embed=embed, view=build_menu_view(menu, lang=lang, drop_emojis=True))
-                msg = existing
+                if bool(existing.flags.components_v2) != want_v2:
+                    # Format switched across the Components V2 boundary — Discord
+                    # can't edit classic ↔ V2, so delete + repost.
+                    try:
+                        await existing.delete()
+                    except Exception:
+                        pass
+                    msg = None
+                else:
+                    try:
+                        await _do_edit(existing)
+                    except discord.HTTPException as exc:
+                        if not _is_emoji_http_error(exc):
+                            raise
+                        # One option's emoji is invalid → re-render without emojis.
+                        print(f"[rolemenus] invalid emoji in menu {menu.get('id')} → editing without emojis")
+                        await _do_edit(existing, drop=True)
+                    msg = existing
             except (discord.NotFound, discord.Forbidden, ValueError):
                 msg = None  # message gone / unreachable → repost below
             except Exception as exc:
@@ -214,7 +272,7 @@ class RoleMenus(commands.Cog):
                 return
         if msg is None:
             try:
-                msg = await channel.send(embed=embed, view=view)
+                msg = await _do_send()
             except discord.Forbidden:
                 print(f"[rolemenus] missing permission to post in {channel.id}")
                 return
@@ -224,7 +282,7 @@ class RoleMenus(commands.Cog):
                     return
                 print(f"[rolemenus] invalid emoji in menu {menu.get('id')} → posting without emojis")
                 try:
-                    msg = await channel.send(embed=embed, view=build_menu_view(menu, lang=lang, drop_emojis=True))
+                    msg = await _do_send(drop=True)
                 except Exception as exc2:
                     print(f"[rolemenus] post retry failed for {menu.get('id')}: {exc2}")
                     return

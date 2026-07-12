@@ -62,7 +62,7 @@ const savingIds = reactive(new Set())
 const deletingIds = reactive(new Set())
 
 function defaultEmbed() {
-  return { title: '', description: '', color: '#5865F2', thumbnail: '', image: '', footer: '', show_timestamp: false, author_name: '', author_icon_url: '' }
+  return { title: '', description: '', color: '#5865F2', thumbnail: '', image: '', footer: '', show_timestamp: false, author_name: '', author_icon_url: '', format: 'embed', accent_color: '#5865F2', blocks: [] }
 }
 
 function emptyDraft() {

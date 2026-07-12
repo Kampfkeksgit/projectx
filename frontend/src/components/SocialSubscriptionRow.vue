@@ -154,7 +154,10 @@ function defaultEmbed() {
     footer: '',
     show_timestamp: false,
     author_name: '',
-    author_icon_url: ''
+    author_icon_url: '',
+    format: 'embed',
+    accent_color: '#5865F2',
+    blocks: []
   }
 }
 

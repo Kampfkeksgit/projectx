@@ -77,9 +77,14 @@ projectx/
 │   │   │                       # slash_utils/tempvoice (alle member-sichtbaren Strings; logs = Admin-Audit bleibt EN)
 │   │   ├── game_i18n.py        # make_translator(strings)/lang_of(settings)/normalize_lang — Übersetzungs-Helper
 │   │   │                       # für die Games-Cogs (per-Guild games_language, Fallback EN→key, .format-safe)
-│   │   └── ratelimit.py        # In-Memory Discord-Rate-Limit-Cache: ChannelRateLimiter (Sliding-Window pro
-│   │                           # channel_id, ~5 msgs/5s) + safe_send(channel,**kw) — pacet proaktiv, damit Bulk-
-│   │                           # Events (z. B. Backup-Restore → Logs-Cog) den Channel nicht mit 429 fluten
+│   │   ├── ratelimit.py        # In-Memory Discord-Rate-Limit-Cache: ChannelRateLimiter (Sliding-Window pro
+│   │   │                       # channel_id, ~5 msgs/5s) + safe_send(channel,**kw) — pacet proaktiv, damit Bulk-
+│   │   │                       # Events (z. B. Backup-Restore → Logs-Cog) den Channel nicht mit 429 fluten
+│   │   └── rich_message.py     # Geteilter Render-Helper für die Embed-Builder: is_components_v2(cfg) +
+│   │                           # build_layout_view(cfg, resolve_text, resolve_url, extra_top, action_items) → discord.ui.LayoutView
+│   │                           # (Container mit accent_colour + TextDisplay/Separator/MediaGallery aus blocks; action_items =
+│   │                           # Buttons/Select werden als ActionRow(s) im Container gruppiert — 5 Buttons/Row, Select allein).
+│   │                           # Cogs: bei V2 send/edit mit view= (KEIN content/embed daneben), sonst klassisches Embed.
 │   └── cogs/
 │       ├── welcome_leave.py    # Event-Handler + /welcome_test Command
 │       ├── autorole.py         # on_member_join → Rollen aus role_ids zuweisen (skipt Bots wenn !apply_to_bots)
@@ -131,10 +136,13 @@ projectx/
 │       ├── slash_utils.py      # Slash-Commands /ping /userinfo /serverinfo /avatar (app_commands, tree.sync in main.py).
 │       ├── verification.py     # /verifypanel (Slash, default_permissions manage_guild) + 60s post_loop: postet/editiert das Verify-Panel
 │       │                       # automatisch (auto-post bei enabled+Channel+Rolle, in-place Update bei dirty via GET /verification/pending).
-│       │                       # Panel = Plain-Nachricht ODER gestaltetes Embed (build_panel_embed). on_interaction "verify" → Verifiziert-Rolle.
-│       ├── rolemenus.py        # 60s-Loop postet unposted Menüs (Buttons/Select; Embed = Auto-Liste ODER eigenes use_embed-Embed);
+│       │                       # Panel = Plain-Nachricht ODER gestaltetes Embed (build_panel_embed) ODER Components V2 (build_panel_layout,
+│       │                       # Container+Verify-Button). on_interaction "verify" → Verifiziert-Rolle.
+│       ├── rolemenus.py        # 60s-Loop postet unposted Menüs (Buttons/Select; Embed = Auto-Liste ODER eigenes use_embed-Embed,
+│       │                       # letzteres wahlweise klassisch ODER Components V2 = Container+Buttons/Select via rich_message);
 │       │                       # on_interaction "rr:<role>"/"rrselect" → Rolle toggeln.
-│       ├── tickets.py          # /ticketpanel (Slash, default_permissions admin) postet Panel (Dropdown ODER Buttons je panel_type, Embed aus panel_embed).
+│       ├── tickets.py          # /ticketpanel (Slash, default_permissions admin) postet Panel (Dropdown ODER Buttons je panel_type, Embed aus panel_embed;
+│       │                       # panel_embed + welcome_embed wahlweise klassisch ODER Components V2 = Container + Panel-/Control-Buttons via rich_message).
 │       │                       # on_interaction: ticket_select/ticketcat:<id>/ticket_open → Channel (Kategorie-Overrides),
 │       │                       # ticket_claim, ticket_add/ticket_remove (UserSelect), ticket_close (+confirm),
 │       │                       # ticketrate:<gid>:<id>:<n> → RatingModal. Commands: !claim/!ticketadd/!ticketremove/!ticketclose.
@@ -341,6 +349,8 @@ projectx/
 │       │   ├── ChannelSelector.vue # Searchable Dropdown (single) — :types filter (text/voice/category/...)
 │       │   ├── RoleSelector.vue    # Searchable Dropdown — single oder :multiple, Color-Dots, Hierarchie
 │       │   ├── EmbedEditor.vue # v-model embed config (Title/Desc/Color/Author/Thumb/Image/Footer/Timestamp)
+│       │   │                   # + Modus-Switch „Klassisches Embed" ↔ „Components V2" (V2 = Akzentfarbe + reorderbare
+│       │   │                   # Blöcke Text/Trenner/Bild; Felder format/accent_color/blocks liegen im selben *_embed-JSON)
 │       │   ├── embedPlaceholders.js # Shared PLACEHOLDERS-Liste + insertAtCaret-Helper (Welcome/Leave/EmbedEditor)
 │       │   ├── DiscordMessagePreview.vue  # Mock-Discord-Bubble — plain ODER embed-mode (props: mode, embed, pingUser)
 │       │   ├── GuildAvatar.vue # Icon + Gradient-Initials-Fallback
@@ -1125,6 +1135,18 @@ Empfehlung aus [README.md](README.md): SQLite → PostgreSQL für Multi-Instance
 
 ## 14. Letzte Aktualisierung
 
+- **Datum:** 2026-07-12
+- **Components-V2-Option in den Embed-Buildern (kein Schema-Change, Phase 1 = Content-Module):** Jeder Embed-Builder hat jetzt einen Modus-Switch **„Klassisches Embed" ↔ „Components V2"**. V2 = ein Discord-**Container mit Akzentfarbe** + reorderbare **Blöcke** (Text/Markdown, Trennlinie, Bild) — die Optik aus dem „Cookie-Update"-Screenshot.
+  - **Speicherung (abwärtskompatibel, kein neues Schema/Spalte):** die Felder `format ∈ {embed|components_v2}`, `accent_color` (#RRGGBB) und `blocks[]` liegen **im selben `*_embed`-JSON-Blob**. `sanitizeEmbed` in [db.js](backend/db.js) erweitert (+ `sanitizeV2Blocks`, `V2_MAX_BLOCKS=30`, Text-Cap 4000, URL-Sanitize je Bild) → alle 7 Embed-Consumer erben das automatisch. `DEFAULT_EMBED` um die 3 Felder ergänzt.
+  - **Frontend:** [EmbedEditor.vue](frontend/src/components/EmbedEditor.vue) bekommt Modus-Switch + V2-Block-Builder (Akzentfarbe, Blöcke hinzufügen/löschen/reordern, Platzhalter-Chips fügen in den fokussierten Textblock ein; beim Wechsel zu V2 wird der erste Textblock aus der Description geseedet). [DiscordMessagePreview.vue](frontend/src/components/DiscordMessagePreview.vue) rendert V2 als Container-Optik (Akzentbalken + Text/Trenner/Bild). Store [guildSettings.js](frontend/src/stores/guildSettings.js) (`defaultEmbed`/`mergeEmbed` + `mergeV2Blocks`) und die lokalen `defaultEmbed()` in [SocialSubscriptionRow.vue](frontend/src/components/SocialSubscriptionRow.vue)/[MinecraftServerRow.vue](frontend/src/components/MinecraftServerRow.vue) strippen die neuen Felder **nicht** mehr; Minecraft-`previewEmbed` füllt Sample-Werte auch in V2-Textblöcke.
+  - **Bot:** neuer geteilter Helper [utils/rich_message.py](bot/utils/rich_message.py) (`is_components_v2` + `build_layout_view` → `discord.ui.LayoutView` mit Container/TextDisplay/Separator/MediaGallery; discord.py 2.7.1). Verdrahtet in den **Content-Cogs** [welcome_leave.py](bot/cogs/welcome_leave.py) (Welcome+Leave; Ping/[TEST] als Top-Textblock, da neben einer V2-View **kein** content/embed erlaubt ist), [social_notify.py](bot/cogs/social_notify.py) (Rollen-Mention als Top-Block → pingt weiter, `allowed_mentions` gesetzt) und [minecraft.py](bot/cogs/minecraft.py) (edit-in-place; bei Format-Wechsel über die V2-Flag-Grenze `existing.flags.components_v2` → **delete+repost**, da Discord nicht zwischen klassisch↔V2 editiert; leere V2-Config fällt auf das Standard-Status-Embed zurück). Sende-Logik überall: bei V2 `send/edit(view=…)`, sonst wie bisher.
+  - **i18n:** 19 neue `embedEditor.*`-Keys (mode*/accent*/blocks*/block_*/add*/move*/sep*/placeholdersV2Intro) in **allen 5 Sprachen** (Parität verifiziert: 1695/Locale, 0 missing/extra).
+  - Verifiziert: db.js importiert + `sanitizeV2Blocks`-Logik (verbatim) grün, Bot-Helper baut valides V2-Payload (Container 17/Text 10/Separator 14/MediaGallery 12) + alle 3 Cogs kompilieren, Frontend-Build grün, i18n-Parität grün. **⚠️ Nicht live gegen Discord getestet** (Wiedergabe braucht laufenden Bot) — nach Deploy einmal Welcome/Leave/Social/Minecraft im V2-Modus durchklicken.
+- **Components-V2-Option — Phase 2: die interaktiven Panels (kein Schema-Change):** Der V2-Modus greift jetzt auch in den Buttons/Select-Modulen. Trick: der V2-**Container** und die Interaktions-Komponenten stecken **gemeinsam** in einer `LayoutView` (bei V2 gibt es kein `embed=`/`content=` daneben) — die Buttons/Selects werden über `action_items` als `ActionRow`(s) **in den Container** gruppiert (5 Buttons/Row, Select allein). Die `custom_id`s bleiben unverändert → die `on_interaction`-Handler laufen weiter.
+  - **rich_message.py** erweitert um `action_items` (+ `_add_action_items`). Verdrahtet in [rolemenus.py](bot/cogs/rolemenus.py) (Buttons/Select-Menü — `build_menu_items`/`build_menu_layout`, edit-in-place mit Format-Grenze `existing.flags.components_v2` → delete+repost, Emoji-Fallback für beide Modi), [verification.py](bot/cogs/verification.py) (Verify-Button — `build_verify_button`/`build_panel_layout`, Auto-Post-Loop mit Format-Grenze) und [tickets.py](bot/cogs/tickets.py) (**Panel** `build_panel_items`/`build_panel_layout` — Dropdown/Buttons; **Ticket-Welcome** `build_control_items`/`build_welcome_layout` — Claim/Add/Remove/Close, Mentions als Top-Textblock via `extra_top` + `allowed_mentions`; beide one-shot-Posts, keine Edit-Grenze). Die transienten Views (Close-Confirm/Rating/Delete/UserSelect) bleiben klassisch.
+  - **Frontend:** die 3 Consumer nutzen den EmbedEditor bereits → V2-Switch war seit Phase 1 sichtbar; sie reichen die Embed-Objekte ohnehin ganz durch. Lokale `defaultEmbed()` in [Tickets.vue](frontend/src/pages/Tickets.vue)/[Verification.vue](frontend/src/pages/Verification.vue)/[RoleMenus.vue](frontend/src/pages/RoleMenus.vue)/[RoleMenuRow.vue](frontend/src/components/RoleMenuRow.vue) um `format`/`accent_color`/`blocks` ergänzt (Previews + frische Drafts). **Keine neuen i18n-Keys** (nutzt die aus Phase 1).
+  - **Scope-Grenze V2:** klassisch-Embed-Extras, die es in V2 nicht 1:1 gibt (Ticket-Welcome: auto Kategorie-/Nummer-Felder + kategorie-spezifischer welcome_text; Rollen-Menü Auto-Listen-Modus), bildet der User in V2 über Text-Blöcke + Platzhalter (`{number}`/`{category}`/`{guild}` werden im Block-Text aufgelöst) ab. Bei leerer V2-Config (keine Blöcke) fällt jedes Panel aufs klassische Embed zurück.
+  - Verifiziert: alle 4 Cogs + rich_message kompilieren, Layout-Smoke-Test aller 4 Panels (tickets-panel/-welcome, rolemenus, verification) baut valides Payload mit erhaltenen custom_ids + aufgelösten Platzhaltern, Frontend-Build grün. **⚠️ Nicht live gegen Discord getestet** — nach Deploy Tickets-Panel/Rollen-Menü/Verify im V2-Modus einmal durchklicken (Buttons/Dropdown + Ping).
 - **Datum:** 2026-07-09
 - **Changelog-Publisher (Schema v47, Owner-Admin):** Der Owner schreibt Release-Notes im neuen Admin-Tab **„Changelog"**; veröffentlichte Einträge erscheinen auf einer öffentlichen Seite **`/changelog`** (kein Auth, Footer-Link).
   - **Schema v47:** Tabelle `changelog_entries` (`id` UUID, `version`, `title` Pflicht, `body` Markdown/Klartext, `published`, `entry_date`/`created_at`/`updated_at` unix-seconds; idempotent + Mirror). db.js: `getChangelogEntries` (Admin, alle) / `getPublishedChangelog(limit)` (öffentlich) / `create|update|deleteChangelogEntry`.
