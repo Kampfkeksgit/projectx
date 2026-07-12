@@ -98,7 +98,7 @@ const guildId = computed(() => route.params.guild_id)
 
 const VERIFY_COLOR = '#22C55E'
 function defaultEmbed() {
-  return { title: '', description: '', color: VERIFY_COLOR, thumbnail: '', image: '', footer: '', show_timestamp: false, author_name: '', author_icon_url: '' }
+  return { title: '', description: '', color: VERIFY_COLOR, thumbnail: '', image: '', footer: '', show_timestamp: false, author_name: '', author_icon_url: '', format: 'embed', accent_color: VERIFY_COLOR, blocks: [] }
 }
 
 const form = reactive({

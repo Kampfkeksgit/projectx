@@ -41,6 +41,7 @@ import config
 from utils.backend import bot_get, bot_put
 from utils import general_config
 from utils.bot_i18n import t, lang_for
+from utils.rich_message import is_components_v2, build_layout_view
 
 
 # Ampel colors for the default status embed (semantic — used instead of the
@@ -336,6 +337,29 @@ class Minecraft(commands.Cog):
             embed.timestamp = discord.utils.utcnow()
         return embed
 
+    def _build_v2_view(self, server, snap, lang):
+        """Build a Components V2 LayoutView for the status message.
+
+        Returns None if the config has no renderable blocks (caller falls back
+        to the default status embed so the message is never empty).
+        """
+        name = server.get("name") or server.get("address") or t(lang, "mc.defaultName")
+        status_label = self._status_label(lang, snap["status"])
+        cfg = server.get("embed") if isinstance(server.get("embed"), dict) else {}
+
+        def ph(value):
+            return self._apply_placeholders(
+                value or "", lang=lang, name=name, address=server.get("address"),
+                status_label=status_label, players=snap["players_online"],
+                players_max=snap["players_max"], version=snap["version"], motd=snap["motd"],
+            )
+
+        return build_layout_view(
+            cfg,
+            resolve_text=ph,
+            resolve_url=lambda s: str(s) if _looks_like_url(s) else "",
+        )
+
     # ------------------------------------------------------------------ #
     # Per-server processing (query + edit-in-place message)
     # ------------------------------------------------------------------ #
@@ -372,20 +396,46 @@ class Minecraft(commands.Cog):
 
         embed = None
         content = None
+        view = None
         if notify_mode == "embed":
-            embed = await self._build_embed(server, snap, lang)
+            cfg = server.get("embed") if isinstance(server.get("embed"), dict) else {}
+            if is_components_v2(cfg):
+                view = self._build_v2_view(server, snap, lang)
+            if view is None:
+                # classic embed, or a V2 config with no renderable blocks
+                embed = await self._build_embed(server, snap, lang)
         else:
             content = self._build_content(server, snap, lang)
+        want_v2 = view is not None
+
+        async def _send_new():
+            if want_v2:
+                return await channel.send(view=view)
+            return await channel.send(content=content, embed=embed)
 
         msg = None
         # Try to edit the existing message in place when it exists.
         if existing_id:
             try:
                 existing = await channel.fetch_message(int(existing_id))
-                # Only edit if visible values changed (or we've never rendered it).
-                if not unchanged:
-                    await existing.edit(content=content, embed=embed)
-                msg = existing
+                existing_is_v2 = bool(existing.flags.components_v2)
+                if want_v2 != existing_is_v2:
+                    # Format switched across the Components V2 boundary — Discord
+                    # can't edit a classic message into a V2 one (or back), so
+                    # delete + repost.
+                    try:
+                        await existing.delete()
+                    except Exception:
+                        pass
+                    msg = None
+                elif not unchanged:
+                    if want_v2:
+                        await existing.edit(view=view)
+                    else:
+                        await existing.edit(content=content, embed=embed)
+                    msg = existing
+                else:
+                    msg = existing
             except (discord.NotFound, ValueError):
                 msg = None  # message deleted → repost below
             except discord.Forbidden:
@@ -397,7 +447,7 @@ class Minecraft(commands.Cog):
 
         if msg is None:
             try:
-                msg = await channel.send(content=content, embed=embed)
+                msg = await _send_new()
             except discord.Forbidden:
                 print(f"[minecraft] missing permission to post in channel {channel_id}")
                 return

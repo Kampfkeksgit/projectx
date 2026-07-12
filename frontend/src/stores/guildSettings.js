@@ -23,8 +23,25 @@ function defaultEmbed() {
     footer: '',
     show_timestamp: false,
     author_name: '',
-    author_icon_url: ''
+    author_icon_url: '',
+    // Components V2
+    format: 'embed',
+    accent_color: '#5865F2',
+    blocks: []
   }
+}
+
+/** Sanitize the Components V2 block list on the client (mirrors the backend). */
+function mergeV2Blocks(provided) {
+  if (!Array.isArray(provided)) return []
+  const out = []
+  for (const b of provided) {
+    if (!b || typeof b !== 'object') continue
+    if (b.type === 'text') out.push({ type: 'text', content: typeof b.content === 'string' ? b.content : '' })
+    else if (b.type === 'separator') out.push({ type: 'separator', divider: b.divider !== false, spacing: b.spacing === 2 ? 2 : 1 })
+    else if (b.type === 'image') out.push({ type: 'image', url: typeof b.url === 'string' ? b.url : '' })
+  }
+  return out
 }
 
 function defaults() {
@@ -69,7 +86,10 @@ function mergeEmbed(provided) {
     footer: typeof provided.footer === 'string' ? provided.footer : base.footer,
     show_timestamp: !!provided.show_timestamp,
     author_name: typeof provided.author_name === 'string' ? provided.author_name : base.author_name,
-    author_icon_url: typeof provided.author_icon_url === 'string' ? provided.author_icon_url : base.author_icon_url
+    author_icon_url: typeof provided.author_icon_url === 'string' ? provided.author_icon_url : base.author_icon_url,
+    format: provided.format === 'components_v2' ? 'components_v2' : 'embed',
+    accent_color: typeof provided.accent_color === 'string' && provided.accent_color ? provided.accent_color : base.accent_color,
+    blocks: mergeV2Blocks(provided.blocks)
   }
 }
 

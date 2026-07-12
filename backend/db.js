@@ -1736,7 +1736,13 @@ const DEFAULT_EMBED = {
   footer: '',
   show_timestamp: false,
   author_name: '',
-  author_icon_url: ''
+  author_icon_url: '',
+  // Message format: 'embed' = classic Discord embed, 'components_v2' = Discord
+  // Components V2 (an accent-coloured Container with ordered content blocks).
+  // Kept inside the same *_embed JSON blob so all embed builders inherit it.
+  format: 'embed',
+  accent_color: DEFAULT_EMBED_COLOR,
+  blocks: []
 };
 
 const EMBED_CAPS = {
@@ -1745,6 +1751,11 @@ const EMBED_CAPS = {
   footer: 2048,
   author_name: 256
 };
+
+// Components V2 limits (simple block builder: text / separator / image).
+const V2_MAX_BLOCKS = 30;
+const V2_TEXT_CAP = 4000;
+const V2_BLOCK_TYPES = ['text', 'separator', 'image'];
 
 const COLOR_REGEX = /^#[0-9A-Fa-f]{6}$/;
 const URL_REGEX = /^https?:\/\//i;
@@ -1770,6 +1781,23 @@ function sanitizeUrlLike(value) {
   return '';
 }
 
+function sanitizeV2Blocks(input) {
+  if (!Array.isArray(input)) return [];
+  const out = [];
+  for (const raw of input) {
+    if (!raw || typeof raw !== 'object' || !V2_BLOCK_TYPES.includes(raw.type)) continue;
+    if (raw.type === 'text') {
+      out.push({ type: 'text', content: truncate(raw.content ?? '', V2_TEXT_CAP) });
+    } else if (raw.type === 'separator') {
+      out.push({ type: 'separator', divider: raw.divider !== false, spacing: raw.spacing === 2 ? 2 : 1 });
+    } else if (raw.type === 'image') {
+      out.push({ type: 'image', url: sanitizeUrlLike(raw.url) });
+    }
+    if (out.length >= V2_MAX_BLOCKS) break;
+  }
+  return out;
+}
+
 function sanitizeEmbed(input) {
   const source = (input && typeof input === 'object') ? input : {};
   return {
@@ -1781,7 +1809,10 @@ function sanitizeEmbed(input) {
     footer: truncate(source.footer ?? '', EMBED_CAPS.footer),
     show_timestamp: !!source.show_timestamp,
     author_name: truncate(source.author_name ?? '', EMBED_CAPS.author_name),
-    author_icon_url: sanitizeUrlLike(source.author_icon_url)
+    author_icon_url: sanitizeUrlLike(source.author_icon_url),
+    format: source.format === 'components_v2' ? 'components_v2' : 'embed',
+    accent_color: sanitizeColor(source.accent_color ?? source.color),
+    blocks: sanitizeV2Blocks(source.blocks)
   };
 }
 

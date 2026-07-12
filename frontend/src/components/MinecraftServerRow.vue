@@ -188,7 +188,10 @@ function defaultEmbed() {
     footer: '',
     show_timestamp: false,
     author_name: '',
-    author_icon_url: ''
+    author_icon_url: '',
+    format: 'embed',
+    accent_color: '#5865F2',
+    blocks: []
   }
 }
 
@@ -261,7 +264,12 @@ const previewEmbed = computed(() => {
     title: fillSample(e.title || `${local.name || local.address || 'My Server'}`),
     description: fillSample(e.description || 'Status: {status}\nPlayers: {players}/{max}\nVersion: {version}\nMOTD: {motd}'),
     footer: fillSample(e.footer || ''),
-    author_name: fillSample(e.author_name || '')
+    author_name: fillSample(e.author_name || ''),
+    // Fill the sample values into V2 text blocks so the container preview
+    // shows resolved placeholders too.
+    blocks: Array.isArray(e.blocks)
+      ? e.blocks.map((b) => (b.type === 'text' ? { ...b, content: fillSample(b.content || '') } : b))
+      : []
   }
 })
 

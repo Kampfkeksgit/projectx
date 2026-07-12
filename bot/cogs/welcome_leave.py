@@ -15,6 +15,7 @@ from discord.ext import commands
 
 import config
 from utils.backend import fetch_bot_settings
+from utils.rich_message import is_components_v2, build_layout_view
 
 
 DEFAULT_EMBED_COLOR = 0x5865F2
@@ -188,17 +189,32 @@ class WelcomeLeave(commands.Cog):
 
         use_embed = bool(settings.get("welcome_use_embed"))
         ping_user = bool(settings.get("welcome_ping_user"))
+        embed_cfg = settings.get("welcome_embed") or {}
 
         content = None
         embed = None
+        view = None
 
-        if use_embed:
-            embed = build_embed(
-                settings.get("welcome_embed") or {},
-                member,
-                guild,
-                test_marker=test_marker,
+        if use_embed and is_components_v2(embed_cfg):
+            # Components V2: no content/embed allowed — mention + [TEST] marker
+            # become a text block at the top of the container.
+            bits = []
+            if test_marker:
+                bits.append("**[TEST]**")
+            if ping_user:
+                bits.append(member.mention)
+            view = build_layout_view(
+                embed_cfg,
+                resolve_text=lambda s: resolve_placeholders(s, member, guild),
+                resolve_url=lambda s: _resolve_url_field(s, member, guild),
+                extra_top=" ".join(bits) if bits else None,
             )
+            if view is None:
+                # V2 selected but no renderable blocks → fall back to a classic embed.
+                embed = build_embed(embed_cfg, member, guild, test_marker=test_marker)
+                content = member.mention if ping_user else None
+        elif use_embed:
+            embed = build_embed(embed_cfg, member, guild, test_marker=test_marker)
             content = member.mention if ping_user else None
         else:
             raw = settings.get("welcome_message") or "Welcome {user}!"
@@ -207,7 +223,10 @@ class WelcomeLeave(commands.Cog):
                 content = f"**[TEST]** {content}"
 
         try:
-            sent = await channel.send(content=content, embed=embed)
+            if view is not None:
+                sent = await channel.send(view=view)
+            else:
+                sent = await channel.send(content=content, embed=embed)
         except Exception as exc:
             print(f"[welcome_leave] failed to send welcome in {guild.id}: {exc}")
             return None
@@ -267,21 +286,30 @@ class WelcomeLeave(commands.Cog):
                 return
 
             use_embed = bool(settings.get("leave_use_embed"))
+            leave_cfg = settings.get("leave_embed") or {}
             content = None
             embed = None
+            view = None
 
-            if use_embed:
-                embed = build_embed(
-                    settings.get("leave_embed") or {},
-                    member,
-                    guild,
+            if use_embed and is_components_v2(leave_cfg):
+                view = build_layout_view(
+                    leave_cfg,
+                    resolve_text=lambda s: resolve_placeholders(s, member, guild),
+                    resolve_url=lambda s: _resolve_url_field(s, member, guild),
                 )
+                if view is None:
+                    embed = build_embed(leave_cfg, member, guild)
+            elif use_embed:
+                embed = build_embed(leave_cfg, member, guild)
             else:
                 raw = settings.get("leave_message") or "{user} has left."
                 content = resolve_placeholders(raw, member, guild)
 
             try:
-                sent = await channel.send(content=content, embed=embed)
+                if view is not None:
+                    sent = await channel.send(view=view)
+                else:
+                    sent = await channel.send(content=content, embed=embed)
             except Exception as exc:
                 print(f"[welcome_leave] failed to send leave in {guild.id}: {exc}")
                 return

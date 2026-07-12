@@ -19,8 +19,21 @@
           <!-- Content line: plain-mode message OR ping mention in embed mode -->
           <div v-if="contentHtml" class="dmp__content" v-html="contentHtml"></div>
 
+          <!-- Components V2 container -->
+          <div v-if="isV2" class="dmp-v2" :style="{ borderLeftColor: accentColor }">
+            <template v-for="(block, i) in v2Blocks" :key="i">
+              <div v-if="block.type === 'text'" class="dmp-v2__text" v-html="block.html"></div>
+              <hr v-else-if="block.type === 'separator' && block.divider" class="dmp-v2__sep" :class="{ 'is-large': block.large }" />
+              <div v-else-if="block.type === 'separator'" class="dmp-v2__gap" :class="{ 'is-large': block.large }"></div>
+              <div v-else-if="block.type === 'image' && block.url" class="dmp-v2__image">
+                <img :src="block.url" alt="" @error="$event.target.closest('.dmp-v2__image').style.display='none'" />
+              </div>
+            </template>
+            <div v-if="!v2Blocks.length" class="dmp-v2__empty">{{ '…' }}</div>
+          </div>
+
           <!-- Embed -->
-          <div v-if="mode === 'embed'" class="dmp-embed" :style="{ borderLeftColor: embedColor }">
+          <div v-if="mode === 'embed' && !isV2" class="dmp-embed" :style="{ borderLeftColor: embedColor }">
             <div class="dmp-embed__inner">
               <div class="dmp-embed__main">
                 <div v-if="hasAuthor" class="dmp-embed__author">
@@ -195,6 +208,25 @@ const embedResolved = computed(() => {
 const embedColor = computed(() => {
   const c = embedResolved.value.color
   return /^#[0-9A-Fa-f]{6}$/.test(c) ? c : '#5865F2'
+})
+
+// --- Components V2 container preview ---------------------------------------
+const isV2 = computed(() => props.mode === 'embed' && (props.embed || {}).format === 'components_v2')
+
+const accentColor = computed(() => {
+  const c = (props.embed || {}).accent_color
+  return typeof c === 'string' && /^#[0-9A-Fa-f]{6}$/.test(c) ? c : embedColor.value
+})
+
+const v2Blocks = computed(() => {
+  const blocks = (props.embed || {}).blocks
+  if (!Array.isArray(blocks)) return []
+  return blocks.map((b) => {
+    if (b.type === 'text') return { type: 'text', html: renderInlineHtml(b.content || '') }
+    if (b.type === 'separator') return { type: 'separator', divider: b.divider !== false, large: b.spacing === 2 }
+    if (b.type === 'image') return { type: 'image', url: resolveImageField(b.url) }
+    return { type: 'unknown' }
+  })
 })
 
 const embedDescHtml = computed(() => renderInlineHtml(embedResolved.value.description))
@@ -492,5 +524,77 @@ const avatarGradient = computed(() => {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+/* ---------- Components V2 container ---------- */
+.dmp-v2 {
+  margin-top: 0.4rem;
+  background: #2b2d31;
+  border: 1px solid #1f2024;
+  border-left: 4px solid #5865F2;
+  border-radius: 4px;
+  max-width: 520px;
+  padding: 0.7rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.dmp-v2__text {
+  color: #dbdee1;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.dmp-v2__text :deep(.mention) {
+  background: rgba(88, 101, 242, 0.3);
+  color: #c9cdfb;
+  padding: 0 2px;
+  border-radius: 3px;
+  font-weight: 500;
+}
+
+.dmp-v2__text :deep(.mention--soft) {
+  background: rgba(167, 139, 250, 0.18);
+  color: #d4c5fc;
+}
+
+.dmp-v2__sep {
+  border: none;
+  border-top: 1px solid #3f4147;
+  margin: 0.15rem 0;
+}
+
+.dmp-v2__sep.is-large {
+  margin: 0.5rem 0;
+}
+
+.dmp-v2__gap {
+  height: 0.3rem;
+}
+
+.dmp-v2__gap.is-large {
+  height: 0.8rem;
+}
+
+.dmp-v2__image {
+  border-radius: 4px;
+  overflow: hidden;
+  background: #1e1f22;
+}
+
+.dmp-v2__image img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 320px;
+  object-fit: cover;
+}
+
+.dmp-v2__empty {
+  color: #949ba4;
+  font-size: 0.85rem;
 }
 </style>
