@@ -929,7 +929,11 @@ export default {
     addImage: '+ Image',
     sepDivider: 'Show divider line',
     sepLarge: 'Large spacing',
-    placeholdersV2Intro: 'Click a placeholder to insert it into the focused text block.'
+    placeholdersV2Intro: 'Click a placeholder to insert it into the focused text block.',
+    block_section: 'Text + image',
+    addSection: '+ Text + image',
+    sectionTextPlaceholder: 'Text shown to the left of the thumbnail…',
+    sectionThumbLabel: 'Thumbnail (right)'
   },
   welcome: {
     eyebrow: 'Configuration',

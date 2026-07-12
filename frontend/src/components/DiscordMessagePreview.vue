@@ -28,6 +28,12 @@
               <div v-else-if="block.type === 'image' && block.url" class="dmp-v2__image">
                 <img :src="block.url" alt="" @error="$event.target.closest('.dmp-v2__image').style.display='none'" />
               </div>
+              <div v-else-if="block.type === 'section'" class="dmp-v2__section">
+                <div class="dmp-v2__section-text dmp-v2__text" v-html="block.html"></div>
+                <div v-if="block.thumb" class="dmp-v2__section-thumb">
+                  <img :src="block.thumb" alt="" @error="$event.target.closest('.dmp-v2__section-thumb').style.display='none'" />
+                </div>
+              </div>
             </template>
             <div v-if="!v2Blocks.length" class="dmp-v2__empty">{{ '…' }}</div>
           </div>
@@ -274,6 +280,10 @@ const v2Blocks = computed(() => {
     if (b.type === 'text') return { type: 'text', html: renderMarkdown(b.content || '', true) }
     if (b.type === 'separator') return { type: 'separator', divider: b.divider !== false, large: b.spacing === 2 }
     if (b.type === 'image') return { type: 'image', url: resolveImageField(b.url) }
+    if (b.type === 'section') {
+      const thumb = resolveImageField(b.thumbnail)
+      return { type: 'section', html: renderMarkdown(b.content || '', true), thumb: /^https?:\/\//i.test(thumb) ? thumb : '' }
+    }
     return { type: 'unknown' }
   })
 })
@@ -645,6 +655,38 @@ const avatarGradient = computed(() => {
 .dmp-v2__empty {
   color: #949ba4;
   font-size: 0.85rem;
+}
+
+.dmp-v2__section {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.dmp-v2__section-text {
+  flex: 1;
+  min-width: 0;
+  color: #dbdee1;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.dmp-v2__section-thumb {
+  flex-shrink: 0;
+  width: 72px;
+  height: 72px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #1e1f22;
+}
+
+.dmp-v2__section-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 /* ---------- Rendered markdown (shared across content / embed desc / V2 text) ---------- */

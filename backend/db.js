@@ -1772,7 +1772,7 @@ const EMBED_CAPS = {
 // Components V2 limits (simple block builder: text / separator / image).
 const V2_MAX_BLOCKS = 30;
 const V2_TEXT_CAP = 4000;
-const V2_BLOCK_TYPES = ['text', 'separator', 'image'];
+const V2_BLOCK_TYPES = ['text', 'separator', 'image', 'section'];
 
 const COLOR_REGEX = /^#[0-9A-Fa-f]{6}$/;
 const URL_REGEX = /^https?:\/\//i;
@@ -1809,6 +1809,12 @@ function sanitizeV2Blocks(input) {
       out.push({ type: 'separator', divider: raw.divider !== false, spacing: raw.spacing === 2 ? 2 : 1 });
     } else if (raw.type === 'image') {
       out.push({ type: 'image', url: sanitizeUrlLike(raw.url) });
+    } else if (raw.type === 'section') {
+      out.push({
+        type: 'section',
+        content: truncate(raw.content ?? '', V2_TEXT_CAP),
+        thumbnail: sanitizeUrlLike(raw.thumbnail)
+      });
     }
     if (out.length >= V2_MAX_BLOCKS) break;
   }

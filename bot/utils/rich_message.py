@@ -134,6 +134,35 @@ def build_layout_view(cfg, resolve_text=None, resolve_url=None, extra_top=None, 
                     has_content = True
                 except Exception as exc:  # invalid media url — skip, don't crash
                     print(f"[rich_message] media item failed: {exc}")
+        elif btype == "section":
+            # Text on the left + a small thumbnail on the right. A Discord Section
+            # REQUIRES both a text child and an accessory, so degrade gracefully:
+            # only-text → TextDisplay, only-thumb → full-width MediaGallery.
+            raw_text = rt(block.get("content") or "")
+            text = str(raw_text)[:_V2_TEXT_CAP] if raw_text and str(raw_text).strip() else ""
+            thumb = ru(block.get("thumbnail") or "")
+            if text and thumb:
+                try:
+                    container.add_item(discord.ui.Section(
+                        discord.ui.TextDisplay(text),
+                        accessory=discord.ui.Thumbnail(media=str(thumb)),
+                    ))
+                    has_content = True
+                except Exception as exc:
+                    print(f"[rich_message] section failed: {exc}")
+                    container.add_item(discord.ui.TextDisplay(text))
+                    has_content = True
+            elif text:
+                container.add_item(discord.ui.TextDisplay(text))
+                has_content = True
+            elif thumb:
+                try:
+                    container.add_item(
+                        discord.ui.MediaGallery(discord.MediaGalleryItem(str(thumb)))
+                    )
+                    has_content = True
+                except Exception as exc:
+                    print(f"[rich_message] section thumb failed: {exc}")
 
     if _add_action_items(container, action_items):
         has_content = True
