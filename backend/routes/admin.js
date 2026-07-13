@@ -43,6 +43,8 @@ import {
   createChangelogEntry,
   updateChangelogEntry,
   deleteChangelogEntry,
+  getChangelogChannel,
+  setChangelogChannel,
   getPremiumCodes,
   deletePremiumCode,
   getRevenue
@@ -520,10 +522,24 @@ router.delete('/team/:id', async (req, res) => {
 
 router.get('/changelog', async (req, res) => {
   try {
-    res.json({ success: true, entries: await getChangelogEntries() })
+    const [entries, channel_id] = await Promise.all([getChangelogEntries(), getChangelogChannel()])
+    res.json({ success: true, entries, channel_id: channel_id || '' })
   } catch (error) {
     console.error('Admin get changelog error:', error.message)
     res.status(500).json({ error: 'Failed to fetch changelog' })
+  }
+})
+
+// Registered BEFORE '/changelog/:id' so 'channel' isn't captured as an id.
+router.put('/changelog/channel', async (req, res) => {
+  try {
+    await setChangelogChannel(req.body?.channel_id)
+    const channel_id = await getChangelogChannel()
+    await logAuditAction(req.user.id, null, 'ADMIN_CHANGELOG_CHANNEL', { channel_id: channel_id || '' })
+    res.json({ success: true, channel_id: channel_id || '' })
+  } catch (error) {
+    console.error('Admin set changelog channel error:', error.message)
+    res.status(500).json({ error: 'Failed to set changelog channel' })
   }
 })
 

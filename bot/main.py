@@ -277,6 +277,12 @@ async def setup_hook():
     except Exception as e:
         print(f'❌ Failed to load Admin-Broadcast cog: {e}')
 
+    try:
+        await bot.load_extension('cogs.changelog_announce')
+        print('✅​ Changelog-Announce cog loaded')
+    except Exception as e:
+        print(f'❌ Failed to load Changelog-Announce cog: {e}')
+
     # Sync application (slash) commands. setup_hook runs once, so no guard needed.
     try:
         synced = await bot.tree.sync()

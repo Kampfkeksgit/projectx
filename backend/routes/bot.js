@@ -111,6 +111,9 @@ import {
   createBackup,
   logError,
   getDueBroadcast,
+  getDueChangelogAnnouncements,
+  markChangelogAnnounced,
+  getChangelogChannel,
   updateBroadcast,
   getExpiringPremiumGuilds,
   markPremiumReminded
@@ -980,6 +983,35 @@ router.put('/broadcasts/:id', requireBotToken, async (req, res) => {
   } catch (error) {
     console.error('Bot update broadcast error:', error.message)
     res.status(500).json({ error: 'Failed to update broadcast' })
+  }
+})
+
+/**
+ * Bot-only: changelog → Discord announcement.
+ *   GET /api/bot/changelog/due → { channel_id, entries: [...] }
+ *     (entries = published + not-yet-announced; empty when no channel configured)
+ *   PUT /api/bot/changelog/:id/announced → mark posted, so it isn't sent again.
+ */
+router.get('/changelog/due', requireBotToken, async (req, res) => {
+  try {
+    const channel_id = await getChangelogChannel()
+    if (!channel_id) return res.json({ channel_id: null, entries: [] })
+    const entries = await getDueChangelogAnnouncements()
+    return res.json({ channel_id, entries })
+  } catch (error) {
+    console.error('Bot get due changelog error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch changelog' })
+  }
+})
+
+router.put('/changelog/:id/announced', requireBotToken, async (req, res) => {
+  try {
+    const changes = await markChangelogAnnounced(req.params.id)
+    if (changes === 0) return res.status(404).json({ error: 'Changelog entry not found' })
+    return res.json({ success: true })
+  } catch (error) {
+    console.error('Bot mark changelog announced error:', error.message)
+    res.status(500).json({ error: 'Failed to update changelog' })
   }
 })
 

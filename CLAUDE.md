@@ -206,8 +206,11 @@ projectx/
 │                               # Rolle zu tief), wird der Job als FAILED gemeldet statt als stilles „done".
 │       ├── team_resolve.py     # @tasks.loop(5min): pollt GET /api/bot/team/unresolved, holt per fetch_user Name+Avatar,
 │       │                       # PUT /api/bot/team/:id/resolved. Für Team-Mitglieder, die nur per Discord-ID angelegt wurden.
-│       └── admin_broadcast.py  # Owner-Broadcast (Owner-Admin): @tasks.loop(30s) pollt GET /api/bot/broadcasts/due,
-│                               # claimt (status=sending), DMt die Nachricht an jeden eindeutigen Guild-Owner, meldet done {sent,total}.
+│       ├── admin_broadcast.py  # Owner-Broadcast (Owner-Admin): @tasks.loop(30s) pollt GET /api/bot/broadcasts/due,
+│       │                       # claimt (status=sending), DMt die Nachricht an jeden eindeutigen Guild-Owner, meldet done {sent,total}.
+│       └── changelog_announce.py # @tasks.loop(60s): pollt GET /api/bot/changelog/due → { channel_id, entries } (published + noch nicht
+│                               # announced), postet je ein Embed in den konfigurierten Kanal, PUT .../changelog/:id/announced. Kanal via
+│                               # system_settings.changelog_channel (Admin → Changelog); v48-Backfill verhindert Nachposten alter Einträge.
 ├── backend/                    # Node.js / Express API
 │   ├── server.js               # App-Init, CORS+cookies, Migration-Bootstrap, Route-Mounts, Warnings
 │   ├── db.js                   # SQLite-Connection + Query-Helper (inkl. updateUserTokens,
@@ -874,9 +877,9 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - Engine: **SQLite3** (Datei via `DATABASE_URL`, default `./data/bot.db`)
 - Connection: [backend/db.js](backend/db.js)
 - Migrations: [backend/migrations.js](backend/migrations.js)
-  - **Aktuelle Schema-Version: `47`**
+  - **Aktuelle Schema-Version: `48`**
   - `CURRENT_SCHEMA_VERSION` Konstante steuert Upgrades.
-  - `applyMigrations(from, to)` mappt Versionsnummern → Migration-Funktionen (`migrationV1`, …, `migrationV47`). v23–v47 nutzen den `runSchemaBatch(version, statements)`-Helper.
+  - `applyMigrations(from, to)` mappt Versionsnummern → Migration-Funktionen (`migrationV1`, …, `migrationV48`). v23–v48 nutzen den `runSchemaBatch(version, statements)`-Helper.
   - Versionstabelle: `schema_version (version PK, applied_at)`.
   - `migrationV2` fügt `users.token_expires_at INTEGER` hinzu (idempotent).
   - `migrationV3` legt `guild_autorole_settings`, `guild_log_settings`, `guild_moderation_settings` an (`CREATE TABLE IF NOT EXISTS` — idempotent; werden parallel auch im `initializeDatabase()`-Pfad erzeugt, damit Fresh-DBs auch ohne Migrations-Run funktionieren).
@@ -983,7 +986,7 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - `admin_metrics_snapshots` — tägliche System-Metriken (`day PK`, User-/Guild-/Premium-Totals + `module_adoption` JSON) für die Admin-Analytics-Charts (Wachstum + Modul-Adoption-Trend). Vom Backend-Intervall (`captureMetricsSnapshot`, 6h) befüllt.
 - `error_log` — zentrales Fehler-/Exception-Log (`source ∈ {bot|backend}`, `level`, `context`, `message`, `stack`, `guild_id`, `created_at`), gefüllt von Bot (`POST /api/bot/errors`) + Backend (globaler Error-Handler), gelesen vom Owner-Admin → Monitoring. Retention 2000 Zeilen.
 - `team_members` — Team-/Credits-Einträge für die öffentliche `/team`-Seite (`id` UUID, `discord_id` optional, `discord_username` (vom Bot aufgelöst, auch Resolved-Marker), `name`, `role`, `avatar_url`, `bio`, `socials` JSON `{github|twitter|youtube|twitch|instagram|tiktok|website}`, `position`). Owner-verwaltet (Admin → Team); `getTeamMembers` joint `users` für einen Avatar-Fallback über `discord_id`. Ein per Discord-ID (ohne Name) angelegtes Mitglied wird vom Bot-Cog `team_resolve` aufgelöst (Name/Avatar aus Discord).
-- `changelog_entries` — Changelog-Publisher (`id` UUID, `version`, `title`, `body` Markdown/Klartext, `published`, `entry_date`/`created_at`/`updated_at` unix-seconds). Owner-verwaltet (Admin → Changelog); veröffentlichte Einträge liefert `getPublishedChangelog` an die öffentliche `/changelog`-Seite.
+- `changelog_entries` — Changelog-Publisher (`id` UUID, `version`, `title`, `body` Markdown/Klartext, `published`, `announced` (v48: 0 bis der Bot den veröffentlichten Eintrag in den Ankündigungs-Kanal gepostet hat), `entry_date`/`created_at`/`updated_at` unix-seconds). Owner-verwaltet (Admin → Changelog); veröffentlichte Einträge liefert `getPublishedChangelog` an die öffentliche `/changelog`-Seite. Der Ankündigungs-Kanal liegt in `system_settings` unter Key `changelog_channel`.
 - `schema_version` — Migrations-Tracking
 
 **Wichtige DB-Helper** in [backend/db.js](backend/db.js):
@@ -1144,6 +1147,15 @@ Empfehlung aus [README.md](README.md): SQLite → PostgreSQL für Multi-Instance
 ---
 
 ## 14. Letzte Aktualisierung
+
+- **Datum:** 2026-07-13
+- **Changelog → Discord-Ankündigung (Schema v48):** Wird ein Changelog-Eintrag **veröffentlicht**, postet der **Bot** ihn automatisch als Embed in einen konfigurierten Discord-Kanal (kein Webhook — der Bot postet mit eigener Identität, konsistent zum Broadcast/Scheduled-Muster).
+  - **Schema v48:** idempotenter ALTER `changelog_entries.announced INTEGER DEFAULT 0` + **Backfill** `UPDATE … SET announced=1 WHERE published=1` (bestehende veröffentlichte Einträge werden **nicht** nachgepostet). Mirror + defensiver ALTER in [db.js](backend/db.js). Helfer: `getDueChangelogAnnouncements` (published + announced=0, oldest-first), `markChangelogAnnounced`, `getChangelogChannel`/`setChangelogChannel` (Snowflake-Validierung, gespeichert in `system_settings.changelog_channel`). `shapeChangelogEntry` um `announced` erweitert.
+  - **Backend:** Admin (Owner) `GET /api/admin/changelog` liefert jetzt zusätzlich `channel_id`; neu `PUT /api/admin/changelog/channel` (vor `/:id` registriert, Audit `ADMIN_CHANGELOG_CHANNEL`). Bot (`X-Bot-Token`): `GET /api/bot/changelog/due` → `{ channel_id, entries }`, `PUT /api/bot/changelog/:id/announced`.
+  - **Bot:** neues Cog [changelog_announce.py](bot/cogs/changelog_announce.py) (@tasks.loop 60s) — postet Embed (Titel/Version/Body/entry_date), markiert announced; postet **nicht** wenn Kanal unsichtbar/keine Rechte (Retry). In [main.py](bot/main.py) geladen.
+  - **Frontend:** [Admin.vue](frontend/src/pages/Admin.vue) Changelog-Tab: Panel „Discord-Ankündigungs-Kanal" (Kanal-ID setzen/leeren, GET/PUT), Auto-Refresh-Guard um `clChannelDirty()` erweitert. i18n: 6 neue `admin.clChannel*`-Keys in **allen 5 Sprachen** (Parität 1739/Locale).
+  - Verifiziert: Migration v48 + DB-Smoke (Channel set/clear-invalid, published→due, mark→nicht mehr due, Draft nicht due) grün, Backend-Syntax OK, Bot kompiliert, Frontend-Build grün, i18n-Parität grün. **Hinweis:** Kanal in Admin → Changelog setzen; der Bot muss im Kanal posten dürfen; Ankündigung greift binnen ~1 Min (Poll-Intervall). **⚠️ Nicht live gegen Discord getestet.**
+
 
 - **Datum:** 2026-07-13
 - **SEO-Content — Docs-Modulseiten + Feature-Landingpages (kein Schema-Change):** Aufbauend aufs SEO-Fundament. **(B) Docs:** `docs/modules.md` war eine Sammelseite (1 URL für alle Module) → jetzt zusätzlich **eine Seite pro Modul** unter `docs/modules/<slug>.md` (**28 Module** = praktisch alle außer „Allgemein"), jede mit keyword-optimiertem H1 + Intro (GitBook zieht Titel/Meta daraus) + „Was es macht"/„Einrichten". In [SUMMARY.md](docs/SUMMARY.md) unter „Module" verschachtelt + aus [modules.md](docs/modules.md) verlinkt. **(C) Feature-Landingpages:** datengetrieben — [seo/featurePages.js](frontend/src/seo/featurePages.js) (**10 Top-Keywords**: discord-ticket/welcome/leveling/moderation/music/stats/giveaway/economy/server-backup/minecraft-bot) + [FeatureLanding.vue](frontend/src/pages/FeatureLanding.vue) (Hero/Features/FAQ/CTA, `useSeo` + **FAQPage-JSON-LD** für Rich Results). Routen im [router](frontend/src/router/index.js) aus `FEATURE_PAGES` generiert (skaliert automatisch); 10 URLs in [sitemap.xml](frontend/public/sitemap.xml). Frontend-Build grün. **Noch offen:** echte `hreflang`/`/de//tr/`-URLs + Prerendering.

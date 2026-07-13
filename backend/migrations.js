@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 47;
+const CURRENT_SCHEMA_VERSION = 48;
 
 /**
  * Initialize schema version tracking
@@ -106,7 +106,8 @@ async function applyMigrations(fromVersion, toVersion) {
     44: migrationV44,
     45: migrationV45,
     46: migrationV46,
-    47: migrationV47
+    47: migrationV47,
+    48: migrationV48
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -2219,6 +2220,21 @@ function migrationV47() {
       updated_at  INTEGER DEFAULT 0
     )`,
     'CREATE INDEX IF NOT EXISTS idx_changelog_date ON changelog_entries(entry_date)'
+  ]);
+}
+
+/**
+ * Migration V48: Changelog → Discord announcement.
+ *   - changelog_entries.announced: 0 until the bot posts the (published) entry to
+ *     the configured announcement channel, then 1. The bot polls published+
+ *     un-announced entries. Existing published entries are backfilled to
+ *     announced=1 so they are NOT re-posted retroactively.
+ * Idempotent (duplicate-column swallowed); mirrored in initializeDatabase().
+ */
+function migrationV48() {
+  return runSchemaBatch(48, [
+    'ALTER TABLE changelog_entries ADD COLUMN announced INTEGER DEFAULT 0',
+    'UPDATE changelog_entries SET announced = 1 WHERE published = 1'
   ]);
 }
 
