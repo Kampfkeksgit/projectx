@@ -383,7 +383,8 @@ projectx/
 │       └── pages/
 │           ├── Landing.vue          # /  (frei zugänglich, auch für authed User — Home-Button im /dashboard)
 │           ├── FeatureLanding.vue   # SEO-Feature-Landingpages (/discord-ticket-bot, …) — datengetrieben aus seo/featurePages.js
-│           │                        # (Routen im Router aus FEATURE_PAGES generiert), useSeo + FAQPage-JSON-LD; öffentlich, kein Auth
+│           │                        # (Routen im Router aus FEATURE_PAGES generiert), useSeo + FAQPage-/BreadcrumbList-JSON-LD +
+│           │                        # „Weitere Features"-Sektion (interne Verlinkung der anderen Feature-Seiten); öffentlich, kein Auth
 │           ├── Team.vue             # /team (öffentlich, kein Auth) — Credits/Team-Seite, Karten mit Avatar/Rolle/Bio/Social-Icons, lädt GET /api/public/team
 │           ├── Changelog.vue        # /changelog (öffentlich, kein Auth) — veröffentlichte Release-Notes (Version/Titel/Datum/Body), lädt GET /api/public/changelog
 │           ├── Servers.vue          # /dashboard  (Guild-Auswahl, requiresAuth) — mit Home- + Refresh-Button
