@@ -880,6 +880,14 @@ export default {
     balanceCol: 'Guthaben',
     loadError: 'Wirtschafts-Einstellungen konnten nicht geladen werden.'
   },
+  seo: {
+    landingTitle: 'Kampfkekse — Discord-Bot & Dashboard, 30+ Module',
+    landingDescription: 'Verwalte deinen Discord-Server über ein Dashboard: Welcome, Tickets, Moderation, Leveling, Statistiken, Musik & mehr. Kostenlos, 5 Sprachen.',
+    teamTitle: 'Team — Kampfkekse',
+    teamDescription: 'Die Menschen hinter Kampfkekse — dem Discord-Bot & Dashboard.',
+    changelogTitle: 'Changelog — Kampfkekse',
+    changelogDescription: 'Alle Updates und neuen Funktionen für den Kampfkekse Discord-Bot & das Dashboard.'
+  },
   embedEditor: {
     sectionTitle: 'Embed-Inhalt',
     titleLabel: 'Titel',

@@ -838,6 +838,14 @@ export default {
     balanceCol: 'Bakiye',
     loadError: 'Ekonomi ayarları yüklenemedi.'
   },
+  seo: {
+    landingTitle: 'Kampfkekse — Discord Bot ve Panel, 30+ Modül',
+    landingDescription: 'Discord sunucunu tek panelden yönet: karşılama, ticket, moderasyon, seviye, istatistik, müzik ve daha fazlası. Ücretsiz, 5 dil.',
+    teamTitle: 'Ekip — Kampfkekse',
+    teamDescription: 'Kampfkekse\'nin arkasındaki ekip — Discord bot ve panel.',
+    changelogTitle: 'Sürüm Notları — Kampfkekse',
+    changelogDescription: 'Kampfkekse Discord bot ve paneli için tüm güncellemeler ve yeni özellikler.'
+  },
   embedEditor: {
     sectionTitle: 'Gömme içeriği',
     titleLabel: 'Başlık',

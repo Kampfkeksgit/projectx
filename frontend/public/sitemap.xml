@@ -6,6 +6,16 @@
     <priority>1.0</priority>
   </url>
   <url>
+    <loc>https://kampfkekse.eu/changelog</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://kampfkekse.eu/team</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
     <loc>https://kampfkekse.eu/legal/impressum</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
