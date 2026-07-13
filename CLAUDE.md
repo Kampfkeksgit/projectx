@@ -382,6 +382,8 @@ projectx/
 │       │   └── LoadingPage.vue # Animierter Orb
 │       └── pages/
 │           ├── Landing.vue          # /  (frei zugänglich, auch für authed User — Home-Button im /dashboard)
+│           ├── FeatureLanding.vue   # SEO-Feature-Landingpages (/discord-ticket-bot, …) — datengetrieben aus seo/featurePages.js
+│           │                        # (Routen im Router aus FEATURE_PAGES generiert), useSeo + FAQPage-JSON-LD; öffentlich, kein Auth
 │           ├── Team.vue             # /team (öffentlich, kein Auth) — Credits/Team-Seite, Karten mit Avatar/Rolle/Bio/Social-Icons, lädt GET /api/public/team
 │           ├── Changelog.vue        # /changelog (öffentlich, kein Auth) — veröffentlichte Release-Notes (Version/Titel/Datum/Body), lädt GET /api/public/changelog
 │           ├── Servers.vue          # /dashboard  (Guild-Auswahl, requiresAuth) — mit Home- + Refresh-Button
@@ -445,7 +447,8 @@ projectx/
 ├── nginx.conf                  # Frontend-Container: SPA + /api-Reverse-Proxy → backend
 ├── nginx-proxy-manager.yml     # Separater Portainer-Stack: NPM (TLS/Let's Encrypt) vor dem Frontend (Netzwerk `proxy`)
 ├── docs/                       # Öffentliche Endnutzer-Doku für GitBook (Git-Sync-Quelle): README.md + SUMMARY.md
-│                               # + getting-started/modules/premium/faq. NICHT die internen Architektur-Files hier reinmischen.
+│                               # + getting-started/modules/premium/faq + modules/<slug>.md (eine SEO-Seite pro Modul,
+│                               # in SUMMARY.md verschachtelt + aus modules.md verlinkt). NICHT die internen Architektur-Files hier reinmischen.
 ├── ARCHITECTURE.md             # System-Design (autoritativ für Architektur-Fragen)
 ├── DOCUMENTATION_INDEX.md
 ├── README.md                   # Setup-Guide (Endnutzer-orientiert)
@@ -1142,6 +1145,7 @@ Empfehlung aus [README.md](README.md): SQLite → PostgreSQL für Multi-Instance
 ## 14. Letzte Aktualisierung
 
 - **Datum:** 2026-07-13
+- **SEO-Content — Docs-Modulseiten + Feature-Landingpages (kein Schema-Change):** Aufbauend aufs SEO-Fundament. **(B) Docs:** `docs/modules.md` war eine Sammelseite (1 URL für alle Module) → jetzt zusätzlich **eine Seite pro Modul** unter `docs/modules/<slug>.md` (**28 Module** = praktisch alle außer „Allgemein"), jede mit keyword-optimiertem H1 + Intro (GitBook zieht Titel/Meta daraus) + „Was es macht"/„Einrichten". In [SUMMARY.md](docs/SUMMARY.md) unter „Module" verschachtelt + aus [modules.md](docs/modules.md) verlinkt. **(C) Feature-Landingpages:** datengetrieben — [seo/featurePages.js](frontend/src/seo/featurePages.js) (**10 Top-Keywords**: discord-ticket/welcome/leveling/moderation/music/stats/giveaway/economy/server-backup/minecraft-bot) + [FeatureLanding.vue](frontend/src/pages/FeatureLanding.vue) (Hero/Features/FAQ/CTA, `useSeo` + **FAQPage-JSON-LD** für Rich Results). Routen im [router](frontend/src/router/index.js) aus `FEATURE_PAGES` generiert (skaliert automatisch); 10 URLs in [sitemap.xml](frontend/public/sitemap.xml). Frontend-Build grün. **Noch offen:** echte `hreflang`/`/de//tr/`-URLs + Prerendering.
 - **SEO-Fundament — per-Route-Meta (kein Schema-Change):** Die SPA lieferte allen Routen denselben `index.html`-Titel/Meta → öffentliche Seiten waren für Google nicht unterscheidbar. Neues Composable [useSeo.js](frontend/src/composables/useSeo.js) setzt pro Seite `document.title` + `meta description`/`canonical`/OG/Twitter **reaktiv** (folgt dem i18n-Sprachwechsel); `resetSeo(path)` in [router/index.js](frontend/src/router/index.js) `afterEach` setzt den Default (Dashboard/App-Routen bleiben auf Default → per robots.txt eh noindex). Verdrahtet in [Landing.vue](frontend/src/pages/Landing.vue)/[Team.vue](frontend/src/pages/Team.vue)/[Changelog.vue](frontend/src/pages/Changelog.vue). Neuer i18n-Namespace `seo` (6 Keys × 5 Sprachen, Parität 1733/Locale). Dazu: `/team` + `/changelog` in [sitemap.xml](frontend/public/sitemap.xml) ergänzt (fehlten) und **`SoftwareApplication`-JSON-LD** in [index.html](frontend/index.html) (zusätzlich zum vorhandenen `WebSite`). Marke/Domain = **Kampfkekse / kampfkekse.eu** (im Code fest). Frontend-Build grün. **Hinweis:** für maximale Robustheit die öffentlichen Routen zusätzlich **prerendern**.
 - **Embed-Vorschau: Subtext + Ticket-Tokens (kein Schema-Change):** [DiscordMessagePreview.vue](frontend/src/components/DiscordMessagePreview.vue) rendert jetzt Discords **Subtext** `-# …` (kleine graue Schrift — ersetzt in Components-V2-Nachrichten den fehlenden Embed-Footer) und **mockt Ticket-Platzhalter** `{number}`→`42` / `{category}`→`Support` in der Vorschau (standen vorher wörtlich da, weil die Preview keinen Ticket-Kontext hat; der Bot löst sie live ohnehin auf). Reine Vorschau-Änderung (`renderMarkdown` + `replaceFlat` + `.md-subtext`-CSS), Bot/Backend unberührt. Frontend-Build grün.
 - **Datum:** 2026-07-12
