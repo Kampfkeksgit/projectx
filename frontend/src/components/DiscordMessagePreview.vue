@@ -133,6 +133,8 @@ const MOCK_USER_ID = '123456789012345678'
 const MOCK_USER_TAG = 'Alex#0001'
 const MOCK_GUILD_ID = '987654321098765432'
 const MOCK_MEMBER_COUNT = '42'
+const MOCK_TICKET_NUMBER = '42'
+const MOCK_TICKET_CATEGORY = 'Support'
 
 const authorIconErr = ref(false)
 const imageErr = ref(false)
@@ -165,6 +167,9 @@ function replaceFlat(raw) {
     .replace(/\{user\.tag\}/g, MOCK_USER_TAG)
     .replace(/\{guild\.id\}/g, MOCK_GUILD_ID)
     .replace(/\{guild\.member_count\}/g, MOCK_MEMBER_COUNT)
+    // Ticket-specific tokens — mocked so ticket panel/welcome previews look live.
+    .replace(/\{number\}/g, MOCK_TICKET_NUMBER)
+    .replace(/\{category\}/g, MOCK_TICKET_CATEGORY)
 }
 
 function resolvePlainText(raw) {
@@ -216,6 +221,7 @@ function renderMarkdown(raw, allowHeaders = false) {
     if (allowHeaders && (m = line.match(/^###\s+(.+)$/))) { pieces.push({ block: true, html: `<div class="md-h md-h3">${inlineMd(m[1])}</div>` }); continue }
     if (allowHeaders && (m = line.match(/^##\s+(.+)$/)))  { pieces.push({ block: true, html: `<div class="md-h md-h2">${inlineMd(m[1])}</div>` }); continue }
     if (allowHeaders && (m = line.match(/^#\s+(.+)$/)))   { pieces.push({ block: true, html: `<div class="md-h md-h1">${inlineMd(m[1])}</div>` }); continue }
+    if ((m = line.match(/^-#\s+(.+)$/)))                  { pieces.push({ block: true, html: `<div class="md-subtext">${inlineMd(m[1])}</div>` }); continue }
     if ((m = line.match(/^&gt;\s?(.*)$/)))                { pieces.push({ block: true, html: `<div class="md-quote">${inlineMd(m[1])}</div>` }); continue }
     if ((m = line.match(/^[-*]\s+(.+)$/)))                { pieces.push({ block: true, html: `<div class="md-li">${inlineMd(m[1])}</div>` }); continue }
     pieces.push({ block: false, html: inlineMd(line) })
@@ -744,6 +750,14 @@ const avatarGradient = computed(() => {
   border-left: 3px solid #4e5058;
   padding-left: 0.6rem;
   margin: 0.1rem 0;
+}
+
+.dmp__content :deep(.md-subtext),
+.dmp-embed__desc :deep(.md-subtext),
+.dmp-v2__text :deep(.md-subtext) {
+  font-size: 0.8em;
+  color: #949ba4;
+  line-height: 1.3;
 }
 
 .dmp__content :deep(.md-li),
