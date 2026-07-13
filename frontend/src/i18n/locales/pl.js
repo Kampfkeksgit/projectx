@@ -838,6 +838,14 @@ export default {
     balanceCol: 'Saldo',
     loadError: 'Nie udało się załadować ustawień ekonomii.'
   },
+  seo: {
+    landingTitle: 'Kampfkekse — bot i panel Discord, 30+ modułów',
+    landingDescription: 'Zarządzaj serwerem Discord z jednego panelu: powitania, zgłoszenia, moderacja, poziomy, statystyki, muzyka i więcej. Darmowe, 5 języków.',
+    teamTitle: 'Zespół — Kampfkekse',
+    teamDescription: 'Ludzie stojący za Kampfkekse — botem i panelem Discord.',
+    changelogTitle: 'Lista zmian — Kampfkekse',
+    changelogDescription: 'Wszystkie aktualizacje i nowe funkcje bota i panelu Discord Kampfkekse.'
+  },
   embedEditor: {
     sectionTitle: 'Treść embeda',
     titleLabel: 'Tytuł',

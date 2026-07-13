@@ -42,8 +42,10 @@ import { onMounted, ref } from 'vue'
 import api from '../services/api.js'
 import { useI18n } from '../i18n/index.js'
 import { useAutoRefresh } from '../composables/useAutoRefresh.js'
+import { useSeo } from '../composables/useSeo.js'
 
 const { t } = useI18n()
+useSeo(() => ({ title: t('seo.teamTitle'), description: t('seo.teamDescription') }))
 const members = ref([])
 const loading = ref(true)
 

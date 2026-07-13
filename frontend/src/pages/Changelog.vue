@@ -26,8 +26,10 @@
 import { onMounted, ref } from 'vue'
 import api from '../services/api.js'
 import { useI18n } from '../i18n/index.js'
+import { useSeo } from '../composables/useSeo.js'
 
 const { t, locale } = useI18n()
+useSeo(() => ({ title: t('seo.changelogTitle'), description: t('seo.changelogDescription') }))
 const entries = ref([])
 const loading = ref(true)
 

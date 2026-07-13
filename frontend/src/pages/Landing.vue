@@ -188,9 +188,11 @@ import DiscordMessagePreview from '../components/DiscordMessagePreview.vue'
 import api from '../services/api.js'
 import { useAuth } from '../stores/auth.js'
 import { useI18n } from '../i18n/index.js'
+import { useSeo } from '../composables/useSeo.js'
 
 const auth = useAuth()
 const { t } = useI18n()
+useSeo(() => ({ title: t('seo.landingTitle'), description: t('seo.landingDescription') }))
 
 // --- Live stats ---
 const stats = ref(null)

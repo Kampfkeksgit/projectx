@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuth } from '../stores/auth.js'
+import { resetSeo } from '../composables/useSeo.js'
 
 const Landing = () => import('../pages/Landing.vue')
 const Team = () => import('../pages/Team.vue')
@@ -184,6 +185,12 @@ router.beforeEach(async (to, from, next) => {
   }
 
   next()
+})
+
+// Reset to the default brand SEO on every navigation; public pages that call
+// useSeo() then override it with their own title/description on mount.
+router.afterEach((to) => {
+  resetSeo(to.path)
 })
 
 export default router

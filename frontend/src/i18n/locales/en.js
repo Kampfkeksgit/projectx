@@ -880,6 +880,14 @@ export default {
     balanceCol: 'Balance',
     loadError: 'Could not load economy settings.'
   },
+  seo: {
+    landingTitle: 'Kampfkekse — Discord Bot & Dashboard, 30+ Modules',
+    landingDescription: 'Manage your Discord server from one dashboard: welcome, tickets, moderation, leveling, stats, music & more. Free tier, 5 languages.',
+    teamTitle: 'Team — Kampfkekse',
+    teamDescription: 'Meet the people behind Kampfkekse — the Discord bot & dashboard.',
+    changelogTitle: 'Changelog — Kampfkekse',
+    changelogDescription: 'All updates and new features for the Kampfkekse Discord bot & dashboard.'
+  },
   embedEditor: {
     sectionTitle: 'Embed content',
     titleLabel: 'Title',
