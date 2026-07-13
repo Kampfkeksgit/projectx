@@ -1183,11 +1183,14 @@ function initializeDatabase() {
         title       TEXT NOT NULL,
         body        TEXT,
         published   INTEGER DEFAULT 1,
+        announced   INTEGER DEFAULT 0,
         entry_date  INTEGER DEFAULT 0,
         created_at  INTEGER DEFAULT 0,
         updated_at  INTEGER DEFAULT 0
       )
     `, (err) => { if (err) console.error('Error creating changelog_entries table:', err); });
+    // v48: announcement flag (defensive ALTER for pre-v48 DBs; backfill lives in the migration).
+    db.run('ALTER TABLE changelog_entries ADD COLUMN announced INTEGER DEFAULT 0', () => {});
     db.run('CREATE INDEX IF NOT EXISTS idx_changelog_date ON changelog_entries(entry_date)', (err) => {
       if (err) console.error('Error creating idx_changelog_date:', err);
     });
@@ -3004,6 +3007,7 @@ function shapeChangelogEntry(row) {
     title: row.title ?? '',
     body: row.body ?? '',
     published: !!row.published,
+    announced: !!row.announced,
     entry_date: row.entry_date ?? row.created_at ?? 0,
     created_at: row.created_at ?? 0,
     updated_at: row.updated_at ?? 0
@@ -3086,6 +3090,34 @@ export function deleteChangelogEntry(id) {
       if (err) reject(err); else resolve(this.changes);
     });
   });
+}
+
+/** Bot: published entries that haven't been announced to Discord yet (oldest first). */
+export function getDueChangelogAnnouncements() {
+  return dbAll(
+    `SELECT * FROM changelog_entries WHERE published = 1 AND announced = 0
+     ORDER BY entry_date ASC, created_at ASC`
+  ).then((rows) => (rows || []).map(shapeChangelogEntry));
+}
+
+/** Bot: mark an entry as announced so it isn't posted again. */
+export function markChangelogAnnounced(id) {
+  return new Promise((resolve, reject) => {
+    db.run('UPDATE changelog_entries SET announced = 1 WHERE id = ?', [id], function (err) {
+      if (err) reject(err); else resolve(this.changes);
+    });
+  });
+}
+
+/** The Discord channel id where changelog updates are announced (owner-configured). */
+export function getChangelogChannel() {
+  return getSystemSetting('changelog_channel').then((v) => v || null);
+}
+
+/** Set/clear the changelog announcement channel. Empty/invalid → cleared. */
+export function setChangelogChannel(channelId) {
+  const id = typeof channelId === 'string' && /^\d{15,25}$/.test(channelId.trim()) ? channelId.trim() : '';
+  return setSystemSetting('changelog_channel', id);
 }
 
 // ----- CSV export (owner-only) -----

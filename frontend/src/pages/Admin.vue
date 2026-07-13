@@ -502,6 +502,17 @@
       <!-- CHANGELOG / release notes -->
       <div v-else-if="tab === 'changelog'">
         <div class="panel panel--form">
+          <h3 class="panel__title">{{ t('admin.clChannelTitle') }}</h3>
+          <p class="panel__desc">{{ t('admin.clChannelDesc') }}</p>
+          <div class="team-form">
+            <label class="tf tf--wide"><span class="modal__label">{{ t('admin.clChannelLabel') }}</span><input v-model="clChannel" class="modal__input" :placeholder="t('admin.clChannelPlaceholder')" /></label>
+            <div class="team-form__actions">
+              <AppButton variant="primary" :loading="clChannelSaving" @click="saveChangelogChannel">{{ t('common.save') }}</AppButton>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel panel--form">
           <h3 class="panel__title">{{ clForm.id ? t('admin.clEditTitle') : t('admin.clTitle') }}</h3>
           <p class="panel__desc">{{ t('admin.clDesc') }}</p>
           <div class="team-form">
@@ -834,7 +845,7 @@ onMounted(() => load())
 // tab (its load() re-hydrates the editable maintenance/announcement forms) and
 // while a modal is open, so nothing the owner is editing gets clobbered.
 useAutoRefresh(() => load(), {
-  isDirty: () => tab.value === 'system' || !!inspect.value || !!confirmTarget.value || (tab.value === 'changelog' && clFormDirty())
+  isDirty: () => tab.value === 'system' || !!inspect.value || !!confirmTarget.value || (tab.value === 'changelog' && (clFormDirty() || clChannelDirty()))
 })
 
 function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1) }
@@ -936,6 +947,8 @@ async function load() {
     } else if (tab.value === 'changelog') {
       const { data } = await api.get('/admin/changelog')
       changelog.value = data.entries || []
+      if (!clChannelDirty()) clChannel.value = clChannelInitial.value = data.channel_id || ''
+      else clChannelInitial.value = data.channel_id || ''
     } else if (tab.value === 'system') {
       const [mnt, ann, bc] = await Promise.all([
         api.get('/admin/maintenance'),
@@ -1220,6 +1233,23 @@ async function removeTeamMember(m) {
 // ----- Changelog / release notes -----
 const changelog = ref([])
 const clSaving = ref(false)
+// Discord announcement channel for published changelog entries.
+const clChannel = ref('')
+const clChannelInitial = ref('')
+const clChannelSaving = ref(false)
+function clChannelDirty() { return clChannel.value.trim() !== clChannelInitial.value }
+async function saveChangelogChannel() {
+  clChannelSaving.value = true
+  try {
+    const { data } = await api.put('/admin/changelog/channel', { channel_id: clChannel.value.trim() })
+    clChannel.value = clChannelInitial.value = data.channel_id || ''
+    toast.success(t('admin.clChannelSaved'))
+  } catch {
+    toast.error(t('admin.clChannelError'))
+  } finally {
+    clChannelSaving.value = false
+  }
+}
 function emptyClForm() {
   return { id: null, version: '', title: '', body: '', published: true, date: '' }
 }
