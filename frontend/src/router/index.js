@@ -1,6 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuth } from '../stores/auth.js'
 import { resetSeo } from '../composables/useSeo.js'
+import { FEATURE_PAGES } from '../seo/featurePages.js'
+
+const FeatureLanding = () => import('../pages/FeatureLanding.vue')
 
 const Landing = () => import('../pages/Landing.vue')
 const Team = () => import('../pages/Team.vue')
@@ -150,6 +153,13 @@ const routes = [
     path: '/legal/terms',
     redirect: '/legal/agb'
   },
+  // SEO feature landing pages (/discord-ticket-bot, …) generated from config.
+  ...Object.keys(FEATURE_PAGES).map((slug) => ({
+    path: '/' + slug,
+    name: 'feature-' + slug,
+    component: FeatureLanding,
+    props: { slug }
+  })),
   {
     path: '/:pathMatch(.*)*',
     redirect: '/'
