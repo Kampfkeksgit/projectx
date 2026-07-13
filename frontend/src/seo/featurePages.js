@@ -90,5 +90,90 @@ export const FEATURE_PAGES = {
       { q: 'Kann ich die Musik im Dashboard steuern?', a: 'Ja, es gibt einen Live-Player mit Warteschlange direkt im Dashboard.' },
       { q: 'Welcher Tarif?', a: 'Musik ist im Pro-Tarif enthalten und benötigt einen Lavalink-Server.' }
     ]
+  },
+  'discord-stats-bot': {
+    seoTitle: 'Discord Server-Statistik Bot – Counter – Kampfkekse',
+    seoDescription: 'Zeige Live-Serverzahlen als Kanalnamen (Mitglieder, Online, Booster) plus Verlaufs-Graphen. Der klassische Server-Stats-Bot, online konfigurierbar.',
+    h1: 'Der Discord Server-Statistik-Bot',
+    subtitle: 'Live-Zahlen deines Servers als Kanalnamen – plus Verlaufs-Graphen im Dashboard.',
+    features: [
+      { icon: '📊', title: 'Counter-Kanäle', body: 'Mitglieder, Menschen, Bots, Online, Booster, Kanäle und Rollen als Voice-/Text-Kanäle.' },
+      { icon: '🧩', title: 'Auto-Anlage', body: 'Der Bot legt die Kanäle in einer Kategorie an und hält die Reihenfolge.' },
+      { icon: '📈', title: 'Verlaufs-Graphen', body: '7- und 30-Tage-Verlauf im Dashboard.' },
+      { icon: '⚙️', title: 'Vorlagen', body: 'Kanalnamen frei per Vorlage mit {count}.' }
+    ],
+    faq: [
+      { q: 'Wie zählt der Bot online/offline?', a: 'Über das privilegierte Presence-Intent, das im Discord-Developer-Portal aktiviert werden muss.' },
+      { q: 'Werden echte Kanäle erstellt?', a: 'Ja – wahlweise nutzt du bestehende Kanäle oder der Bot erstellt sie automatisch.' },
+      { q: 'Welcher Tarif?', a: 'Statistiken sind im Pro-Tarif enthalten.' }
+    ]
+  },
+  'discord-giveaway-bot': {
+    seoTitle: 'Discord Giveaway Bot – Voraussetzungen & Reroll – Kampfkekse',
+    seoDescription: 'Gewinnspiele mit Teilnahme-Voraussetzungen (Rollen, Kontoalter, Level), automatischer Ziehung und Reroll – auch direkt im Dashboard erstellbar.',
+    h1: 'Der Discord Giveaway-Bot',
+    subtitle: 'Faire Verlosungen mit Voraussetzungen, automatischer Ziehung und Reroll.',
+    features: [
+      { icon: '🎉', title: 'Slash-Befehle', body: '/giveaway start, reroll und end – schnell erstellt.' },
+      { icon: '✅', title: 'Voraussetzungen', body: 'Benötigte Rollen, Mindest-Kontoalter, Serverzugehörigkeit und Level.' },
+      { icon: '🎲', title: 'Auto-Ziehung', body: 'Gewinner werden automatisch gezogen, Reroll jederzeit möglich.' },
+      { icon: '🖥️', title: 'Im Dashboard', body: 'Giveaways auch komplett im Browser erstellen.' }
+    ],
+    faq: [
+      { q: 'Kann ich Voraussetzungen festlegen?', a: 'Ja – Rollen, Kontoalter, Serverzugehörigkeit und Mindest-Level werden beim Klick geprüft.' },
+      { q: 'Gibt es einen Reroll?', a: 'Ja, ein neuer Gewinner kann jederzeit aus den Teilnehmern gezogen werden.' },
+      { q: 'Welcher Tarif?', a: 'Gewinnspiele sind im Pro-Tarif enthalten.' }
+    ]
+  },
+  'discord-economy-bot': {
+    seoTitle: 'Discord Economy Bot – Währung & Shop – Kampfkekse',
+    seoDescription: 'Server-Wirtschaft mit Kontostand, Daily/Work, Bezahlen, Bestenliste und Rollen-Shop. Shop und Einstellungen bequem im Dashboard.',
+    h1: 'Der Discord Economy-Bot',
+    subtitle: 'Eine eigene Server-Währung mit Daily, Work, Shop und Bestenliste.',
+    features: [
+      { icon: '💰', title: 'Währung & Belohnungen', body: 'Kontostand, Daily und Work mit konfigurierbaren Beträgen und Cooldowns.' },
+      { icon: '🛒', title: 'Rollen-Shop', body: 'Artikel kaufen – optional mit Rollenvergabe.' },
+      { icon: '🤝', title: 'Bezahlen', body: 'Mitglieder überweisen sich gegenseitig Guthaben.' },
+      { icon: '🏆', title: 'Bestenliste', body: 'Wer hat am meisten? Guthaben-Ranking.' }
+    ],
+    faq: [
+      { q: 'Kann ich Rollen im Shop verkaufen?', a: 'Ja – ein Shop-Artikel kann beim Kauf automatisch eine Rolle vergeben.' },
+      { q: 'Sind die Beträge einstellbar?', a: 'Ja, Start-Guthaben, Daily/Work-Beträge und Cooldowns sind konfigurierbar.' },
+      { q: 'Welcher Tarif?', a: 'Wirtschaft ist im Pro-Tarif enthalten.' }
+    ]
+  },
+  'discord-server-backup-bot': {
+    seoTitle: 'Discord Server-Backup Bot – Wiederherstellen – Kampfkekse',
+    seoDescription: 'Erstelle Snapshots deiner Server-Struktur (Kanäle & Rollen inkl. Rechte) und stelle sie jederzeit wieder her. Mit Server-Vorlagen und Marktplatz.',
+    h1: 'Der Discord Server-Backup-Bot',
+    subtitle: 'Sichere deine komplette Server-Struktur und stelle sie mit einem Klick wieder her.',
+    features: [
+      { icon: '💾', title: 'Snapshots', body: 'Rollen, Kanäle, Rechte und Server-Style sichern.' },
+      { icon: '♻️', title: 'Wiederherstellen', body: 'Modus „missing" (nur Fehlendes) oder „mirror" (angleichen).' },
+      { icon: '📋', title: 'Server-Vorlagen', body: 'Struktur von einem Server auf einen anderen anwenden.' },
+      { icon: '🛍️', title: 'Marktplatz', body: 'Veröffentlichte Vorlagen anwenden.' }
+    ],
+    faq: [
+      { q: 'Werden Nachrichten mitgesichert?', a: 'Nein – gesichert wird die Struktur (Rollen, Kanäle, Rechte), nicht Nachrichten oder Mitglieder.' },
+      { q: 'Kann ich einen Server als Vorlage nutzen?', a: 'Ja, Snapshots lassen sich als Vorlage auf andere eigene Server anwenden.' },
+      { q: 'Welcher Tarif?', a: 'Server-Backup ist im Pro-Tarif enthalten.' }
+    ]
+  },
+  'discord-minecraft-bot': {
+    seoTitle: 'Minecraft Server-Status Bot für Discord – Kampfkekse',
+    seoDescription: 'Zeige den Live-Status deiner Minecraft-Server (Java & Bedrock) in Discord – Spielerzahl, MOTD und Version – als automatisch aktualisierte Nachricht.',
+    h1: 'Minecraft Server-Status in Discord',
+    subtitle: 'Zeige live, ob deine Minecraft-Server online sind – Java und Bedrock, ganz ohne Plugin.',
+    features: [
+      { icon: '🟢', title: 'Live-Status', body: 'Online/Offline mit Spielerzahl, MOTD und Version.' },
+      { icon: '🧱', title: 'Java & Bedrock', body: 'Beide Editionen per IP unterstützt.' },
+      { icon: '🔄', title: 'Auto-Update', body: 'Die Statusnachricht aktualisiert sich selbst.' },
+      { icon: '🎨', title: 'Klartext oder Embed', body: 'Darstellung frei wählbar mit Platzhaltern.' }
+    ],
+    faq: [
+      { q: 'Brauche ich ein Plugin auf dem Server?', a: 'Nein – der Status wird extern abgefragt, es genügt die Server-IP.' },
+      { q: 'Werden Java und Bedrock unterstützt?', a: 'Ja, beide Editionen werden unterstützt.' },
+      { q: 'Ist das kostenlos?', a: 'Ja, das Minecraft-Status-Modul ist dauerhaft im Free-Tarif enthalten.' }
+    ]
   }
 }
