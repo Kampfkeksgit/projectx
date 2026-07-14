@@ -526,7 +526,11 @@
               </label>
               <label class="tf"><span class="modal__label">{{ t('admin.partnerName') }}</span><input v-model="partnerForm.name" class="modal__input" maxlength="80" /></label>
               <label v-if="partnerForm.kind === 'user'" class="tf"><span class="modal__label">{{ t('admin.partnerLink') }}</span><input v-model="partnerForm.invite_url" class="modal__input" placeholder="https://…" /></label>
-              <label class="tf"><span class="modal__label">{{ t('admin.partnerAvatar') }}</span><input v-model="partnerForm.avatar_url" class="modal__input" placeholder="https://…" /></label>
+              <label class="tf">
+                <span class="modal__label">{{ t('admin.partnerAvatar') }}</span>
+                <input v-model="partnerForm.avatar_url" class="modal__input" :placeholder="t('admin.partnerAvatarAuto')" />
+                <span class="tf__hint">{{ partnerForm.kind === 'guild' ? t('admin.partnerAvatarHintGuild') : t('admin.partnerAvatarHintUser') }}</span>
+              </label>
               <label class="tf"><span class="modal__label">{{ t('admin.partnerPosition') }}</span><input v-model.number="partnerForm.position" class="modal__input" type="number" min="0" /></label>
             </div>
             <label class="tf tf--wide"><span class="modal__label">{{ t('admin.partnerDescription') }}</span><textarea v-model="partnerForm.description" class="modal__input" rows="2" maxlength="500"></textarea></label>
@@ -1652,6 +1656,7 @@ function goBack() { router.push('/dashboard') }
 .team-form__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-3); }
 .team-form__socials { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-3); }
 .tf { display: flex; flex-direction: column; gap: 4px; }
+.tf__hint { font-size: 0.74rem; color: var(--color-text-muted); line-height: 1.4; }
 .tf .modal__label { text-transform: capitalize; }
 .tf--wide { width: 100%; }
 .team-form__actions { display: flex; justify-content: flex-end; gap: var(--space-3); }
