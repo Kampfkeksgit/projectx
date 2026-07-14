@@ -1,14 +1,14 @@
 /* ============================================================
  * ProjectX — Mobile-UI-Schicht
  *
- * Alle Regeln hängen an `.mobile-ui` (auf <html>, gesetzt von platform.js).
+ * Alle Regeln hängen an `html.mobile-ui` (auf <html>, gesetzt von platform.js).
  * Greift NUR in der nativen App bzw. mit ?mobile=1 — die Desktop-Website
  * bleibt unberührt. Hier werden ausschließlich bestehende Seiten/Komponenten
  * für kleine Touch-Screens nachjustiert; die eigene App-Chrome (Top-Bar +
  * Bottom-Navigation) kommt aus den MobileShell-Komponenten.
  * ============================================================ */
 
-.mobile-ui {
+html.mobile-ui {
   /* Sticky-Offsets der Seiten richten sich nach --nav-height — auf die Höhe
      der mobilen Top-Bar mappen, damit sticky Previews/Sidebars korrekt sitzen. */
   --nav-height: 56px;
@@ -17,68 +17,192 @@
 }
 
 /* Schmalere Scrollbar — die fette Desktop-Scrollbar wirkt auf dem Handy falsch. */
-.mobile-ui ::-webkit-scrollbar {
+html.mobile-ui ::-webkit-scrollbar {
   width: 4px;
   height: 4px;
 }
 
 /* Formularfelder: 16px verhindert Auto-Zoom beim Fokussieren auf Mobilgeräten. */
-.mobile-ui input,
-.mobile-ui textarea,
-.mobile-ui select {
+html.mobile-ui input,
+html.mobile-ui textarea,
+html.mobile-ui select {
   font-size: 16px;
 }
 
-/* Dashboard-Layout: kompakteres Padding, keine Desktop-Sidebar-Lücke. */
-.mobile-ui .dashboard-layout {
+/* ---- Seiten-Container: kompakteres Padding, keine Desktop-Sidebar-Lücke ---- */
+html.mobile-ui .dashboard-layout {
   padding: var(--space-4) var(--space-4) var(--space-5);
   min-height: auto;
 }
-.mobile-ui .dashboard-layout__inner {
+html.mobile-ui .dashboard-layout__inner {
   gap: 0;
 }
-.mobile-ui .dashboard-layout__main {
+html.mobile-ui .dashboard-layout__main {
   max-width: none;
   margin: 0;
 }
 
-/* Modul-Übersicht (Overview) = mobiler Modul-Hub → einspaltig + kompakter. */
-.mobile-ui .overview__grid {
+/* Generische Seiten-Container etwas schmaler bepolstern (volle Breite nutzen). */
+html.mobile-ui .page,
+html.mobile-ui .config,
+html.mobile-ui .servers,
+html.mobile-ui .admin,
+html.mobile-ui .premium,
+html.mobile-ui .team-page,
+html.mobile-ui .partners-page {
+  padding-left: var(--space-4);
+  padding-right: var(--space-4);
+}
+
+/* ---- Modul-Übersicht (Overview) = mobiler Modul-Hub → einspaltig + kompakt ---- */
+html.mobile-ui .overview__grid {
   grid-template-columns: 1fr;
   gap: var(--space-3);
 }
-.mobile-ui .overview__head {
+html.mobile-ui .overview__head {
   margin-bottom: var(--space-5);
 }
-.mobile-ui .config-card {
+html.mobile-ui .config-card {
   padding: var(--space-4);
   gap: var(--space-3);
 }
 /* Hover-Lift auf Touch deaktivieren (kein echter Hover). */
-.mobile-ui .config-card:hover {
+html.mobile-ui .config-card:hover,
+html.mobile-ui .guild-card:hover,
+html.mobile-ui .team-card:hover,
+html.mobile-ui .partner-card:hover {
   transform: none;
 }
 
-/* Generische Seiten-Container etwas schmaler bepolstern. */
-.mobile-ui .page,
-.mobile-ui .config,
-.mobile-ui .servers,
-.mobile-ui .admin,
-.mobile-ui .premium {
-  padding-left: 0;
-  padding-right: 0;
+/* ---- Modul-Seiten: zweispaltige Layouts (Formular + Live-Vorschau) stapeln ---- */
+html.mobile-ui .config__grid,
+html.mobile-ui .config__grid--single {
+  grid-template-columns: 1fr !important;
+  gap: var(--space-4);
 }
 
-/* Sticky „Ungespeicherte Änderungen"-Leiste über die Bottom-Navigation heben. */
-.mobile-ui .config__footer {
+/* Karten/Panels: etwas weniger Innenabstand → mehr nutzbare Breite. */
+html.mobile-ui .form-card,
+html.mobile-ui .panel {
+  padding: var(--space-4);
+}
+
+/* Seiten-Köpfe: Titel + Aktions-Button dürfen umbrechen statt zu überlaufen. */
+html.mobile-ui .config__head {
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+/* Sticky „Ungespeicherte Änderungen"-Leiste über die Bottom-Navigation heben,
+   Aktionen vollflächig stapeln (leichter zu treffen). */
+html.mobile-ui .config__footer {
   bottom: calc(var(--mobile-tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--space-2));
   z-index: 45;
 }
+html.mobile-ui .config__footer-inner {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+html.mobile-ui .config__footer-actions {
+  justify-content: stretch;
+}
+html.mobile-ui .config__footer-actions > * {
+  flex: 1;
+}
 
 /* Tabellen (Leaderboard/Admin) horizontal scrollbar machen statt zu überlaufen. */
-.mobile-ui table {
+html.mobile-ui table {
   display: block;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   white-space: nowrap;
+}
+
+/* ============================================================
+ * Admin-Bereich
+ * ============================================================ */
+
+/* Toolbar (Suche + Filter) sauber stapeln, Suche über die ganze Breite. */
+html.mobile-ui .admin__toolbar {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+html.mobile-ui .admin__toolbar .search {
+  max-width: none;
+  width: 100%;
+  min-width: 0;
+}
+html.mobile-ui .filter {
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+html.mobile-ui .filter__select {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Metrik-Karten dichter (2-spaltig) statt jeweils volle Breite. */
+html.mobile-ui .cards {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+html.mobile-ui .card {
+  padding: var(--space-3);
+}
+html.mobile-ui .card__value {
+  font-size: 1.5rem;
+}
+
+/* Form-Panels dürfen die volle Breite nutzen (Desktop kappt bei 560px). */
+html.mobile-ui .panel--form {
+  max-width: none;
+}
+
+/* Listen-Zeilen (Team/Partner/Audit) umbrechen, Aktionen bleiben erreichbar. */
+html.mobile-ui .team-list__row {
+  flex-wrap: wrap;
+  row-gap: var(--space-2);
+}
+
+/* ============================================================
+ * Modals / Dialoge → mobile Bottom-Sheet-Optik (voll breit, scrollbar)
+ * (gilt für Admin-, Backup- u. a. Modals; gleiche Klassennamen)
+ * ============================================================ */
+html.mobile-ui .modal-overlay {
+  align-items: flex-end;
+  padding: 0;
+}
+html.mobile-ui .modal {
+  width: 100%;
+  max-width: none !important;
+  max-height: 90vh;
+  padding: var(--space-5) var(--space-4)
+    calc(env(safe-area-inset-bottom, 0px) + var(--space-5));
+  border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+}
+html.mobile-ui .modal__actions {
+  flex-direction: column-reverse;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+html.mobile-ui .modal__actions > * {
+  width: 100%;
+}
+
+/* ============================================================
+ * Inline-Editor-Zeilen: Editor+Vorschau-Splits stapeln
+ * (Minecraft/Social/Stats-Vorschau rechts, V2-Section-Thumbnail)
+ * ============================================================ */
+html.mobile-ui .mc-row__grid,
+html.mobile-ui .sn-row__grid,
+html.mobile-ui .st-row__grid,
+html.mobile-ui .ee-v2-sectionrow {
+  grid-template-columns: 1fr;
+}
+
+/* Rollen-Menü-Optionszeile (Label/Rolle/Emoji/Löschen) auf 2 Spalten umbrechen. */
+html.mobile-ui .rm-opt {
+  grid-template-columns: 1fr 1fr;
 }

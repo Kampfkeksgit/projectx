@@ -306,8 +306,14 @@ projectx/
 │       ├── mobile/             # Dedizierte Handy-Oberfläche (NUR in nativer App / ?mobile=1 aktiv; Desktop-Web unberührt)
 │       │   ├── platform.js     # isMobileUI (computed: Capacitor.isNativePlatform() ODER ?mobile=1-Override in
 │       │   │                   # localStorage projectx_force_mobile) + applyMobileClass() (setzt .mobile-ui auf <html>)
-│       │   ├── mobile.css      # Globale Mobile-Schicht unter .mobile-ui (mappt --nav-height auf Top-Bar-Höhe,
-│       │   │                   # Overview einspaltig, Save-Bar über Bottom-Nav heben, Tabellen-Scroll). Greift NICHT auf Desktop.
+│       │   ├── mobile.css      # Globale Mobile-Schicht — Selektoren als **html.mobile-ui** (erhöhte Spezifität, damit sie
+│       │   │                   # scoped Component-Styles zuverlässig überschreiben; sonst gewinnt die später geladene Route-CSS).
+│       │   │                   # Deckt ALLE Seiten ab: --nav-height→Top-Bar-Höhe, Overview/Container einspaltig, alle
+│       │   │                   # config__grid (Formular+Vorschau) + Inline-Editor-Splits (mc/sn/st-row, ee-v2-sectionrow,
+│       │   │                   # rm-opt) stapeln, Karten/Panel-Padding, Save-Bar über Bottom-Nav + Aktionen gestapelt,
+│       │   │                   # Tabellen-Scroll. Admin: Toolbar/Filter stapeln + Suche voll breit, Metrik-Karten 2-spaltig,
+│       │   │                   # panel--form voll breit. Modals (Admin/Backup): full-width Bottom-Sheet + gestapelte Aktionen.
+│       │   │                   # Greift NICHT auf Desktop (Klasse nur in nativer App / ?mobile=1).
 │       │   ├── MobileShell.vue # App-Shell für Mobile: TopBar + <router-view> + AppFooter (Rechtliches — im Wrapper .m-shell__footer, --tabbar-Variante hält die fixe Bottom-Nav frei) + TabBar (nur authed) + AccountSheet (statt NavBar/Sidebar)
 │       │   ├── MobileTopBar.vue# Sticky Top-Bar: Zurück (Modul-Seite → Overview-Hub) / Brand, Titel (Route→i18n), Avatar→AccountSheet
 │       │   ├── MobileTabBar.vue# Fixe Bottom-Nav, kontextabhängig (ohne Guild: Home/Server/Konto; in Guild: Server/Module/Premium/Konto)

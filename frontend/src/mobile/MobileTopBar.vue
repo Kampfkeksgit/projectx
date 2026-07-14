@@ -55,6 +55,7 @@ const TITLE_KEYS = {
   servers: 'nav.yourServers',
   admin: 'nav.adminPanel',
   premium: 'sidebar.linkPremium',
+  general: 'sidebar.linkGeneral',
   welcome: 'sidebar.linkWelcome',
   leave: 'sidebar.linkLeave',
   autorole: 'sidebar.linkAutoRole',
@@ -74,7 +75,25 @@ const TITLE_KEYS = {
   verification: 'sidebar.linkVerification',
   rolemenus: 'sidebar.linkRoleMenus',
   tickets: 'sidebar.linkTickets',
-  giveaways: 'sidebar.linkGiveaways'
+  giveaways: 'sidebar.linkGiveaways',
+  music: 'sidebar.linkMusic',
+  minecraft: 'sidebar.linkMinecraft',
+  counting: 'sidebar.linkCounting',
+  polls: 'sidebar.linkPolls',
+  invitetracking: 'sidebar.linkInviteTracking',
+  applications: 'sidebar.linkApplications',
+  economy: 'sidebar.linkEconomy',
+  backup: 'sidebar.linkBackup',
+  tictactoe: 'sidebar.linkTicTacToe',
+  rps: 'sidebar.linkRps',
+  trivia: 'sidebar.linkTrivia',
+  connect4: 'sidebar.linkConnect4',
+  hangman: 'sidebar.linkHangman',
+  poker: 'sidebar.linkPoker',
+  // Public pages (also rendered inside the mobile shell)
+  team: 'team.title',
+  partners: 'partners.title',
+  changelog: 'changelog.title'
 }
 
 const guildName = computed(() => {
