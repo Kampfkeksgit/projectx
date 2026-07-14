@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 48;
+const CURRENT_SCHEMA_VERSION = 49;
 
 /**
  * Initialize schema version tracking
@@ -107,7 +107,8 @@ async function applyMigrations(fromVersion, toVersion) {
     45: migrationV45,
     46: migrationV46,
     47: migrationV47,
-    48: migrationV48
+    48: migrationV48,
+    49: migrationV49
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -2235,6 +2236,23 @@ function migrationV48() {
   return runSchemaBatch(48, [
     'ALTER TABLE changelog_entries ADD COLUMN announced INTEGER DEFAULT 0',
     'UPDATE changelog_entries SET announced = 1 WHERE published = 1'
+  ]);
+}
+
+/**
+ * Migration V49: Minecraft status as channel name + ping.
+ *   - guild_minecraft_servers.name_channel_id: optional voice/text channel whose
+ *     NAME the bot keeps updated with the live status (like the stats module).
+ *   - name_template: the channel-name template ({status}/{players}/{max}/
+ *     {version}/{ping}/{name}/{emoji}).
+ *   - ping_ms: bot-measured latency in ms (-1 = unknown / not measured).
+ * Idempotent (duplicate-column swallowed); mirrored in initializeDatabase().
+ */
+function migrationV49() {
+  return runSchemaBatch(49, [
+    'ALTER TABLE guild_minecraft_servers ADD COLUMN name_channel_id TEXT',
+    "ALTER TABLE guild_minecraft_servers ADD COLUMN name_template TEXT DEFAULT ''",
+    'ALTER TABLE guild_minecraft_servers ADD COLUMN ping_ms INTEGER DEFAULT -1'
   ]);
 }
 

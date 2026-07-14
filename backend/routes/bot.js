@@ -738,6 +738,7 @@ router.put('/guilds/:guild_id/minecraft/:server_id/state', requireBotToken, asyn
       players_max: body.players_max,
       motd: body.motd,
       version: body.version,
+      ping_ms: body.ping_ms,
       status_message_id: body.status_message_id
     }, Math.floor(Date.now() / 1000))
     if (changes === 0) return res.status(404).json({ error: 'Server not found' })
