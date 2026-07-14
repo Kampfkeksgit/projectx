@@ -26,6 +26,7 @@ Requires Manage Channels. Logging prefix: "[tickets]".
 """
 
 import asyncio
+import html
 import io
 import time
 
@@ -48,6 +49,34 @@ _BUTTON_STYLES = {
     "success": discord.ButtonStyle.success,
     "danger": discord.ButtonStyle.danger,
 }
+
+# Inline CSS for the HTML ticket transcript (Discord-like dark theme). Kept as a
+# plain string (no f-string) so the CSS braces don't need escaping.
+_TRANSCRIPT_STYLE = """<style>
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin:0; background:#313338; color:#dbdee1; font-family:'gg sans','Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.45; }
+.wrap { max-width:900px; margin:0 auto; padding:24px 16px 64px; }
+header.tx { border-bottom:1px solid #3f4147; padding-bottom:16px; margin-bottom:12px; }
+header.tx h1 { font-size:1.3rem; margin:0 0 6px; color:#f2f3f5; }
+header.tx .sub { color:#949ba4; font-size:.85rem; }
+.msg { display:flex; gap:14px; padding:7px 6px; border-radius:6px; }
+.msg:hover { background:#2e3035; }
+.avatar { width:40px; height:40px; border-radius:50%; flex-shrink:0; object-fit:cover; background:#5865f2; }
+.avatar--ph { background:linear-gradient(135deg,#5865f2,#a78bfa); }
+.body { min-width:0; flex:1; }
+.meta { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin-bottom:2px; }
+.author { color:#f2f3f5; font-weight:600; }
+.handle, .ts { color:#949ba4; font-size:.72rem; }
+.content { color:#dbdee1; word-wrap:break-word; overflow-wrap:anywhere; }
+.muted { color:#949ba4; font-style:italic; }
+.att-img img { max-width:340px; max-height:300px; border-radius:6px; margin-top:6px; display:block; }
+.att-file { display:inline-block; margin-top:6px; color:#00a8fc; text-decoration:none; }
+.att-file:hover { text-decoration:underline; }
+a { color:#00a8fc; }
+.empty { color:#949ba4; padding:32px; text-align:center; }
+footer.tx { margin-top:24px; color:#6d7178; font-size:.72rem; text-align:center; }
+</style>"""
 
 
 def parse_emoji(raw):
@@ -767,21 +796,17 @@ class Tickets(commands.Cog):
             return
         lang = await lang_for(self.backend_url, self.api_key, channel.guild.id)
         try:
-            lines = []
+            messages = []
             async for m in channel.history(limit=1000, oldest_first=True):
-                ts = m.created_at.strftime("%Y-%m-%d %H:%M")
-                content = m.content or ""
-                for att in m.attachments:
-                    content += f" [attachment: {att.url}]"
-                if not content and m.embeds:
-                    content = "[embed]"
-                lines.append(f"[{ts}] {m.author}: {content}")
-            text = "\n".join(lines) or "(no messages)"
-            buf = io.BytesIO(text.encode("utf-8"))
-            file = discord.File(buf, filename=f"transcript-{channel.name}.txt")
+                messages.append(m)
+            doc = self._render_transcript_html(channel, messages, closer)
+            buf = io.BytesIO(doc.encode("utf-8"))
+            # Safe filename (channel names can contain non-ascii / odd chars).
+            safe = "".join(c if (c.isalnum() or c in "-_") else "-" for c in channel.name)[:60] or "ticket"
+            file = discord.File(buf, filename=f"transcript-{safe}.html")
             embed = discord.Embed(
                 title=t(lang, "ticket.transcriptTitle"),
-                description=t(lang, "ticket.transcriptDesc", channel=channel.name, closer=closer.mention, count=len(lines)),
+                description=t(lang, "ticket.transcriptDesc", channel=channel.name, closer=closer.mention, count=len(messages)),
                 color=TICKET_COLOR,
                 timestamp=discord.utils.utcnow(),
             )
@@ -790,6 +815,62 @@ class Tickets(commands.Cog):
             print(f"[tickets] missing permission to post transcript in {channel.guild.id}")
         except Exception as exc:
             print(f"[tickets] transcript failed in {channel.guild.id}: {exc}")
+
+    def _render_transcript_html(self, channel, messages, closer):
+        """Build a self-contained, Discord-styled HTML transcript. Every piece of
+        user content is HTML-escaped — the file is opened in a browser, so raw
+        content would otherwise allow HTML/script injection."""
+        esc = html.escape
+        gname = esc(channel.guild.name if channel.guild else "")
+        cname = esc(channel.name)
+        closer_name = esc(str(closer))
+        count = len(messages)
+
+        rows = []
+        for m in messages:
+            ts = m.created_at.strftime("%d.%m.%Y %H:%M")
+            author = esc(getattr(m.author, "display_name", None) or str(m.author))
+            handle = esc(str(m.author))
+            try:
+                avatar = esc(str(m.author.display_avatar.url), quote=True)
+            except Exception:
+                avatar = ""
+            content = esc(m.content or "").replace("\n", "<br>")
+            atts = ""
+            for att in m.attachments:
+                url = esc(att.url, quote=True)
+                fn = esc(att.filename)
+                ct = att.content_type or ""
+                is_img = ct.startswith("image/") or att.filename.lower().endswith(
+                    (".png", ".jpg", ".jpeg", ".gif", ".webp"))
+                if is_img:
+                    atts += f'<a class="att-img" href="{url}" target="_blank" rel="noopener"><img src="{url}" alt="{fn}" loading="lazy"></a>'
+                else:
+                    atts += f'<a class="att-file" href="{url}" target="_blank" rel="noopener">\U0001F4CE {fn}</a>'
+            if not content and not atts and m.embeds:
+                content = '<span class="muted">[embed]</span>'
+            avatar_html = (f'<img class="avatar" src="{avatar}" alt="" loading="lazy">'
+                           if avatar else '<div class="avatar avatar--ph"></div>')
+            rows.append(
+                f'<div class="msg">{avatar_html}<div class="body">'
+                f'<div class="meta"><span class="author">{author}</span>'
+                f'<span class="handle">{handle}</span><span class="ts">{ts}</span></div>'
+                f'<div class="content">{content}{atts}</div></div></div>'
+            )
+        body = "\n".join(rows) or '<div class="empty">Keine Nachrichten.</div>'
+
+        return (
+            '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            f'<title>Transkript · #{cname}</title>'
+            + _TRANSCRIPT_STYLE +
+            '</head><body><div class="wrap">'
+            f'<header class="tx"><h1># {cname}</h1>'
+            f'<div class="sub">{gname} · {count} Nachrichten · geschlossen von {closer_name}</div></header>'
+            + body +
+            '<footer class="tx">Transkript erstellt von ProjectX</footer>'
+            '</div></body></html>'
+        )
 
     # ----- Prefix commands (parallel to the buttons) -----
 
