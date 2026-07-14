@@ -39,6 +39,10 @@ import {
   createTeamMember,
   updateTeamMember,
   deleteTeamMember,
+  getPartners,
+  createPartner,
+  updatePartner,
+  deletePartner,
   getChangelogEntries,
   createChangelogEntry,
   updateChangelogEntry,
@@ -515,6 +519,64 @@ router.delete('/team/:id', async (req, res) => {
   } catch (error) {
     console.error('Admin delete team member error:', error.message)
     res.status(500).json({ error: 'Failed to delete team member' })
+  }
+})
+
+// ----- Partners management (owner) -----
+
+router.get('/partners', async (req, res) => {
+  try {
+    res.json({ success: true, partners: await getPartners() })
+  } catch (error) {
+    console.error('Admin get partners error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch partners' })
+  }
+})
+
+router.post('/partners', async (req, res) => {
+  try {
+    let partner
+    try {
+      partner = await createPartner(req.body || {})
+    } catch (err) {
+      if (err && err.code === 'VALIDATION') return res.status(400).json({ error: 'partner_invalid' })
+      throw err
+    }
+    await logAuditAction(req.user.id, null, 'ADMIN_PARTNER_CREATE', { id: partner.id, kind: partner.kind })
+    res.json({ success: true, partner })
+  } catch (error) {
+    console.error('Admin create partner error:', error.message)
+    res.status(500).json({ error: 'Failed to create partner' })
+  }
+})
+
+router.put('/partners/:id', async (req, res) => {
+  try {
+    let partner
+    try {
+      partner = await updatePartner(req.params.id, req.body || {})
+    } catch (err) {
+      if (err && err.code === 'NOT_FOUND') return res.status(404).json({ error: 'not_found' })
+      if (err && err.code === 'VALIDATION') return res.status(400).json({ error: 'partner_invalid' })
+      throw err
+    }
+    await logAuditAction(req.user.id, null, 'ADMIN_PARTNER_UPDATE', { id: partner.id })
+    res.json({ success: true, partner })
+  } catch (error) {
+    console.error('Admin update partner error:', error.message)
+    res.status(500).json({ error: 'Failed to update partner' })
+  }
+})
+
+router.delete('/partners/:id', async (req, res) => {
+  try {
+    const changes = await deletePartner(req.params.id)
+    if (changes === 0) return res.status(404).json({ error: 'not_found' })
+    await logAuditAction(req.user.id, null, 'ADMIN_PARTNER_DELETE', { id: req.params.id })
+    res.json({ success: true })
+  } catch (error) {
+    console.error('Admin delete partner error:', error.message)
+    res.status(500).json({ error: 'Failed to delete partner' })
   }
 })
 

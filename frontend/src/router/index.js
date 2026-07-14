@@ -7,6 +7,7 @@ const FeatureLanding = () => import('../pages/FeatureLanding.vue')
 
 const Landing = () => import('../pages/Landing.vue')
 const Team = () => import('../pages/Team.vue')
+const Partners = () => import('../pages/Partners.vue')
 const Changelog = () => import('../pages/Changelog.vue')
 const Servers = () => import('../pages/Servers.vue')
 const AuthCallback = () => import('../pages/AuthCallback.vue')
@@ -63,6 +64,11 @@ const routes = [
     path: '/team',
     name: 'team',
     component: Team
+  },
+  {
+    path: '/partners',
+    name: 'partners',
+    component: Partners
   },
   {
     path: '/changelog',
