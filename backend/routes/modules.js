@@ -97,11 +97,14 @@ router.put('/logs', requireSession, requireGuildAccess, async (req, res) => {
     const guildId = req.params.guild_id
     const body = req.body || {}
 
+    const chan = (v) => (typeof v === 'string' && v.length > 0 ? v : null)
     const validated = {
       enabled: Boolean(body.enabled),
-      log_channel_id: typeof body.log_channel_id === 'string' && body.log_channel_id.length > 0
-        ? body.log_channel_id
-        : null,
+      log_channel_id: chan(body.log_channel_id),
+      member_log_channel_id: chan(body.member_log_channel_id),
+      message_log_channel_id: chan(body.message_log_channel_id),
+      voice_log_channel_id: chan(body.voice_log_channel_id),
+      server_log_channel_id: chan(body.server_log_channel_id),
       log_joins: Boolean(body.log_joins),
       log_leaves: Boolean(body.log_leaves),
       log_message_edits: Boolean(body.log_message_edits),
@@ -112,7 +115,18 @@ router.put('/logs', requireSession, requireGuildAccess, async (req, res) => {
       log_channels: Boolean(body.log_channels),
       log_roles: Boolean(body.log_roles),
       log_voice: Boolean(body.log_voice),
-      log_ignored_channel_ids: sanitizeStringArray(body.log_ignored_channel_ids)
+      log_invites: Boolean(body.log_invites),
+      log_threads: Boolean(body.log_threads),
+      log_emojis: Boolean(body.log_emojis),
+      log_bulk_delete: Boolean(body.log_bulk_delete),
+      log_boosts: Boolean(body.log_boosts),
+      log_automod: Boolean(body.log_automod),
+      log_webhooks: Boolean(body.log_webhooks),
+      log_ignored_channel_ids: sanitizeStringArray(body.log_ignored_channel_ids),
+      ignored_role_ids: sanitizeStringArray(body.ignored_role_ids),
+      ignored_user_ids: sanitizeStringArray(body.ignored_user_ids),
+      ignore_bots: Boolean(body.ignore_bots),
+      show_executor: Boolean(body.show_executor)
     }
 
     await upsertLogSettings(guildId, validated)

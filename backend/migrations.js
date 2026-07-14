@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 49;
+const CURRENT_SCHEMA_VERSION = 50;
 
 /**
  * Initialize schema version tracking
@@ -108,7 +108,8 @@ async function applyMigrations(fromVersion, toVersion) {
     46: migrationV46,
     47: migrationV47,
     48: migrationV48,
-    49: migrationV49
+    49: migrationV49,
+    50: migrationV50
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -2253,6 +2254,41 @@ function migrationV49() {
     'ALTER TABLE guild_minecraft_servers ADD COLUMN name_channel_id TEXT',
     "ALTER TABLE guild_minecraft_servers ADD COLUMN name_template TEXT DEFAULT ''",
     'ALTER TABLE guild_minecraft_servers ADD COLUMN ping_ms INTEGER DEFAULT -1'
+  ]);
+}
+
+/**
+ * Migration V50: Server-Logs expansion.
+ *   - Per-category log channels (each falls back to log_channel_id when unset):
+ *     member_log_channel_id (joins/leaves/bans/unbans/member updates/boosts),
+ *     message_log_channel_id (edits/deletes/bulk delete),
+ *     voice_log_channel_id (voice activity),
+ *     server_log_channel_id (channels/roles/invites/threads/emojis/automod/webhooks).
+ *   - Filters: ignored_role_ids + ignored_user_ids (JSON snowflake arrays — events
+ *     triggered by these are skipped), ignore_bots (skip bot-triggered events).
+ *   - show_executor: resolve "who did it" via the audit log (best-effort; needs the
+ *     View Audit Log permission).
+ *   - New event toggles: log_invites, log_threads, log_emojis, log_bulk_delete,
+ *     log_boosts, log_automod, log_webhooks.
+ * Idempotent (duplicate-column swallowed); mirrored in initializeDatabase().
+ */
+function migrationV50() {
+  return runSchemaBatch(50, [
+    'ALTER TABLE guild_log_settings ADD COLUMN member_log_channel_id TEXT',
+    'ALTER TABLE guild_log_settings ADD COLUMN message_log_channel_id TEXT',
+    'ALTER TABLE guild_log_settings ADD COLUMN voice_log_channel_id TEXT',
+    'ALTER TABLE guild_log_settings ADD COLUMN server_log_channel_id TEXT',
+    "ALTER TABLE guild_log_settings ADD COLUMN ignored_role_ids TEXT DEFAULT '[]'",
+    "ALTER TABLE guild_log_settings ADD COLUMN ignored_user_ids TEXT DEFAULT '[]'",
+    'ALTER TABLE guild_log_settings ADD COLUMN ignore_bots INTEGER DEFAULT 0',
+    'ALTER TABLE guild_log_settings ADD COLUMN show_executor INTEGER DEFAULT 0',
+    'ALTER TABLE guild_log_settings ADD COLUMN log_invites INTEGER DEFAULT 0',
+    'ALTER TABLE guild_log_settings ADD COLUMN log_threads INTEGER DEFAULT 0',
+    'ALTER TABLE guild_log_settings ADD COLUMN log_emojis INTEGER DEFAULT 0',
+    'ALTER TABLE guild_log_settings ADD COLUMN log_bulk_delete INTEGER DEFAULT 0',
+    'ALTER TABLE guild_log_settings ADD COLUMN log_boosts INTEGER DEFAULT 0',
+    'ALTER TABLE guild_log_settings ADD COLUMN log_automod INTEGER DEFAULT 0',
+    'ALTER TABLE guild_log_settings ADD COLUMN log_webhooks INTEGER DEFAULT 0'
   ]);
 }
 
