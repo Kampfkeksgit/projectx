@@ -729,6 +729,7 @@ export default {
     editionBedrock: 'Bedrock',
     channelLabel: 'Kanał statusu',
     channelHint: 'Bot publikuje i utrzymuje aktualną wiadomość ze statusem na tym kanale.',
+    channelRequired: 'Ustaw kanał statusu lub kanał nazwy (co najmniej jeden).',
     modeLabel: 'Styl wiadomości',
     modePlain: 'Zwykły tekst',
     modeEmbed: 'Embed',

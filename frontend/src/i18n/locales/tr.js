@@ -729,6 +729,7 @@ export default {
     editionBedrock: 'Bedrock',
     channelLabel: 'Durum kanalı',
     channelHint: 'Bot, durum mesajını bu kanalda yayınlar ve güncel tutar.',
+    channelRequired: 'Bir durum kanalı veya kanal-adı kanalı ayarla (en az biri).',
     modeLabel: 'Mesaj stili',
     modePlain: 'Düz metin',
     modeEmbed: 'Embed',

@@ -729,6 +729,7 @@ export default {
     editionBedrock: 'Bedrock',
     channelLabel: 'Канал статуса',
     channelHint: 'Бот публикует и поддерживает актуальность статусного сообщения в этом канале.',
+    channelRequired: 'Укажите канал статуса или канал для названия (хотя бы один).',
     modeLabel: 'Стиль сообщения',
     modePlain: 'Обычный текст',
     modeEmbed: 'Встраивание',
