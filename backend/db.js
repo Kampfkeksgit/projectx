@@ -1207,12 +1207,15 @@ function initializeDatabase() {
         notify_mode       TEXT DEFAULT 'embed',
         message_template  TEXT,
         embed             TEXT,
+        name_channel_id   TEXT,
+        name_template     TEXT DEFAULT '',
         enabled           INTEGER DEFAULT 1,
         status            TEXT DEFAULT 'unknown',
         players_online    INTEGER DEFAULT 0,
         players_max       INTEGER DEFAULT 0,
         motd              TEXT,
         version           TEXT,
+        ping_ms           INTEGER DEFAULT -1,
         status_message_id TEXT,
         last_checked_at   INTEGER DEFAULT 0,
         dirty             INTEGER DEFAULT 0,
@@ -1220,6 +1223,10 @@ function initializeDatabase() {
         FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
       )
     `, (err) => { if (err) console.error('Error creating guild_minecraft_servers table:', err); });
+    // v49: status-as-channel-name + ping (defensive ALTERs for pre-v49 DBs).
+    db.run("ALTER TABLE guild_minecraft_servers ADD COLUMN name_channel_id TEXT", () => {});
+    db.run("ALTER TABLE guild_minecraft_servers ADD COLUMN name_template TEXT DEFAULT ''", () => {});
+    db.run("ALTER TABLE guild_minecraft_servers ADD COLUMN ping_ms INTEGER DEFAULT -1", () => {});
     db.run('CREATE INDEX IF NOT EXISTS idx_minecraft_servers_guild ON guild_minecraft_servers(guild_id)', (err) => {
       if (err) console.error('Error creating idx_minecraft_servers_guild:', err);
     });
@@ -5219,6 +5226,7 @@ export const MINECRAFT_NOTIFY_MODES = ['plain', 'embed'];
 const MINECRAFT_NAME_MAX = 100;
 const MINECRAFT_ADDRESS_MAX = 253;
 const MINECRAFT_MESSAGE_MAX = 1000;
+const MINECRAFT_NAME_TEMPLATE_MAX = 100; // Discord channel-name limit
 // host or host:port — loose validation (DNS names, IPs, optional :port).
 const MINECRAFT_ADDRESS_RE = /^[a-zA-Z0-9](?:[a-zA-Z0-9._-]{0,251}[a-zA-Z0-9])?(?::\d{1,5})?$/;
 
@@ -5230,6 +5238,8 @@ export const MINECRAFT_DEFAULTS = {
   notify_mode: 'embed',
   message_template: '',
   embed: { ...DEFAULT_EMBED },
+  name_channel_id: null,
+  name_template: '',
   enabled: true
 };
 
@@ -5253,6 +5263,8 @@ function shapeMinecraftRow(row) {
     notify_mode: MINECRAFT_NOTIFY_MODES.includes(row.notify_mode) ? row.notify_mode : 'embed',
     message_template: row.message_template ?? '',
     embed: parseEmbedColumn(row.embed),
+    name_channel_id: row.name_channel_id ?? null,
+    name_template: row.name_template ?? '',
     enabled: !!row.enabled,
     // Bot-maintained live state.
     status: ['online', 'offline', 'unknown'].includes(row.status) ? row.status : 'unknown',
@@ -5260,6 +5272,7 @@ function shapeMinecraftRow(row) {
     players_max: row.players_max ?? 0,
     motd: row.motd ?? '',
     version: row.version ?? '',
+    ping_ms: row.ping_ms ?? -1,
     status_message_id: row.status_message_id ?? null,
     last_checked_at: row.last_checked_at ?? 0,
     created_at: row.created_at ?? null
@@ -5311,24 +5324,32 @@ function buildMinecraftValues(payload, base) {
 
   const edition = MINECRAFT_EDITIONS.includes(pick('edition')) ? pick('edition') : 'java';
 
+  // Both channels are optional now — but at least one destination is required:
+  // a status-message channel and/or a channel whose NAME shows the status.
   const channelId = pick('channel_id');
-  if (!isSnowflake(channelId)) {
-    throw Object.assign(new Error('channel_id must be a Discord snowflake'), { code: 'VALIDATION' });
+  const channel_id = isSnowflake(channelId) ? channelId : null;
+  const nameChannelId = pick('name_channel_id');
+  const name_channel_id = isSnowflake(nameChannelId) ? nameChannelId : null;
+  if (!channel_id && !name_channel_id) {
+    throw Object.assign(new Error('a status channel or a name channel is required'), { code: 'VALIDATION' });
   }
 
   const notifyMode = MINECRAFT_NOTIFY_MODES.includes(pick('notify_mode')) ? pick('notify_mode') : 'embed';
   const name = truncate(pick('name') || '', MINECRAFT_NAME_MAX);
   const messageTemplate = truncate(pick('message_template') || '', MINECRAFT_MESSAGE_MAX);
+  const nameTemplate = truncate(pick('name_template') || '', MINECRAFT_NAME_TEMPLATE_MAX);
   const embed = sanitizeEmbed(pick('embed'));
 
   return {
     name,
     address,
     edition,
-    channel_id: channelId,
+    channel_id,
     notify_mode: notifyMode,
     message_template: messageTemplate,
     embed: JSON.stringify(embed),
+    name_channel_id,
+    name_template: nameTemplate,
     enabled: pick('enabled') ? 1 : 0
   };
 }
@@ -5348,10 +5369,10 @@ export function createMinecraftServer(guildId, payload) {
     db.run(
       `INSERT INTO guild_minecraft_servers
          (id, guild_id, name, address, edition, channel_id, notify_mode,
-          message_template, embed, enabled, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          message_template, embed, name_channel_id, name_template, enabled, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, guildId, v.name, v.address, v.edition, v.channel_id, v.notify_mode,
-       v.message_template, v.embed, v.enabled, now],
+       v.message_template, v.embed, v.name_channel_id, v.name_template, v.enabled, now],
       function (err) {
         if (err) return reject(err);
         db.get(`SELECT * FROM guild_minecraft_servers WHERE id = ?`, [id], (gErr, row) => {
@@ -5394,10 +5415,11 @@ export function updateMinecraftServer(guildId, id, patch) {
         db.run(
           `UPDATE guild_minecraft_servers
              SET name = ?, address = ?, edition = ?, channel_id = ?, notify_mode = ?,
-                 message_template = ?, embed = ?, enabled = ?, dirty = 1${resetClause}
+                 message_template = ?, embed = ?, name_channel_id = ?, name_template = ?,
+                 enabled = ?, dirty = 1${resetClause}
            WHERE guild_id = ? AND id = ?`,
           [v.name, v.address, v.edition, v.channel_id, v.notify_mode,
-           v.message_template, v.embed, v.enabled, guildId, id],
+           v.message_template, v.embed, v.name_channel_id, v.name_template, v.enabled, guildId, id],
           function (upErr) {
             if (upErr) return reject(upErr);
             db.get(`SELECT * FROM guild_minecraft_servers WHERE id = ?`, [id], (g2Err, updated) => {
@@ -5457,6 +5479,11 @@ export function setMinecraftServerState(id, state, now) {
     if (s.version !== undefined) {
       fields.push('version = ?');
       values.push(typeof s.version === 'string' ? s.version.slice(0, 100) : '');
+    }
+    if (s.ping_ms !== undefined) {
+      fields.push('ping_ms = ?');
+      const p = Number(s.ping_ms);
+      values.push(Number.isFinite(p) ? Math.max(-1, Math.min(60000, Math.floor(p))) : -1);
     }
     if (s.status_message_id !== undefined) {
       fields.push('status_message_id = ?');

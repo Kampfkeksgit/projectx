@@ -115,6 +115,37 @@
             </div>
             <div class="form-row__hint">{{ t('minecraft.placeholdersHint') }}</div>
           </div>
+
+          <div class="form-row">
+            <label class="form-row__label">{{ t('minecraft.nameChannelLabel') }}</label>
+            <ChannelSelector
+              v-model="local.name_channel_id"
+              :guild-id="guildId"
+              :types="['voice', 'text']"
+            />
+            <div class="form-row__hint">{{ t('minecraft.nameChannelHint') }}</div>
+          </div>
+
+          <div v-if="local.name_channel_id" class="form-row">
+            <label class="form-row__label" :for="`mc-nametpl-${rowKey}`">{{ t('minecraft.nameTemplateLabel') }}</label>
+            <input
+              :id="`mc-nametpl-${rowKey}`"
+              v-model="local.name_template"
+              class="input"
+              maxlength="100"
+              :placeholder="t('minecraft.nameTemplatePlaceholder')"
+            />
+            <div class="form-row__hint">{{ t('minecraft.nameTemplateHint') }}</div>
+            <div class="placeholder-bar">
+              <button
+                v-for="token in MC_NAME_PLACEHOLDERS"
+                :key="token"
+                type="button"
+                class="placeholder-bar__chip"
+                @click="local.name_template = (local.name_template || '') + token"
+              >{{ token }}</button>
+            </div>
+          </div>
         </div>
 
         <aside class="mc-row__preview-col">
@@ -166,7 +197,9 @@ const guildName = computed(() => {
 })
 
 // Minecraft-specific placeholders — distinct from the welcome/social sets.
-const MC_PLACEHOLDERS = ['{status}', '{players}', '{max}', '{motd}', '{version}', '{address}', '{name}']
+const MC_PLACEHOLDERS = ['{status}', '{players}', '{max}', '{motd}', '{version}', '{address}', '{name}', '{ping}', '{emoji}']
+// Channel-name placeholders (shorter set — no {motd}/{address}, which don't fit a name).
+const MC_NAME_PLACEHOLDERS = ['{emoji}', '{status}', '{players}', '{max}', '{version}', '{ping}', '{name}']
 
 // Example values used to render the live preview so the admin sees a realistic
 // message rather than raw {placeholder} tokens.
@@ -215,9 +248,12 @@ function hydrate(src) {
     notify_mode: src.notify_mode === 'embed' ? 'embed' : 'plain',
     message_template: src.message_template || '',
     embed: { ...defaultEmbed(), ...(src.embed && typeof src.embed === 'object' ? src.embed : {}) },
+    name_channel_id: src.name_channel_id || '',
+    name_template: src.name_template || '',
     enabled: src.enabled !== undefined ? !!src.enabled : true,
     // Bot-maintained, read-only fields kept around for the header status pill.
-    status: src.status || 'unknown'
+    status: src.status || 'unknown',
+    ping_ms: src.ping_ms ?? -1
   }
 }
 

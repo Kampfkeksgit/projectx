@@ -32,6 +32,7 @@ Backend contract (X-Bot-Token auth, via utils.backend helpers):
 """
 
 import asyncio
+import time
 
 import aiohttp
 import discord
@@ -53,6 +54,11 @@ COLOR_UNKNOWN = 0x747F8D
 MCSRVSTAT_JAVA = "https://api.mcsrvstat.us/3/{address}"
 MCSRVSTAT_BEDROCK = "https://api.mcsrvstat.us/bedrock/3/{address}"
 USER_AGENT = "projectx-bot/1.0 (Minecraft status)"
+
+STATUS_EMOJI = {"online": "🟢", "offline": "🔴", "unknown": "⚫"}
+# Discord rate-limits channel renames to ~2 / 10 min per channel. Only rename
+# when the name changed AND at least this many seconds passed since the last one.
+NAME_RENAME_COOLDOWN = 330
 
 HTTP_URL_PREFIXES = ("http://", "https://")
 
@@ -82,6 +88,10 @@ class Minecraft(commands.Cog):
         # players_max, version, motd). Avoids editing the message when nothing
         # visible changed (Discord rate-limit friendly).
         self._rendered = {}
+        # server_id -> last channel name we set; channel_id -> monotonic time of
+        # the last rename (rate-limit guard for the status-as-channel-name feature).
+        self._name_rendered = {}
+        self._name_renamed_at = {}
         self.poll_loop.start()
 
     def cog_unload(self):
@@ -206,10 +216,11 @@ class Minecraft(commands.Cog):
         return t(lang, "mc.unknown")
 
     def _apply_placeholders(self, template, *, lang, name, address, status_label,
-                            players, players_max, version, motd):
+                            players, players_max, version, motd, ping=-1, status=None):
         if template is None:
             return ""
         text = str(template)
+        ping_str = f"{ping}ms" if isinstance(ping, int) and ping >= 0 else ""
         replacements = {
             "{status}": status_label,
             "{players}": str(players),
@@ -218,6 +229,8 @@ class Minecraft(commands.Cog):
             "{version}": version or "",
             "{address}": address or "",
             "{name}": name or address or "",
+            "{ping}": ping_str,
+            "{emoji}": STATUS_EMOJI.get(status or "unknown", "⚫"),
         }
         for token, value in replacements.items():
             if token in text:
@@ -247,6 +260,7 @@ class Minecraft(commands.Cog):
             template, lang=lang, name=name, address=server.get("address"),
             status_label=status_label, players=snap["players_online"],
             players_max=snap["players_max"], version=snap["version"], motd=snap["motd"],
+            ping=snap.get("ping", -1), status=status,
         )
 
     async def _build_embed(self, server, snap, lang):
@@ -262,6 +276,7 @@ class Minecraft(commands.Cog):
                 value or "", lang=lang, name=name, address=server.get("address"),
                 status_label=status_label, players=snap["players_online"],
                 players_max=snap["players_max"], version=snap["version"], motd=snap["motd"],
+                ping=snap.get("ping", -1), status=status,
             )
 
         has_user_content = bool(
@@ -364,25 +379,128 @@ class Minecraft(commands.Cog):
     # Per-server processing (query + edit-in-place message)
     # ------------------------------------------------------------------ #
 
+    async def _measure_ping(self, address, edition):
+        """Best-effort latency in ms via a TCP connect to the server (no MC
+        handshake). Java only; Bedrock is UDP → -1. -1 on any failure (SRV-only
+        setups, firewalled, offline). Never raises."""
+        if not address or (edition or "").lower() == "bedrock":
+            return -1
+        host, port = address, 25565
+        if ":" in address:
+            h, _, p = address.rpartition(":")
+            if h and p.isdigit():
+                host, port = h, int(p)
+        writer = None
+        try:
+            start = time.monotonic()
+            reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=5)
+            return max(0, int((time.monotonic() - start) * 1000))
+        except Exception:
+            return -1
+        finally:
+            if writer is not None:
+                try:
+                    writer.close()
+                except Exception:
+                    pass
+
+    def _name_for(self, server, snap, lang):
+        """Render the status-as-channel-name string from the server's template
+        (falls back to a sensible default). Capped at Discord's 100 chars."""
+        name = server.get("name") or server.get("address") or t(lang, "mc.defaultName")
+        status = snap["status"]
+        template = server.get("name_template") or "{emoji} {name}: {players}/{max}"
+        rendered = self._apply_placeholders(
+            template, lang=lang, name=name, address=server.get("address"),
+            status_label=self._status_label(lang, status), players=snap["players_online"],
+            players_max=snap["players_max"], version=snap["version"], motd=snap["motd"],
+            ping=snap.get("ping", -1), status=status,
+        )
+        # Collapse whitespace + trim dangling separators (e.g. from an empty {ping}).
+        rendered = " ".join(rendered.split()).strip(" ·-|")
+        return rendered[:100] or (name[:100])
+
+    async def _update_name_channel(self, server, snap, lang):
+        """Rename the configured channel to reflect the live status. Rate-limit
+        aware: only renames on change AND after a cooldown (Discord ~2/10min)."""
+        chan_id = server.get("name_channel_id")
+        if not chan_id:
+            return
+        try:
+            channel = self.bot.get_channel(int(chan_id))
+        except (TypeError, ValueError):
+            return
+        if channel is None:
+            return
+
+        new_name = self._name_for(server, snap, lang)
+        server_id = server.get("id")
+        if self._name_rendered.get(server_id) == new_name:
+            return  # unchanged since we last set it
+        last = self._name_renamed_at.get(str(chan_id), 0.0)
+        if time.monotonic() - last < NAME_RENAME_COOLDOWN:
+            return  # too soon — wait to avoid Discord's rename rate limit
+        try:
+            await channel.edit(name=new_name)
+            self._name_rendered[server_id] = new_name
+            self._name_renamed_at[str(chan_id)] = time.monotonic()
+        except discord.Forbidden:
+            print(f"[minecraft] no permission to rename channel {chan_id}")
+        except Exception as exc:
+            print(f"[minecraft] rename failed for channel {chan_id}: {exc}")
+
     async def _process_server(self, server):
         server_id = server.get("id")
         guild_id = server.get("guild_id")
         channel_id = server.get("channel_id")
-        if not (server_id and guild_id and channel_id):
+        name_channel_id = server.get("name_channel_id")
+        # Need at least one destination: a status-message channel or a name channel.
+        if not (server_id and guild_id and server.get("address")):
+            return
+        if not (channel_id or name_channel_id):
             return
 
+        snap = await self._query_status(server.get("address"), server.get("edition"))
+        snap["ping"] = await self._measure_ping(server.get("address"), server.get("edition"))
+
+        lang = await lang_for(self.backend_url, self.api_key, guild_id)
+
+        # Status message (only if a message channel is configured + visible).
+        if channel_id:
+            await self._update_status_message(server, snap, lang, channel_id)
+
+        # Status as channel name (only if a name channel is configured).
+        await self._update_name_channel(server, snap, lang)
+
+        # Persist the freshly polled values so the dashboard reflects them.
+        changes = {}
+        if server.get("status") != snap["status"]:
+            changes["status"] = snap["status"]
+        if server.get("players_online") != snap["players_online"]:
+            changes["players_online"] = snap["players_online"]
+        if server.get("players_max") != snap["players_max"]:
+            changes["players_max"] = snap["players_max"]
+        if (server.get("version") or "") != snap["version"]:
+            changes["version"] = snap["version"]
+        if (server.get("motd") or "") != snap["motd"]:
+            changes["motd"] = snap["motd"]
+        if snap.get("ping", -1) != (server.get("ping_ms") if server.get("ping_ms") is not None else -1):
+            changes["ping_ms"] = snap.get("ping", -1)
+        if changes:
+            await self._put_state(guild_id, server_id, changes)
+
+    async def _update_status_message(self, server, snap, lang, channel_id):
+        """Post/edit-in-place the status message in the configured channel."""
+        server_id = server.get("id")
+        guild_id = server.get("guild_id")
         try:
             channel = self.bot.get_channel(int(channel_id))
         except (TypeError, ValueError):
             print(f"[minecraft] invalid channel id {channel_id!r} for server {server_id}")
             return
         if channel is None:
-            # Bot may not see the channel this cycle — skip quietly.
-            return
+            return  # bot can't see it this cycle
 
-        snap = await self._query_status(server.get("address"), server.get("edition"))
-
-        # Compare against the last rendered snapshot to skip needless edits.
         current_key = (
             snap["status"], snap["players_online"], snap["players_max"],
             snap["version"], snap["motd"],
@@ -391,9 +509,7 @@ class Minecraft(commands.Cog):
         cached = self._rendered.get(server_id)
         unchanged = cached is not None and cached == current_key
 
-        lang = await lang_for(self.backend_url, self.api_key, guild_id)
         notify_mode = (server.get("notify_mode") or "plain").lower()
-
         embed = None
         content = None
         view = None
@@ -402,7 +518,6 @@ class Minecraft(commands.Cog):
             if is_components_v2(cfg):
                 view = self._build_v2_view(server, snap, lang)
             if view is None:
-                # classic embed, or a V2 config with no renderable blocks
                 embed = await self._build_embed(server, snap, lang)
         else:
             content = self._build_content(server, snap, lang)
@@ -414,15 +529,11 @@ class Minecraft(commands.Cog):
             return await channel.send(content=content, embed=embed)
 
         msg = None
-        # Try to edit the existing message in place when it exists.
         if existing_id:
             try:
                 existing = await channel.fetch_message(int(existing_id))
                 existing_is_v2 = bool(existing.flags.components_v2)
                 if want_v2 != existing_is_v2:
-                    # Format switched across the Components V2 boundary — Discord
-                    # can't edit a classic message into a V2 one (or back), so
-                    # delete + repost.
                     try:
                         await existing.delete()
                     except Exception:
@@ -437,7 +548,7 @@ class Minecraft(commands.Cog):
                 else:
                     msg = existing
             except (discord.NotFound, ValueError):
-                msg = None  # message deleted → repost below
+                msg = None
             except discord.Forbidden:
                 print(f"[minecraft] no permission to edit message in {channel_id}")
                 return
@@ -454,27 +565,9 @@ class Minecraft(commands.Cog):
             except Exception as exc:
                 print(f"[minecraft] post failed in channel {channel_id}: {exc}")
                 return
-            # Persist the new message id so we edit it next cycle.
             await self._put_state(guild_id, server_id, {"status_message_id": str(msg.id)})
 
-        # Remember what we rendered so we don't re-edit unnecessarily.
         self._rendered[server_id] = current_key
-
-        # Write the freshly polled values back to the backend so the dashboard
-        # reflects them. Only send when they changed vs. what the backend knows.
-        changes = {}
-        if server.get("status") != snap["status"]:
-            changes["status"] = snap["status"]
-        if server.get("players_online") != snap["players_online"]:
-            changes["players_online"] = snap["players_online"]
-        if server.get("players_max") != snap["players_max"]:
-            changes["players_max"] = snap["players_max"]
-        if (server.get("version") or "") != snap["version"]:
-            changes["version"] = snap["version"]
-        if (server.get("motd") or "") != snap["motd"]:
-            changes["motd"] = snap["motd"]
-        if changes:
-            await self._put_state(guild_id, server_id, changes)
 
     async def _put_state(self, guild_id, server_id, changes):
         if not changes:

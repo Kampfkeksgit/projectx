@@ -115,9 +115,11 @@ projectx/
 │                               # schreibt Polling-State via PUT zurück. TikTok/Instagram = Stub.
 │       ├── minecraft.py        # tasks.loop (MINECRAFT_POLL_INTERVAL, default 120s, min 60) → pollt GET /api/bot/minecraft/servers,
 │       │                       # fragt pro Server mcsrvstat.us ab (Java /3/, Bedrock /bedrock/3/, rohes aiohttp), rendert
-│       │                       # Live-Status als Klartext ODER Embed (Platzhalter {status}{players}{max}{motd}{version}{address}{name}),
-│       │                       # editiert die Statusnachricht in-place (In-Memory-Cache pro Server gegen unnötige Edits), schreibt
-│       │                       # State via PUT .../minecraft/:id/state zurück. Fehler → status=unknown (nie falsch-offline). i18n mc.*
+│       │                       # Live-Status als Klartext ODER Embed (Platzhalter {status}{players}{max}{motd}{version}{address}{name}{ping}{emoji}),
+│       │                       # editiert die Statusnachricht in-place (In-Memory-Cache pro Server gegen unnötige Edits). v49: misst zusätzlich
+│       │                       # den Ping (best-effort TCP, _measure_ping) und hält optional einen Kanal-NAMEN aktuell (_update_name_channel,
+│       │                       # rate-limit-safe ~alle paar Min). Schreibt State (inkl. ping_ms) via PUT .../minecraft/:id/state zurück.
+│       │                       # Fehler → status=unknown (nie falsch-offline). i18n mc.*
 │       ├── tempvoice.py        # on_voice_state_update: Join in Hub-Channel → erstellt temp Voice-Channel
 │       │                       # (in Kategorie, user_limit), moved Member rein, löscht bei leer. on_ready-Cleanup.
 │       │                       # Settings-Cache (5min TTL). Tracking via /api/bot/.../tempvoice/channels.
@@ -877,9 +879,9 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - Engine: **SQLite3** (Datei via `DATABASE_URL`, default `./data/bot.db`)
 - Connection: [backend/db.js](backend/db.js)
 - Migrations: [backend/migrations.js](backend/migrations.js)
-  - **Aktuelle Schema-Version: `48`**
+  - **Aktuelle Schema-Version: `49`**
   - `CURRENT_SCHEMA_VERSION` Konstante steuert Upgrades.
-  - `applyMigrations(from, to)` mappt Versionsnummern → Migration-Funktionen (`migrationV1`, …, `migrationV48`). v23–v48 nutzen den `runSchemaBatch(version, statements)`-Helper.
+  - `applyMigrations(from, to)` mappt Versionsnummern → Migration-Funktionen (`migrationV1`, …, `migrationV49`). v23–v49 nutzen den `runSchemaBatch(version, statements)`-Helper.
   - Versionstabelle: `schema_version (version PK, applied_at)`.
   - `migrationV2` fügt `users.token_expires_at INTEGER` hinzu (idempotent).
   - `migrationV3` legt `guild_autorole_settings`, `guild_log_settings`, `guild_moderation_settings` an (`CREATE TABLE IF NOT EXISTS` — idempotent; werden parallel auch im `initializeDatabase()`-Pfad erzeugt, damit Fresh-DBs auch ohne Migrations-Run funktionieren).
@@ -959,7 +961,7 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - `guild_starboard_entries` — `(guild_id, message_id) PK`, `channel_id`, `star_message_id`, `count` — Mapping Quell-Message → gepostete Starboard-Message
 - `guild_suggestion_settings` — `guild_id PK`, `enabled`, `suggest_channel_id`, `upvote_emoji`, `downvote_emoji` — Vorschläge
 - `guild_general_settings` — `guild_id PK`, `language`, `timezone`, `embed_color`, `dashboard_theme` — Allgemeine Dashboard-Einstellungen (Free, kein `enabled`-Toggle)
-- `guild_minecraft_servers` — `id` UUID, `guild_id`, Anzeige-Config (`name`/`address`/`edition` java|bedrock/`channel_id`/`notify_mode` plain|embed/`message_template`/`embed` JSON/`enabled`) + bot-gepflegter Live-State (`status` online|offline|unknown/`players_online`/`players_max`/`motd`/`version`/`status_message_id`/`last_checked_at`/`dirty`) — Minecraft-Server-Status (Free). Der Bot pflegt eine Live-Status-Nachricht pro Server (edit-in-place).
+- `guild_minecraft_servers` — `id` UUID, `guild_id`, Anzeige-Config (`name`/`address`/`edition` java|bedrock/`channel_id` (Nachrichten-Kanal, **jetzt optional**)/`notify_mode` plain|embed/`message_template`/`embed` JSON/`name_channel_id` (v49: Kanal, dessen NAME den Live-Status zeigt)/`name_template` (v49)/`enabled`) + bot-gepflegter Live-State (`status` online|offline|unknown/`players_online`/`players_max`/`motd`/`version`/`ping_ms` (v49, -1=unbekannt)/`status_message_id`/`last_checked_at`/`dirty`) — Minecraft-Server-Status (Free). Der Bot pflegt eine Live-Status-Nachricht pro Server (edit-in-place) UND/ODER hält einen Kanal-Namen aktuell. **Mind. einer von `channel_id`/`name_channel_id` ist Pflicht** (sonst 400).
 - `guild_birthday_settings` — `guild_id PK`, `enabled`, `announce_channel_id`, `message_template` (`{user}`), `birthday_role_id` — Birthday
 - `guild_birthdays` — `(guild_id, user_id) PK`, `month`, `day`, `year` (nullable) — gespeicherte Geburtstage
 - `guild_scheduled_messages` — `id` UUID, `guild_id`, `channel_id`, `content`, `schedule_type ∈ {once|interval}`, `run_at` (unix), `interval_seconds`, `enabled`, `last_run` — geplante Nachrichten
@@ -1148,6 +1150,14 @@ Empfehlung aus [README.md](README.md): SQLite → PostgreSQL für Multi-Instance
 ---
 
 ## 14. Letzte Aktualisierung
+
+- **Datum:** 2026-07-14
+- **Minecraft-Status als Kanal-Name + Ping (Schema v49):** Der Minecraft-Status kann jetzt zusätzlich (oder statt der Nachricht) als **Kanal-Name** angezeigt werden — wie beim Statistik-Modul —, inkl. **gemessenem Ping**.
+  - **Schema v49:** 3 idempotente ALTERs auf `guild_minecraft_servers` — `name_channel_id` (Kanal, dessen NAME den Status zeigt), `name_template` (Vorlage, Cap 100 = Discord-Kanalnamen-Limit), `ping_ms` (State, -1=unbekannt). Mirror + defensive ALTERs. `channel_id` (Nachrichten-Kanal) ist jetzt **optional**; `buildMinecraftValues` verlangt **mind. einen** von channel_id/name_channel_id (sonst VALIDATION→400). `MINECRAFT_DEFAULTS`/`shapeMinecraftRow`/`create`/`update`/`setMinecraftServerState` um die Felder erweitert.
+  - **Bot** ([minecraft.py](bot/cogs/minecraft.py)): `_measure_ping` (best-effort TCP-Connect-Latenz, Java only, Bedrock/SRV→-1), neue Platzhalter `{ping}`/`{emoji}` (Ampel 🟢🔴⚫) in allen Templates, `_update_name_channel` benennt den Kanal um — **rate-limit-safe** (nur bei Namensänderung + ≥330s Cooldown pro Kanal, wegen Discords ~2/10min-Limit). `_process_server` umgebaut: Nachrichten-Teil in `_update_status_message` extrahiert, läuft auch **name-only** (ohne Nachrichten-Kanal); Ping fließt in den State-PUT.
+  - **Backend:** Bot-State-PUT nimmt `ping_ms`; Cookie-Route reicht `name_channel_id`/`name_template` automatisch durch (buildMinecraftValues).
+  - **Frontend** ([MinecraftServerRow.vue](frontend/src/components/MinecraftServerRow.vue)): neue Sektion „Status als Kanal-Name" (Voice/Text-ChannelSelector + Namens-Vorlage + Platzhalter-Chips inkl. {ping}/{emoji}). i18n: 5 neue `minecraft.*`-Keys + {ping}/{emoji} im placeholdersHint in **allen 5 Sprachen** (Parität 1744/Locale).
+  - Verifiziert: Migration v49 + DB-Smoke (name-only-Server/Ping-State/mind.-ein-Kanal-Validierung) grün, Bot kompiliert + Platzhalter-/Name-Rendering-Test grün (🟢 Flipflap: 42/100, leerer {ping} trimmt Trailing-Separator), Frontend-Build grün, i18n-Parität grün. **Hinweis:** Voice-Kanal empfohlen (behält Emoji/Groß-/Kleinschreibung im Namen); Kanal-Umbenennung greift wegen Discord-Rate-Limit nur alle paar Minuten. **⚠️ Nicht live gegen Discord getestet.**
 
 - **Datum:** 2026-07-13
 - **Changelog → Discord-Ankündigung (Schema v48):** Wird ein Changelog-Eintrag **veröffentlicht**, postet der **Bot** ihn automatisch als Embed in einen konfigurierten Discord-Kanal (kein Webhook — der Bot postet mit eigener Identität, konsistent zum Broadcast/Scheduled-Muster).
