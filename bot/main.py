@@ -231,6 +231,11 @@ async def setup_hook():
     except Exception as e:
         print(f'❌ Failed to load Team resolve cog: {e}')
     try:
+        await bot.load_extension('cogs.partner_resolve')
+        print('✅​ Partner resolve cog loaded')
+    except Exception as e:
+        print(f'❌ Failed to load Partner resolve cog: {e}')
+    try:
         await bot.load_extension('cogs.premium_sync')
         print('✅​ Premium sync cog loaded')
     except Exception as e:

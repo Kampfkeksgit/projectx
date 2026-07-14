@@ -1,6 +1,6 @@
 import express from 'express'
 import { getPublicStats } from '../state/botStats.js'
-import { PLAN_CATALOG, getMaintenanceState, getAnnouncementState, getTeamMembers, getPublishedChangelog } from '../db.js'
+import { PLAN_CATALOG, getMaintenanceState, getAnnouncementState, getTeamMembers, getPartners, getPublishedChangelog } from '../db.js'
 
 const router = express.Router()
 
@@ -13,6 +13,18 @@ router.get('/team', async (req, res) => {
   } catch (error) {
     console.error('Public team error:', error.message)
     res.status(500).json({ error: 'Failed to fetch team' })
+  }
+})
+
+/** Public partners list — no auth. Used by the /partners page. */
+router.get('/partners', async (req, res) => {
+  try {
+    const partners = await getPartners()
+    res.set('Cache-Control', 'public, max-age=60')
+    res.json({ partners })
+  } catch (error) {
+    console.error('Public partners error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch partners' })
   }
 })
 

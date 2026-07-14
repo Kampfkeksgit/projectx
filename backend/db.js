@@ -1206,6 +1206,27 @@ function initializeDatabase() {
       if (err) console.error('Error creating idx_team_members_pos:', err);
     });
 
+    // ----- Partners page (v51) -----
+    db.run(`
+      CREATE TABLE IF NOT EXISTS partners (
+        id            TEXT PRIMARY KEY,
+        kind          TEXT DEFAULT 'user',
+        discord_id    TEXT,
+        guild_id      TEXT,
+        invite_url    TEXT,
+        resolved_name TEXT,
+        name          TEXT,
+        description   TEXT,
+        avatar_url    TEXT,
+        member_count  INTEGER DEFAULT 0,
+        position      INTEGER DEFAULT 0,
+        created_at    INTEGER DEFAULT 0
+      )
+    `, (err) => { if (err) console.error('Error creating partners table:', err); });
+    db.run('CREATE INDEX IF NOT EXISTS idx_partners_pos ON partners(position)', (err) => {
+      if (err) console.error('Error creating idx_partners_pos:', err);
+    });
+
     // ----- Changelog publisher (v47) -----
     db.run(`
       CREATE TABLE IF NOT EXISTS changelog_entries (
@@ -3026,6 +3047,164 @@ export function resolveTeamMember(id, { username, name, avatar_url } = {}) {
          avatar_url = CASE WHEN avatar_url IS NULL OR avatar_url = '' THEN ? ELSE avatar_url END
        WHERE id = ?`,
       [uname, dispName, avatar || null, id],
+      function (err) { if (err) reject(err); else resolve(this.changes); }
+    );
+  });
+}
+
+// ----- Partners page (v51) -----
+
+export const PARTNER_KINDS = ['user', 'guild'];
+
+/** Normalize a Discord invite input to a canonical https URL, or '' if invalid. */
+function normalizeInvite(input) {
+  const raw = String(input == null ? '' : input).trim();
+  if (!raw) return '';
+  const m = raw.match(/^(?:https?:\/\/)?(?:www\.)?(?:discord\.gg|discord(?:app)?\.com\/invite)\/([a-zA-Z0-9-]{2,64})/i);
+  if (m) return 'https://discord.gg/' + m[1];
+  if (/^[a-zA-Z0-9-]{2,64}$/.test(raw)) return 'https://discord.gg/' + raw;
+  return '';
+}
+
+function shapePartner(row) {
+  if (!row) return null;
+  const kind = row.kind === 'guild' ? 'guild' : 'user';
+  return {
+    id: row.id,
+    kind,
+    discord_id: row.discord_id ?? null,
+    guild_id: row.guild_id ?? null,
+    invite_url: row.invite_url || null,
+    resolved_name: row.resolved_name ?? null,
+    name: row.name ?? '',
+    description: row.description ?? '',
+    // Fall back to the linked user's dashboard avatar (user kind) when none is set.
+    avatar_url: row.avatar_url || row.user_avatar || null,
+    member_count: row.member_count ?? 0,
+    position: row.position ?? 0,
+    created_at: row.created_at ?? 0
+  };
+}
+
+/** Public + admin: all partners, ordered. Joins users for a user-avatar fallback. */
+export function getPartners() {
+  return dbAll(
+    `SELECT p.*, u.avatar_url AS user_avatar
+     FROM partners p
+     LEFT JOIN users u ON u.discord_id = p.discord_id
+     ORDER BY p.position ASC, p.created_at ASC`
+  ).then((rows) => (rows || []).map(shapePartner));
+}
+
+function getPartnerById(id) {
+  return dbGet(
+    `SELECT p.*, u.avatar_url AS user_avatar FROM partners p
+     LEFT JOIN users u ON u.discord_id = p.discord_id WHERE p.id = ?`, [id]
+  ).then(shapePartner);
+}
+
+function partnerFields(p) {
+  const kind = p.kind === 'guild' ? 'guild' : 'user';
+  const discordId = kind === 'user' && isSnowflake(p.discord_id) ? p.discord_id : null;
+  const invite = kind === 'guild'
+    ? normalizeInvite(p.invite_url)
+    : (p.invite_url ? sanitizeUrlLike(p.invite_url) : '');
+  const name = truncate(String(p.name || '').trim(), 80);
+  const description = truncate(String(p.description || '').trim(), 500);
+  const avatar = sanitizeUrlLike(p.avatar_url);
+  const position = clampRange(p.position, 0, 100000, 0);
+  return { kind, discordId, invite, name, description, avatar, position };
+}
+
+export function createPartner(payload = {}) {
+  const f = partnerFields(payload || {});
+  // A partner must reference a Discord user (id) or a guild (invite).
+  if (f.kind === 'user' && !f.discordId && !f.name) {
+    return Promise.reject(Object.assign(new Error('discord_id required'), { code: 'VALIDATION' }));
+  }
+  if (f.kind === 'guild' && !f.invite) {
+    return Promise.reject(Object.assign(new Error('invite required'), { code: 'VALIDATION' }));
+  }
+  const id = randomUUID();
+  const now = Math.floor(Date.now() / 1000);
+  return new Promise((resolve, reject) => {
+    db.run(
+      'INSERT INTO partners (id, kind, discord_id, invite_url, name, description, avatar_url, position, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, f.kind, f.discordId, f.invite, f.name, f.description, f.avatar, f.position, now],
+      (err) => (err ? reject(err) : getPartnerById(id).then(resolve).catch(reject))
+    );
+  });
+}
+
+export function updatePartner(id, patch = {}) {
+  return new Promise((resolve, reject) => {
+    dbGet('SELECT * FROM partners WHERE id = ?', [id]).then((existing) => {
+      if (!existing) return reject(Object.assign(new Error('not found'), { code: 'NOT_FOUND' }));
+      const p = patch || {};
+      const kind = p.kind !== undefined ? (p.kind === 'guild' ? 'guild' : 'user') : (existing.kind === 'guild' ? 'guild' : 'user');
+      const discordId = p.discord_id !== undefined ? (isSnowflake(p.discord_id) ? p.discord_id : null) : existing.discord_id;
+      const invite = p.invite_url !== undefined
+        ? (kind === 'guild' ? normalizeInvite(p.invite_url) : (p.invite_url ? sanitizeUrlLike(p.invite_url) : ''))
+        : existing.invite_url;
+      const name = p.name !== undefined ? truncate(String(p.name || '').trim(), 80) : existing.name;
+      const description = p.description !== undefined ? truncate(String(p.description || '').trim(), 500) : existing.description;
+      const avatar = p.avatar_url !== undefined ? sanitizeUrlLike(p.avatar_url) : existing.avatar_url;
+      const position = p.position !== undefined ? clampRange(p.position, 0, 100000, 0) : existing.position;
+      if (kind === 'user' && !discordId && !name) return reject(Object.assign(new Error('discord_id required'), { code: 'VALIDATION' }));
+      if (kind === 'guild' && !invite) return reject(Object.assign(new Error('invite required'), { code: 'VALIDATION' }));
+      // If the resolution source (kind/id/invite) changed, clear resolved state so the bot re-resolves.
+      const srcChanged = kind !== (existing.kind === 'guild' ? 'guild' : 'user')
+        || (discordId || '') !== (existing.discord_id || '')
+        || (invite || '') !== (existing.invite_url || '');
+      const resetSql = srcChanged ? ', resolved_name = NULL, guild_id = NULL, member_count = 0' : '';
+      db.run(
+        `UPDATE partners SET kind = ?, discord_id = ?, invite_url = ?, name = ?, description = ?, avatar_url = ?, position = ?${resetSql} WHERE id = ?`,
+        [kind, discordId, invite, name, description, avatar, position, id],
+        (err) => (err ? reject(err) : getPartnerById(id).then(resolve).catch(reject))
+      );
+    }).catch(reject);
+  });
+}
+
+export function deletePartner(id) {
+  return new Promise((resolve, reject) => {
+    db.run('DELETE FROM partners WHERE id = ?', [id], function (err) {
+      if (err) reject(err); else resolve(this.changes);
+    });
+  });
+}
+
+/** Bot: partners still needing resolution (user by id, or guild by invite). */
+export function getUnresolvedPartners() {
+  return dbAll(
+    `SELECT id, kind, discord_id, invite_url FROM partners
+     WHERE (resolved_name IS NULL OR resolved_name = '')
+       AND ( (kind = 'user'  AND discord_id IS NOT NULL AND discord_id != '')
+          OR (kind = 'guild' AND invite_url IS NOT NULL AND invite_url != '') )`
+  );
+}
+
+/**
+ * Bot: write back a resolved partner. Sets resolved_name (the marker). Fills
+ * name/avatar only when the admin left them empty (never overwrites an explicit
+ * value). Guild kind also stores guild_id + member_count.
+ */
+export function resolvePartner(id, { resolved_name, name, avatar_url, guild_id, member_count } = {}) {
+  const rname = truncate(String(resolved_name || '').trim(), 100) || 'unknown';
+  const dispName = truncate(String(name || '').trim(), 80);
+  const avatar = sanitizeUrlLike(avatar_url);
+  const gid = isSnowflake(guild_id) ? guild_id : null;
+  const mc = clampRange(member_count, 0, 100000000, 0);
+  return new Promise((resolve, reject) => {
+    db.run(
+      `UPDATE partners SET
+         resolved_name = ?,
+         name = CASE WHEN name IS NULL OR name = '' THEN ? ELSE name END,
+         avatar_url = CASE WHEN avatar_url IS NULL OR avatar_url = '' THEN ? ELSE avatar_url END,
+         guild_id = COALESCE(?, guild_id),
+         member_count = ?
+       WHERE id = ?`,
+      [rname, dispName, avatar || null, gid, mc, id],
       function (err) { if (err) reject(err); else resolve(this.changes); }
     );
   });
