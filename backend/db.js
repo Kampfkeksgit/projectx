@@ -3152,11 +3152,14 @@ export function updatePartner(id, patch = {}) {
       const position = p.position !== undefined ? clampRange(p.position, 0, 100000, 0) : existing.position;
       if (kind === 'user' && !discordId && !name) return reject(Object.assign(new Error('discord_id required'), { code: 'VALIDATION' }));
       if (kind === 'guild' && !invite) return reject(Object.assign(new Error('invite required'), { code: 'VALIDATION' }));
-      // If the resolution source (kind/id/invite) changed, clear resolved state so the bot re-resolves.
+      // Re-resolve when the resolution source (kind/id/invite) changed, OR when the
+      // admin cleared the avatar on an already-resolved entry (→ bot re-fetches the
+      // guild icon / user avatar automatically).
       const srcChanged = kind !== (existing.kind === 'guild' ? 'guild' : 'user')
         || (discordId || '') !== (existing.discord_id || '')
         || (invite || '') !== (existing.invite_url || '');
-      const resetSql = srcChanged ? ', resolved_name = NULL, guild_id = NULL, member_count = 0' : '';
+      const avatarCleared = p.avatar_url !== undefined && !avatar && !!existing.resolved_name;
+      const resetSql = (srcChanged || avatarCleared) ? ', resolved_name = NULL, guild_id = NULL, member_count = 0' : '';
       db.run(
         `UPDATE partners SET kind = ?, discord_id = ?, invite_url = ?, name = ?, description = ?, avatar_url = ?, position = ?${resetSql} WHERE id = ?`,
         [kind, discordId, invite, name, description, avatar, position, id],
