@@ -137,8 +137,9 @@ function validate(p) {
     toast.error(t('minecraft.addressHint'))
     return false
   }
-  if (!p.channel_id) {
-    toast.error(t('minecraft.channelHint'))
+  // A status message channel OR a status-as-name channel is required.
+  if (!p.channel_id && !p.name_channel_id) {
+    toast.error(t('minecraft.channelRequired'))
     return false
   }
   return true
@@ -149,10 +150,12 @@ function serialize(p) {
     name: String(p.name || '').slice(0, 100),
     address: String(p.address).trim().slice(0, 200),
     edition: p.edition === 'bedrock' ? 'bedrock' : 'java',
-    channel_id: p.channel_id,
+    channel_id: p.channel_id || null,
     notify_mode: p.notify_mode === 'embed' ? 'embed' : 'plain',
     message_template: String(p.message_template || '').slice(0, 1000),
     embed: p.embed || undefined,
+    name_channel_id: p.name_channel_id || null,
+    name_template: String(p.name_template || '').slice(0, 100),
     enabled: !!p.enabled
   }
 }
