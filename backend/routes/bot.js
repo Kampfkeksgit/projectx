@@ -73,6 +73,8 @@ import {
   deleteMusicCommand,
   getUnresolvedTeamMembers,
   resolveTeamMember,
+  getUnresolvedPartners,
+  resolvePartner,
   isGuildBlocked,
   getGuild,
   effectiveTier,
@@ -1467,6 +1469,32 @@ router.put('/team/:id/resolved', requireBotToken, async (req, res) => {
   } catch (error) {
     console.error('Bot resolve team member error:', error.message)
     res.status(500).json({ error: 'Failed to resolve team member' })
+  }
+})
+
+// Partners: entries (user by id / guild by invite) still needing resolution.
+router.get('/partners/unresolved', requireBotToken, async (req, res) => {
+  try {
+    const partners = await getUnresolvedPartners()
+    return res.json({ partners })
+  } catch (error) {
+    console.error('Bot get unresolved partners error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch unresolved partners' })
+  }
+})
+
+// Partners: the bot writes back a resolved user/guild (name + avatar/icon + counts).
+router.put('/partners/:id/resolved', requireBotToken, async (req, res) => {
+  try {
+    const b = req.body || {}
+    await resolvePartner(req.params.id, {
+      resolved_name: b.resolved_name, name: b.name, avatar_url: b.avatar_url,
+      guild_id: b.guild_id, member_count: b.member_count
+    })
+    return res.json({ success: true })
+  } catch (error) {
+    console.error('Bot resolve partner error:', error.message)
+    res.status(500).json({ error: 'Failed to resolve partner' })
   }
 })
 

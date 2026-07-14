@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 50;
+const CURRENT_SCHEMA_VERSION = 51;
 
 /**
  * Initialize schema version tracking
@@ -109,7 +109,8 @@ async function applyMigrations(fromVersion, toVersion) {
     47: migrationV47,
     48: migrationV48,
     49: migrationV49,
-    50: migrationV50
+    50: migrationV50,
+    51: migrationV51
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -2272,6 +2273,39 @@ function migrationV49() {
  *     log_boosts, log_automod, log_webhooks.
  * Idempotent (duplicate-column swallowed); mirrored in initializeDatabase().
  */
+/**
+ * Migration V51: Partners page.
+ *   - partners: partnered Discord users OR partnered guilds, shown on a public
+ *     /partners page and managed by the owner in the admin area. Mirrors the
+ *     team_members resolve pattern:
+ *       kind='user'  → add a discord_id; the bot fetch_user's name/avatar.
+ *       kind='guild' → add an invite_url; the bot fetch_invite's the guild's
+ *                       name/icon/member_count/guild_id.
+ *     resolved_name is the resolved value AND the "resolved" marker (NULL/'' =
+ *     still needs resolution). name/avatar_url are optional admin overrides that
+ *     the bot never overwrites. invite_url doubles as the public join/link.
+ * Idempotent; mirrored in initializeDatabase().
+ */
+function migrationV51() {
+  return runSchemaBatch(51, [
+    `CREATE TABLE IF NOT EXISTS partners (
+      id            TEXT PRIMARY KEY,
+      kind          TEXT DEFAULT 'user',
+      discord_id    TEXT,
+      guild_id      TEXT,
+      invite_url    TEXT,
+      resolved_name TEXT,
+      name          TEXT,
+      description   TEXT,
+      avatar_url    TEXT,
+      member_count  INTEGER DEFAULT 0,
+      position      INTEGER DEFAULT 0,
+      created_at    INTEGER DEFAULT 0
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_partners_pos ON partners(position)'
+  ]);
+}
+
 function migrationV50() {
   return runSchemaBatch(50, [
     'ALTER TABLE guild_log_settings ADD COLUMN member_log_channel_id TEXT',
