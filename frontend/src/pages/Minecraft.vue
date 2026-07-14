@@ -82,6 +82,8 @@ function emptyDraft() {
     notify_mode: 'plain',
     message_template: '',
     embed: null,
+    name_channel_id: '',
+    name_template: '',
     enabled: true,
     status: 'unknown'
   }
@@ -97,8 +99,11 @@ function normalize(s) {
     notify_mode: s.notify_mode === 'embed' ? 'embed' : 'plain',
     message_template: s.message_template || '',
     embed: s.embed && typeof s.embed === 'object' ? s.embed : null,
+    name_channel_id: s.name_channel_id || '',
+    name_template: s.name_template || '',
     enabled: !!s.enabled,
-    status: s.status || 'unknown'
+    status: s.status || 'unknown',
+    ping_ms: s.ping_ms ?? -1
   }
 }
 
