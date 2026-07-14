@@ -260,6 +260,21 @@ function initializeDatabase() {
         log_roles BOOLEAN DEFAULT 0,
         log_voice BOOLEAN DEFAULT 0,
         log_ignored_channel_ids TEXT DEFAULT '[]',
+        member_log_channel_id TEXT,
+        message_log_channel_id TEXT,
+        voice_log_channel_id TEXT,
+        server_log_channel_id TEXT,
+        ignored_role_ids TEXT DEFAULT '[]',
+        ignored_user_ids TEXT DEFAULT '[]',
+        ignore_bots INTEGER DEFAULT 0,
+        show_executor INTEGER DEFAULT 0,
+        log_invites INTEGER DEFAULT 0,
+        log_threads INTEGER DEFAULT 0,
+        log_emojis INTEGER DEFAULT 0,
+        log_bulk_delete INTEGER DEFAULT 0,
+        log_boosts INTEGER DEFAULT 0,
+        log_automod INTEGER DEFAULT 0,
+        log_webhooks INTEGER DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
@@ -269,14 +284,30 @@ function initializeDatabase() {
       else console.log('✓ Guild log settings table initialized');
     });
 
-    // Defensive ALTERs for legacy log rows created before v9 columns.
+    // Defensive ALTERs for legacy log rows created before v9/v50 columns.
     const logAlters = [
       'ALTER TABLE guild_log_settings ADD COLUMN log_member_updates BOOLEAN DEFAULT 0',
       'ALTER TABLE guild_log_settings ADD COLUMN log_member_unbans BOOLEAN DEFAULT 0',
       'ALTER TABLE guild_log_settings ADD COLUMN log_channels BOOLEAN DEFAULT 0',
       'ALTER TABLE guild_log_settings ADD COLUMN log_roles BOOLEAN DEFAULT 0',
       'ALTER TABLE guild_log_settings ADD COLUMN log_voice BOOLEAN DEFAULT 0',
-      "ALTER TABLE guild_log_settings ADD COLUMN log_ignored_channel_ids TEXT DEFAULT '[]'"
+      "ALTER TABLE guild_log_settings ADD COLUMN log_ignored_channel_ids TEXT DEFAULT '[]'",
+      // v50
+      'ALTER TABLE guild_log_settings ADD COLUMN member_log_channel_id TEXT',
+      'ALTER TABLE guild_log_settings ADD COLUMN message_log_channel_id TEXT',
+      'ALTER TABLE guild_log_settings ADD COLUMN voice_log_channel_id TEXT',
+      'ALTER TABLE guild_log_settings ADD COLUMN server_log_channel_id TEXT',
+      "ALTER TABLE guild_log_settings ADD COLUMN ignored_role_ids TEXT DEFAULT '[]'",
+      "ALTER TABLE guild_log_settings ADD COLUMN ignored_user_ids TEXT DEFAULT '[]'",
+      'ALTER TABLE guild_log_settings ADD COLUMN ignore_bots INTEGER DEFAULT 0',
+      'ALTER TABLE guild_log_settings ADD COLUMN show_executor INTEGER DEFAULT 0',
+      'ALTER TABLE guild_log_settings ADD COLUMN log_invites INTEGER DEFAULT 0',
+      'ALTER TABLE guild_log_settings ADD COLUMN log_threads INTEGER DEFAULT 0',
+      'ALTER TABLE guild_log_settings ADD COLUMN log_emojis INTEGER DEFAULT 0',
+      'ALTER TABLE guild_log_settings ADD COLUMN log_bulk_delete INTEGER DEFAULT 0',
+      'ALTER TABLE guild_log_settings ADD COLUMN log_boosts INTEGER DEFAULT 0',
+      'ALTER TABLE guild_log_settings ADD COLUMN log_automod INTEGER DEFAULT 0',
+      'ALTER TABLE guild_log_settings ADD COLUMN log_webhooks INTEGER DEFAULT 0'
     ];
     for (const stmt of logAlters) {
       db.run(stmt, (err) => {
@@ -3410,6 +3441,11 @@ export function upsertAutoroleSettings(guildId, settings) {
 const LOG_DEFAULTS = {
   enabled: false,
   log_channel_id: null,
+  // Per-category channels (each falls back to log_channel_id when unset).
+  member_log_channel_id: null,
+  message_log_channel_id: null,
+  voice_log_channel_id: null,
+  server_log_channel_id: null,
   log_joins: true,
   log_leaves: true,
   log_message_edits: false,
@@ -3420,7 +3456,20 @@ const LOG_DEFAULTS = {
   log_channels: false,
   log_roles: false,
   log_voice: false,
-  log_ignored_channel_ids: []
+  // v50 events
+  log_invites: false,
+  log_threads: false,
+  log_emojis: false,
+  log_bulk_delete: false,
+  log_boosts: false,
+  log_automod: false,
+  log_webhooks: false,
+  // Filters
+  log_ignored_channel_ids: [],
+  ignored_role_ids: [],
+  ignored_user_ids: [],
+  ignore_bots: false,
+  show_executor: false
 };
 
 /**
@@ -3438,6 +3487,10 @@ export function getLogSettings(guildId) {
           guild_id: row.guild_id,
           enabled: !!row.enabled,
           log_channel_id: row.log_channel_id ?? null,
+          member_log_channel_id: row.member_log_channel_id ?? null,
+          message_log_channel_id: row.message_log_channel_id ?? null,
+          voice_log_channel_id: row.voice_log_channel_id ?? null,
+          server_log_channel_id: row.server_log_channel_id ?? null,
           log_joins: !!row.log_joins,
           log_leaves: !!row.log_leaves,
           log_message_edits: !!row.log_message_edits,
@@ -3448,7 +3501,18 @@ export function getLogSettings(guildId) {
           log_channels: !!row.log_channels,
           log_roles: !!row.log_roles,
           log_voice: !!row.log_voice,
+          log_invites: !!row.log_invites,
+          log_threads: !!row.log_threads,
+          log_emojis: !!row.log_emojis,
+          log_bulk_delete: !!row.log_bulk_delete,
+          log_boosts: !!row.log_boosts,
+          log_automod: !!row.log_automod,
+          log_webhooks: !!row.log_webhooks,
           log_ignored_channel_ids: parseStringArray(row.log_ignored_channel_ids, []),
+          ignored_role_ids: parseStringArray(row.ignored_role_ids, []),
+          ignored_user_ids: parseStringArray(row.ignored_user_ids, []),
+          ignore_bots: !!row.ignore_bots,
+          show_executor: !!row.show_executor,
           created_at: row.created_at,
           updated_at: row.updated_at
         });
@@ -3463,33 +3527,60 @@ export function getLogSettings(guildId) {
  */
 export function upsertLogSettings(guildId, settings) {
   return new Promise((resolve, reject) => {
-    const enabled = settings.enabled ? 1 : 0;
+    const nullableSnowflake = (v) =>
+      typeof v === 'string' && isSnowflake(v) ? v : null;
+    const bool = (v) => (v ? 1 : 0);
+
+    const enabled = bool(settings.enabled);
     const channelId = typeof settings.log_channel_id === 'string' && settings.log_channel_id.length > 0
       ? settings.log_channel_id
       : null;
-    const joins = settings.log_joins ? 1 : 0;
-    const leaves = settings.log_leaves ? 1 : 0;
-    const edits = settings.log_message_edits ? 1 : 0;
-    const deletes = settings.log_message_deletes ? 1 : 0;
-    const bans = settings.log_member_bans ? 1 : 0;
-    const memberUpdates = settings.log_member_updates ? 1 : 0;
-    const unbans = settings.log_member_unbans ? 1 : 0;
-    const channels = settings.log_channels ? 1 : 0;
-    const roles = settings.log_roles ? 1 : 0;
-    const voice = settings.log_voice ? 1 : 0;
+    const memberCh = nullableSnowflake(settings.member_log_channel_id);
+    const messageCh = nullableSnowflake(settings.message_log_channel_id);
+    const voiceCh = nullableSnowflake(settings.voice_log_channel_id);
+    const serverCh = nullableSnowflake(settings.server_log_channel_id);
+    const joins = bool(settings.log_joins);
+    const leaves = bool(settings.log_leaves);
+    const edits = bool(settings.log_message_edits);
+    const deletes = bool(settings.log_message_deletes);
+    const bans = bool(settings.log_member_bans);
+    const memberUpdates = bool(settings.log_member_updates);
+    const unbans = bool(settings.log_member_unbans);
+    const channels = bool(settings.log_channels);
+    const roles = bool(settings.log_roles);
+    const voice = bool(settings.log_voice);
+    const invites = bool(settings.log_invites);
+    const threads = bool(settings.log_threads);
+    const emojis = bool(settings.log_emojis);
+    const bulkDelete = bool(settings.log_bulk_delete);
+    const boosts = bool(settings.log_boosts);
+    const automod = bool(settings.log_automod);
+    const webhooks = bool(settings.log_webhooks);
     const ignored = parseStringArray(settings.log_ignored_channel_ids, [])
       .filter((id) => isSnowflake(id));
+    const ignoredRoles = parseStringArray(settings.ignored_role_ids, [])
+      .filter((id) => isSnowflake(id));
+    const ignoredUsers = parseStringArray(settings.ignored_user_ids, [])
+      .filter((id) => isSnowflake(id));
+    const ignoreBots = bool(settings.ignore_bots);
+    const showExecutor = bool(settings.show_executor);
 
     db.run(
       `INSERT INTO guild_log_settings
-        (guild_id, enabled, log_channel_id, log_joins, log_leaves,
-         log_message_edits, log_message_deletes, log_member_bans,
-         log_member_updates, log_member_unbans, log_channels, log_roles,
-         log_voice, log_ignored_channel_ids)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (guild_id, enabled, log_channel_id,
+         member_log_channel_id, message_log_channel_id, voice_log_channel_id, server_log_channel_id,
+         log_joins, log_leaves, log_message_edits, log_message_deletes, log_member_bans,
+         log_member_updates, log_member_unbans, log_channels, log_roles, log_voice,
+         log_invites, log_threads, log_emojis, log_bulk_delete, log_boosts, log_automod, log_webhooks,
+         log_ignored_channel_ids, ignored_role_ids, ignored_user_ids, ignore_bots, show_executor)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(guild_id) DO UPDATE SET
        enabled = excluded.enabled,
        log_channel_id = excluded.log_channel_id,
+       member_log_channel_id = excluded.member_log_channel_id,
+       message_log_channel_id = excluded.message_log_channel_id,
+       voice_log_channel_id = excluded.voice_log_channel_id,
+       server_log_channel_id = excluded.server_log_channel_id,
        log_joins = excluded.log_joins,
        log_leaves = excluded.log_leaves,
        log_message_edits = excluded.log_message_edits,
@@ -3500,10 +3591,26 @@ export function upsertLogSettings(guildId, settings) {
        log_channels = excluded.log_channels,
        log_roles = excluded.log_roles,
        log_voice = excluded.log_voice,
+       log_invites = excluded.log_invites,
+       log_threads = excluded.log_threads,
+       log_emojis = excluded.log_emojis,
+       log_bulk_delete = excluded.log_bulk_delete,
+       log_boosts = excluded.log_boosts,
+       log_automod = excluded.log_automod,
+       log_webhooks = excluded.log_webhooks,
        log_ignored_channel_ids = excluded.log_ignored_channel_ids,
+       ignored_role_ids = excluded.ignored_role_ids,
+       ignored_user_ids = excluded.ignored_user_ids,
+       ignore_bots = excluded.ignore_bots,
+       show_executor = excluded.show_executor,
        updated_at = CURRENT_TIMESTAMP`,
-      [guildId, enabled, channelId, joins, leaves, edits, deletes, bans,
-       memberUpdates, unbans, channels, roles, voice, JSON.stringify(ignored)],
+      [guildId, enabled, channelId,
+       memberCh, messageCh, voiceCh, serverCh,
+       joins, leaves, edits, deletes, bans,
+       memberUpdates, unbans, channels, roles, voice,
+       invites, threads, emojis, bulkDelete, boosts, automod, webhooks,
+       JSON.stringify(ignored), JSON.stringify(ignoredRoles), JSON.stringify(ignoredUsers),
+       ignoreBots, showExecutor],
       function (err) {
         if (err) reject(err);
         else resolve(this.lastID);

@@ -314,6 +314,10 @@ router.get('/guilds/:guild_id/settings/logs', requireBotToken, async (req, res) 
     return res.json({
       enabled: !!row.enabled,
       log_channel_id: row.log_channel_id ?? null,
+      member_log_channel_id: row.member_log_channel_id ?? null,
+      message_log_channel_id: row.message_log_channel_id ?? null,
+      voice_log_channel_id: row.voice_log_channel_id ?? null,
+      server_log_channel_id: row.server_log_channel_id ?? null,
       log_joins: !!row.log_joins,
       log_leaves: !!row.log_leaves,
       log_message_edits: !!row.log_message_edits,
@@ -324,7 +328,18 @@ router.get('/guilds/:guild_id/settings/logs', requireBotToken, async (req, res) 
       log_channels: !!row.log_channels,
       log_roles: !!row.log_roles,
       log_voice: !!row.log_voice,
-      log_ignored_channel_ids: Array.isArray(row.log_ignored_channel_ids) ? row.log_ignored_channel_ids : []
+      log_invites: !!row.log_invites,
+      log_threads: !!row.log_threads,
+      log_emojis: !!row.log_emojis,
+      log_bulk_delete: !!row.log_bulk_delete,
+      log_boosts: !!row.log_boosts,
+      log_automod: !!row.log_automod,
+      log_webhooks: !!row.log_webhooks,
+      log_ignored_channel_ids: Array.isArray(row.log_ignored_channel_ids) ? row.log_ignored_channel_ids : [],
+      ignored_role_ids: Array.isArray(row.ignored_role_ids) ? row.ignored_role_ids : [],
+      ignored_user_ids: Array.isArray(row.ignored_user_ids) ? row.ignored_user_ids : [],
+      ignore_bots: !!row.ignore_bots,
+      show_executor: !!row.show_executor
     })
   } catch (error) {
     console.error('Bot get log settings error:', error.message)
