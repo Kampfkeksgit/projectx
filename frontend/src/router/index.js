@@ -203,4 +203,19 @@ router.afterEach((to) => {
   resetSeo(to.path)
 })
 
+// Recover from stale lazy chunks after a deploy: if a route's dynamically
+// imported module 404s (old index.html referencing removed /assets hashes), do
+// a full page load of the target so the fresh index.html + chunks are fetched.
+// Guarded by a 10s window in sessionStorage so it can never loop.
+router.onError((error, to) => {
+  const msg = (error && error.message) || ''
+  if (/dynamically imported module|Importing a module script failed|error loading dynamically/i.test(msg)) {
+    const last = Number(sessionStorage.getItem('px_chunk_reload') || 0)
+    if (Date.now() - last > 10000) {
+      sessionStorage.setItem('px_chunk_reload', String(Date.now()))
+      window.location.assign((to && to.fullPath) || window.location.pathname)
+    }
+  }
+})
+
 export default router
