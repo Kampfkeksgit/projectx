@@ -160,10 +160,37 @@ html.mobile-ui .panel--form {
   max-width: none;
 }
 
-/* Listen-Zeilen (Team/Partner/Audit) umbrechen, Aktionen bleiben erreichbar. */
+/* Listen-Zeilen (Team/Partner) umbrechen, Aktionen bleiben erreichbar. */
 html.mobile-ui .team-list__row {
   flex-wrap: wrap;
   row-gap: var(--space-2);
+}
+
+/* User-/Guild-/Changelog-Zeilen (.row): auf dem Handy VERTIKAL stapeln, damit
+   die Aktions-Buttons UNTER dem Karteninhalt liegen statt ihn zu überlagern.
+   (Desktop = horizontal mit justify-content: space-between; .row__right hat
+   flex-shrink:0, was auf schmalen Screens den Inhalt zusammenquetscht.) */
+html.mobile-ui .row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3);
+}
+html.mobile-ui .row__main {
+  align-items: center;
+}
+html.mobile-ui .row__right {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: var(--space-2);
+}
+/* Die beiden Buttons (Inspizieren/Sperren) teilen sich die Breite, Select +
+   Status-Badge sitzen dazwischen — alles gut greifbar, nichts überlappt. */
+html.mobile-ui .row__right > .app-button,
+html.mobile-ui .row__right > button {
+  flex: 1 1 auto;
+}
+html.mobile-ui .row__right .tier-select {
+  flex: 1 1 auto;
 }
 
 /* ============================================================
