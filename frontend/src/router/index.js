@@ -90,7 +90,7 @@ const routes = [
     path: '/admin',
     name: 'admin',
     component: Admin,
-    meta: { requiresAuth: true, requiresOwner: true }
+    meta: { requiresAuth: true, requiresAdmin: true }
   },
   {
     path: '/dashboard/:guild_id',
@@ -195,8 +195,8 @@ router.beforeEach(async (to, from, next) => {
     return next({ path: '/', replace: true })
   }
 
-  // Owner-only routes (admin panel): bounce non-owners back to the dashboard.
-  if (to.meta.requiresOwner && !auth.state.user?.is_owner) {
+  // Admin panel: owner OR a configured staff member. Bounce everyone else.
+  if (to.meta.requiresAdmin && !(auth.state.user?.is_owner || auth.state.user?.is_admin)) {
     return next({ path: '/dashboard', replace: true })
   }
 

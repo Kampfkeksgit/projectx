@@ -29,7 +29,7 @@
             {{ t('nav.yourServers') }}
           </router-link>
           <router-link
-            v-if="auth.state.user?.is_owner"
+            v-if="auth.state.user?.is_owner || auth.state.user?.is_admin"
             to="/admin"
             class="m-sheet__action"
             @click="$emit('close')"

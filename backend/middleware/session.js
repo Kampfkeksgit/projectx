@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
-import { getUser, isUserBlocked } from '../db.js'
+import { getUser, isUserBlocked, getAdminAccess } from '../db.js'
 
 const COOKIE_NAME = 'projectx_session'
 const SEVEN_DAYS_SECONDS = 60 * 60 * 24 * 7
@@ -139,6 +139,26 @@ export function requireOwner(req, res, next) {
     return res.status(403).json({ error: 'Owner access required' })
   }
   next()
+}
+
+/**
+ * Express middleware: require admin access — the env owner OR a configured staff
+ * member (admin_staff row with ≥1 permission). Resolves the effective access map
+ * and stashes it on req.adminAccess for the per-tab permission gate. Must run
+ * after requireSession (which sets req.user.is_owner).
+ */
+export async function requireAdmin(req, res, next) {
+  try {
+    const access = await getAdminAccess(req.user?.id, !!req.user?.is_owner)
+    if (!access || (!access.is_owner && !access.is_staff)) {
+      return res.status(403).json({ error: 'Admin access required' })
+    }
+    req.adminAccess = access
+    next()
+  } catch (err) {
+    console.error('requireAdmin error:', err.message)
+    res.status(500).json({ error: 'Failed to resolve admin access' })
+  }
 }
 
 /**

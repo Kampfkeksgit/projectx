@@ -8,7 +8,8 @@ import {
   getUser,
   updateUserTokens,
   removeUserGuildsNotIn,
-  runInTransaction
+  runInTransaction,
+  isAdminStaff
 } from '../db.js'
 import {
   setSessionCookie,
@@ -181,6 +182,7 @@ router.post('/callback', async (req, res) => {
     setSessionCookie(res, user.id)
 
     // 7. Sanitized response (no tokens)
+    const is_admin = owner || await isAdminStaff(user.id)
     return res.json({
       success: true,
       user: {
@@ -188,7 +190,8 @@ router.post('/callback', async (req, res) => {
         username: user.username,
         avatar_url: avatarUrl,
         email: user.email,
-        is_owner: owner
+        is_owner: owner,
+        is_admin
       }
     })
   } catch (error) {
@@ -233,6 +236,9 @@ router.get('/me', async (req, res) => {
       return res.status(403).json({ authenticated: false, blocked: true })
     }
 
+    // is_admin = owner OR a configured staff member (unlocks the /admin panel).
+    const is_admin = owner || await isAdminStaff(dbUser.discord_id)
+
     return res.json({
       authenticated: true,
       user: {
@@ -240,7 +246,8 @@ router.get('/me', async (req, res) => {
         username: dbUser.username,
         email: dbUser.email,
         avatar_url: dbUser.avatar_url,
-        is_owner: owner
+        is_owner: owner,
+        is_admin
       }
     })
   } catch (error) {

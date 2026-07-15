@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 51;
+const CURRENT_SCHEMA_VERSION = 52;
 
 /**
  * Initialize schema version tracking
@@ -110,7 +110,8 @@ async function applyMigrations(fromVersion, toVersion) {
     48: migrationV48,
     49: migrationV49,
     50: migrationV50,
-    51: migrationV51
+    51: migrationV51,
+    52: migrationV52
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -2303,6 +2304,27 @@ function migrationV51() {
       created_at    INTEGER DEFAULT 0
     )`,
     'CREATE INDEX IF NOT EXISTS idx_partners_pos ON partners(position)'
+  ]);
+}
+
+/**
+ * Migration V52: Admin staff / permissions.
+ *   - admin_staff: extra dashboard admins the owner grants access to. `permissions`
+ *     is JSON keyed by admin tab → 'view' | 'manage' (absent = no access to that
+ *     tab). The env OWNER_DISCORD_ID owner keeps implicit full access and is the
+ *     only one who can manage staff. `note` is an optional label (e.g. a role name).
+ * Idempotent; mirrored in initializeDatabase().
+ */
+function migrationV52() {
+  return runSchemaBatch(52, [
+    `CREATE TABLE IF NOT EXISTS admin_staff (
+      user_id     TEXT PRIMARY KEY,
+      permissions TEXT DEFAULT '{}',
+      note        TEXT,
+      added_by    TEXT,
+      created_at  INTEGER DEFAULT 0,
+      updated_at  INTEGER DEFAULT 0
+    )`
   ]);
 }
 
