@@ -2381,13 +2381,18 @@ function sanitizeBlockUntil(until) {
  * Owner admin: guild list with block status + bot presence.
  * `search` matches guild_name or id.
  */
-export function getAdminGuilds({ search = '', limit = 100, offset = 0 } = {}) {
+export function getAdminGuilds({ search = '', limit = 100, offset = 0, present = '' } = {}) {
   return new Promise((resolve, reject) => {
     const lim = Math.min(Math.max(parseInt(limit, 10) || 100, 1), 500);
     const off = Math.max(parseInt(offset, 10) || 0, 0);
     const term = `%${String(search || '').trim()}%`;
-    const where = search ? 'WHERE guild_name LIKE ? OR id LIKE ?' : '';
-    const whereParams = search ? [term, term] : [];
+    const conds = [];
+    const whereParams = [];
+    if (search) { conds.push('(guild_name LIKE ? OR id LIKE ?)'); whereParams.push(term, term); }
+    // Filter by bot presence: 'present' → bot on the server, 'absent' → not.
+    if (present === 'present') conds.push('bot_present = 1');
+    else if (present === 'absent') conds.push('(bot_present = 0 OR bot_present IS NULL)');
+    const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
     db.get(`SELECT COUNT(*) AS total FROM guilds ${where}`, whereParams, (cErr, cRow) => {
       if (cErr) return reject(cErr);
       db.all(
