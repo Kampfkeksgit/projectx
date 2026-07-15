@@ -62,6 +62,13 @@
             </select>
           </div>
         </template>
+        <div v-if="tab === 'guilds'" class="filter">
+          <select v-model="guildPresence" class="filter__select" @change="load">
+            <option value="">{{ t('admin.presenceAll') }}</option>
+            <option value="present">{{ t('admin.presencePresent') }}</option>
+            <option value="absent">{{ t('admin.presenceAbsent') }}</option>
+          </select>
+        </div>
         <div v-if="['users', 'guilds', 'audit'].includes(tab)" class="search">
           <svg class="search__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <input v-model="search" class="search__input" :placeholder="searchPlaceholder" @input="onSearchInput" />
@@ -925,6 +932,7 @@ const topBy = ref('modules')
 const health = ref(null)
 const jobs = ref([])
 const jobStatus = ref('')
+const guildPresence = ref('') // '' | 'present' | 'absent' — bot-presence filter (guilds tab)
 const errors = ref([])
 const errSource = ref('')
 const errLevel = ref('')
@@ -1056,6 +1064,7 @@ function switchTab(next) {
   if (tab.value === next) return
   tab.value = next
   search.value = ''
+  guildPresence.value = ''
   revealBlocked.value = false
   load()
 }
@@ -1076,7 +1085,7 @@ async function load() {
       users.value = data.users || []
       total.value = data.total || 0
     } else if (tab.value === 'guilds') {
-      const { data } = await api.get('/admin/guilds', { params: { search: search.value, limit: PAGE, offset: 0 } })
+      const { data } = await api.get('/admin/guilds', { params: { search: search.value, present: guildPresence.value, limit: PAGE, offset: 0 } })
       guilds.value = data.guilds || []
       total.value = data.total || 0
     } else if (tab.value === 'audit') {
@@ -1153,7 +1162,7 @@ async function loadMore() {
       users.value = users.value.concat(data.users || [])
       total.value = data.total || total.value
     } else if (tab.value === 'guilds') {
-      const { data } = await api.get('/admin/guilds', { params: { search: search.value, limit: PAGE, offset: guilds.value.length } })
+      const { data } = await api.get('/admin/guilds', { params: { search: search.value, present: guildPresence.value, limit: PAGE, offset: guilds.value.length } })
       guilds.value = guilds.value.concat(data.guilds || [])
       total.value = data.total || total.value
     } else if (tab.value === 'audit') {

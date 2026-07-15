@@ -266,8 +266,8 @@ router.post('/users/:user_id/block', async (req, res) => {
  */
 router.get('/guilds', async (req, res) => {
   try {
-    const { search = '', limit = 100, offset = 0 } = req.query
-    const result = await getAdminGuilds({ search, limit, offset })
+    const { search = '', limit = 100, offset = 0, present = '' } = req.query
+    const result = await getAdminGuilds({ search, limit, offset, present })
     res.json({ success: true, ...result })
   } catch (error) {
     console.error('Admin list guilds error:', error.message)
