@@ -1227,6 +1227,18 @@ function initializeDatabase() {
       if (err) console.error('Error creating idx_partners_pos:', err);
     });
 
+    // ----- Admin staff / permissions (v52) -----
+    db.run(`
+      CREATE TABLE IF NOT EXISTS admin_staff (
+        user_id     TEXT PRIMARY KEY,
+        permissions TEXT DEFAULT '{}',
+        note        TEXT,
+        added_by    TEXT,
+        created_at  INTEGER DEFAULT 0,
+        updated_at  INTEGER DEFAULT 0
+      )
+    `, (err) => { if (err) console.error('Error creating admin_staff table:', err); });
+
     // ----- Changelog publisher (v47) -----
     db.run(`
       CREATE TABLE IF NOT EXISTS changelog_entries (
@@ -3211,6 +3223,125 @@ export function resolvePartner(id, { resolved_name, name, avatar_url, guild_id, 
       function (err) { if (err) reject(err); else resolve(this.changes); }
     );
   });
+}
+
+// ----- Admin staff / permissions (v52) -----
+
+// Assignable admin tabs (single source; the frontend mirrors this). 'staff' is
+// intentionally NOT here — only the env owner (OWNER_DISCORD_ID) manages staff.
+export const ADMIN_PERM_TABS = [
+  'overview', 'analytics', 'premium', 'health', 'users', 'guilds', 'audit',
+  'jobs', 'errors', 'marketplace', 'team', 'partners', 'changelog', 'system'
+];
+export const ADMIN_PERM_LEVELS = ['view', 'manage'];
+
+function sanitizePermissions(input) {
+  const out = {};
+  const src = input && typeof input === 'object' ? input : {};
+  for (const tab of ADMIN_PERM_TABS) {
+    const v = src[tab];
+    if (v === 'view' || v === 'manage') out[tab] = v;
+  }
+  return out;
+}
+
+function shapeAdminStaff(row) {
+  if (!row) return null;
+  let permissions = {};
+  try { permissions = row.permissions ? JSON.parse(row.permissions) : {}; } catch { permissions = {}; }
+  return {
+    user_id: row.user_id,
+    permissions: sanitizePermissions(permissions),
+    note: row.note ?? '',
+    added_by: row.added_by ?? null,
+    username: row.username ?? null,
+    avatar_url: row.avatar_url ?? null,
+    created_at: row.created_at ?? 0,
+    updated_at: row.updated_at ?? 0
+  };
+}
+
+/** Owner admin: all staff members, with a resolved username/avatar when known. */
+export function getAdminStaff() {
+  return dbAll(
+    `SELECT s.*, u.username AS username, u.avatar_url AS avatar_url
+     FROM admin_staff s
+     LEFT JOIN users u ON u.discord_id = s.user_id
+     ORDER BY s.created_at ASC`
+  ).then((rows) => (rows || []).map(shapeAdminStaff));
+}
+
+function getAdminStaffRow(userId) {
+  return dbGet(
+    `SELECT s.*, u.username AS username, u.avatar_url AS avatar_url
+     FROM admin_staff s LEFT JOIN users u ON u.discord_id = s.user_id
+     WHERE s.user_id = ?`, [userId]
+  ).then(shapeAdminStaff);
+}
+
+/** Owner admin: create/update a staff member's permissions. */
+export function upsertAdminStaff(userId, { permissions, note, addedBy } = {}) {
+  if (!isSnowflake(userId)) return Promise.reject(Object.assign(new Error('invalid user'), { code: 'VALIDATION' }));
+  const perms = JSON.stringify(sanitizePermissions(permissions));
+  const noteVal = truncate(String(note || '').trim(), 80);
+  const now = Math.floor(Date.now() / 1000);
+  return new Promise((resolve, reject) => {
+    db.run(
+      `INSERT INTO admin_staff (user_id, permissions, note, added_by, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(user_id) DO UPDATE SET
+         permissions = excluded.permissions,
+         note = excluded.note,
+         updated_at = excluded.updated_at`,
+      [userId, perms, noteVal, addedBy || null, now, now],
+      (err) => (err ? reject(err) : getAdminStaffRow(userId).then(resolve).catch(reject))
+    );
+  });
+}
+
+export function removeAdminStaff(userId) {
+  return new Promise((resolve, reject) => {
+    db.run('DELETE FROM admin_staff WHERE user_id = ?', [userId], function (err) {
+      if (err) reject(err); else resolve(this.changes);
+    });
+  });
+}
+
+/** Is this user a configured admin staff member (row with ≥1 permission)? */
+export function isAdminStaff(userId) {
+  return dbGet('SELECT permissions FROM admin_staff WHERE user_id = ?', [userId]).then((row) => {
+    if (!row) return false;
+    try { return Object.keys(sanitizePermissions(JSON.parse(row.permissions || '{}'))).length > 0; }
+    catch { return false; }
+  });
+}
+
+/**
+ * Resolve a user's effective admin access. Owner → full manage on every tab.
+ * Staff → their sanitized permission map. Neither → is_owner/is_staff false.
+ */
+export function getAdminAccess(userId, isOwnerFlag) {
+  if (isOwnerFlag) {
+    const permissions = {};
+    for (const tab of ADMIN_PERM_TABS) permissions[tab] = 'manage';
+    return Promise.resolve({ is_owner: true, is_staff: false, permissions });
+  }
+  return dbGet('SELECT permissions FROM admin_staff WHERE user_id = ?', [userId]).then((row) => {
+    if (!row) return { is_owner: false, is_staff: false, permissions: {} };
+    let permissions = {};
+    try { permissions = sanitizePermissions(JSON.parse(row.permissions || '{}')); } catch { permissions = {}; }
+    return { is_owner: false, is_staff: Object.keys(permissions).length > 0, permissions };
+  });
+}
+
+/** Does `access` allow `level` on `tab`? (manage implies view; owner always true.) */
+export function adminCan(access, tab, level = 'view') {
+  if (!access) return false;
+  if (access.is_owner) return true;
+  const have = access.permissions?.[tab];
+  if (!have) return false;
+  if (level === 'view') return have === 'view' || have === 'manage';
+  return have === 'manage';
 }
 
 // ===== Changelog publisher (v47) =====

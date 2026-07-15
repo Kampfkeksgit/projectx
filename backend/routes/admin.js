@@ -54,7 +54,14 @@ import {
   getRevenue
 } from '../db.js'
 import { getBotHealth } from '../state/botStats.js'
-import { requireSession, requireOwner, isOwner } from '../middleware/session.js'
+import { requireSession, requireOwner, requireAdmin, isOwner } from '../middleware/session.js'
+import {
+  adminCan,
+  getAdminStaff,
+  upsertAdminStaff,
+  removeAdminStaff,
+  ADMIN_PERM_TABS
+} from '../db.js'
 import { createRequire } from 'module'
 
 const require = createRequire(import.meta.url)
@@ -67,8 +74,142 @@ if (!BACKEND_VERSION) {
 
 const router = express.Router()
 
-// Every route in this file is owner-only.
-router.use(requireSession, requireOwner)
+// Admin access = env owner OR a configured staff member (admin_staff row).
+// requireAdmin resolves the effective access map onto req.adminAccess.
+router.use(requireSession, requireAdmin)
+
+// Per-tab permission policy. First match wins; unmapped routes fail closed for
+// staff (owner is always allowed). Each rule: [METHOD, pathRegex, tab, level].
+// NOTE: when adding a new admin route, add a rule here too (or staff get 403).
+const PERM_RULES = [
+  ['GET',    /^\/overview$/,                  'overview',    'view'],
+  ['GET',    /^\/metrics$/,                   'analytics',   'view'],
+  ['GET',    /^\/top-guilds$/,                'analytics',   'view'],
+  ['GET',    /^\/revenue$/,                   'premium',     'view'],
+  ['GET',    /^\/premium-codes$/,             'premium',     'view'],
+  ['POST',   /^\/premium-codes$/,             'premium',     'manage'],
+  ['DELETE', /^\/premium-codes\/[^/]+$/,      'premium',     'manage'],
+  ['GET',    /^\/health$/,                    'health',      'view'],
+  ['GET',    /^\/users$/,                     'users',       'view'],
+  ['GET',    /^\/users\/export$/,             'users',       'view'],
+  ['POST',   /^\/users\/[^/]+\/block$/,       'users',       'manage'],
+  ['GET',    /^\/guilds$/,                    'guilds',      'view'],
+  ['GET',    /^\/guilds\/export$/,            'guilds',      'view'],
+  ['GET',    /^\/guilds\/[^/]+\/inspect$/,    'guilds',      'view'],
+  ['POST',   /^\/guilds\/[^/]+\/block$/,      'guilds',      'manage'],
+  ['POST',   /^\/guilds\/[^/]+\/premium$/,    'guilds',      'manage'],
+  ['GET',    /^\/audit$/,                     'audit',       'view'],
+  ['GET',    /^\/audit\/actions$/,            'audit',       'view'],
+  ['GET',    /^\/jobs$/,                      'jobs',        'view'],
+  ['POST',   /^\/jobs\/[^/]+\/retry$/,        'jobs',        'manage'],
+  ['GET',    /^\/errors$/,                    'errors',      'view'],
+  ['DELETE', /^\/errors$/,                    'errors',      'manage'],
+  ['GET',    /^\/marketplace$/,               'marketplace', 'view'],
+  ['GET',    /^\/marketplace\/[^/]+\/export$/,'marketplace', 'view'],
+  ['POST',   /^\/marketplace\/publish$/,      'marketplace', 'manage'],
+  ['POST',   /^\/marketplace\/upload$/,       'marketplace', 'manage'],
+  ['PUT',    /^\/marketplace\/[^/]+\/status$/,'marketplace', 'manage'],
+  ['DELETE', /^\/marketplace\/[^/]+$/,        'marketplace', 'manage'],
+  ['GET',    /^\/team$/,                      'team',        'view'],
+  ['POST',   /^\/team$/,                      'team',        'manage'],
+  ['PUT',    /^\/team\/[^/]+$/,               'team',        'manage'],
+  ['DELETE', /^\/team\/[^/]+$/,               'team',        'manage'],
+  ['GET',    /^\/partners$/,                  'partners',    'view'],
+  ['POST',   /^\/partners$/,                  'partners',    'manage'],
+  ['PUT',    /^\/partners\/[^/]+$/,           'partners',    'manage'],
+  ['DELETE', /^\/partners\/[^/]+$/,           'partners',    'manage'],
+  ['GET',    /^\/changelog$/,                 'changelog',   'view'],
+  ['PUT',    /^\/changelog\/channel$/,        'changelog',   'manage'],
+  ['POST',   /^\/changelog$/,                 'changelog',   'manage'],
+  ['PUT',    /^\/changelog\/[^/]+$/,          'changelog',   'manage'],
+  ['DELETE', /^\/changelog\/[^/]+$/,          'changelog',   'manage'],
+  ['GET',    /^\/maintenance$/,               'system',      'view'],
+  ['PUT',    /^\/maintenance$/,               'system',      'manage'],
+  ['GET',    /^\/announcement$/,              'system',      'view'],
+  ['PUT',    /^\/announcement$/,              'system',      'manage'],
+  ['POST',   /^\/broadcast$/,                 'system',      'manage'],
+  ['GET',    /^\/broadcasts$/,                'system',      'view']
+]
+
+router.use((req, res, next) => {
+  // Path relative to /api/admin, regardless of how Express reports req.path.
+  let p = req.path || '/'
+  if (req.baseUrl && p.startsWith(req.baseUrl)) p = p.slice(req.baseUrl.length) || '/'
+
+  // Own access info — available to any admin.
+  if (p === '/access') return next()
+  // Staff management is owner-only.
+  if (p === '/staff' || p.startsWith('/staff/')) {
+    if (!req.user?.is_owner) return res.status(403).json({ error: 'Owner access required' })
+    return next()
+  }
+
+  const rule = PERM_RULES.find(([m, re]) => m === req.method && re.test(p))
+  if (!rule) {
+    // Unmapped route: owner still allowed, staff denied (fail closed).
+    if (req.user?.is_owner) return next()
+    return res.status(403).json({ error: 'forbidden' })
+  }
+  const [, , tab, level] = rule
+  if (!adminCan(req.adminAccess, tab, level)) {
+    return res.status(403).json({ error: 'permission_required', tab, required: level })
+  }
+  next()
+})
+
+// ----- Own admin access (any admin) + staff management (owner-only) -----
+
+// The current user's effective admin access (drives tab visibility + gating).
+router.get('/access', async (req, res) => {
+  res.json({
+    success: true,
+    is_owner: !!req.adminAccess?.is_owner,
+    is_staff: !!req.adminAccess?.is_staff,
+    permissions: req.adminAccess?.permissions || {},
+    tabs: ADMIN_PERM_TABS
+  })
+})
+
+router.get('/staff', async (req, res) => {
+  try {
+    res.json({ success: true, staff: await getAdminStaff(), tabs: ADMIN_PERM_TABS })
+  } catch (error) {
+    console.error('Admin get staff error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch staff' })
+  }
+})
+
+router.post('/staff', async (req, res) => {
+  try {
+    const body = req.body || {}
+    const userId = String(body.user_id || '').trim()
+    if (isOwner(userId)) return res.status(400).json({ error: 'is_owner' })
+    let member
+    try {
+      member = await upsertAdminStaff(userId, { permissions: body.permissions, note: body.note, addedBy: req.user.id })
+    } catch (err) {
+      if (err && err.code === 'VALIDATION') return res.status(400).json({ error: 'invalid_user' })
+      throw err
+    }
+    await logAuditAction(req.user.id, null, 'ADMIN_STAFF_UPSERT', { user_id: userId })
+    res.json({ success: true, member })
+  } catch (error) {
+    console.error('Admin upsert staff error:', error.message)
+    res.status(500).json({ error: 'Failed to save staff' })
+  }
+})
+
+router.delete('/staff/:user_id', async (req, res) => {
+  try {
+    const changes = await removeAdminStaff(req.params.user_id)
+    if (changes === 0) return res.status(404).json({ error: 'not_found' })
+    await logAuditAction(req.user.id, null, 'ADMIN_STAFF_REMOVE', { user_id: req.params.user_id })
+    res.json({ success: true })
+  } catch (error) {
+    console.error('Admin remove staff error:', error.message)
+    res.status(500).json({ error: 'Failed to remove staff' })
+  }
+})
 
 /**
  * GET /api/admin/users?search=&limit=&offset=
