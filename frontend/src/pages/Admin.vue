@@ -140,8 +140,15 @@
       <!-- USERS -->
       <div v-else-if="tab === 'users'">
         <div v-if="users.length === 0" class="empty"><p>{{ t('admin.emptyUsers') }}</p></div>
-        <ul v-else class="rows">
-          <li v-for="u in users" :key="u.discord_id" class="row" :class="{ 'is-blocked': u.blocked }">
+        <template v-else>
+          <div v-if="blockedCount > 0" class="censor-bar">
+            <svg class="censor-bar__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span class="censor-bar__text">{{ t('admin.censoredNotice', { n: blockedCount }) }}</span>
+            <button v-if="!revealBlocked" class="censor-bar__btn" @click="revealBlockedEntries">{{ t('admin.censoredReveal') }}</button>
+            <button v-else class="censor-bar__btn censor-bar__btn--ghost" @click="revealBlocked = false">{{ t('admin.censoredHide') }}</button>
+          </div>
+          <ul class="rows">
+          <li v-for="u in users" :key="u.discord_id" class="row" :class="{ 'is-blocked': u.blocked, 'is-censored': u.blocked && !revealBlocked }">
             <div class="row__main">
               <img v-if="u.avatar_url" :src="u.avatar_url" :alt="u.username" class="row__avatar" />
               <span v-else class="row__avatar row__avatar--fallback">{{ initials(u.username) }}</span>
@@ -164,7 +171,8 @@
               </AppButton>
             </div>
           </li>
-        </ul>
+          </ul>
+        </template>
         <div v-if="!loading && users.length < total" class="admin__more">
           <AppButton variant="ghost" :loading="loadingMore" @click="loadMore">{{ t('admin.loadMore') }}</AppButton>
         </div>
@@ -173,8 +181,15 @@
       <!-- GUILDS -->
       <div v-else-if="tab === 'guilds'">
         <div v-if="guilds.length === 0" class="empty"><p>{{ t('admin.emptyGuilds') }}</p></div>
-        <ul v-else class="rows">
-          <li v-for="g in guilds" :key="g.id" class="row" :class="{ 'is-blocked': g.blocked }">
+        <template v-else>
+          <div v-if="blockedCount > 0" class="censor-bar">
+            <svg class="censor-bar__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span class="censor-bar__text">{{ t('admin.censoredNotice', { n: blockedCount }) }}</span>
+            <button v-if="!revealBlocked" class="censor-bar__btn" @click="revealBlockedEntries">{{ t('admin.censoredReveal') }}</button>
+            <button v-else class="censor-bar__btn censor-bar__btn--ghost" @click="revealBlocked = false">{{ t('admin.censoredHide') }}</button>
+          </div>
+          <ul class="rows">
+          <li v-for="g in guilds" :key="g.id" class="row" :class="{ 'is-blocked': g.blocked, 'is-censored': g.blocked && !revealBlocked }">
             <div class="row__main">
               <GuildAvatar :name="g.guild_name" :icon-url="g.guild_icon_url" size="md" />
               <div class="row__text">
@@ -204,7 +219,8 @@
               </AppButton>
             </div>
           </li>
-        </ul>
+          </ul>
+        </template>
         <div v-if="!loading && guilds.length < total" class="admin__more">
           <AppButton variant="ghost" :loading="loadingMore" @click="loadMore">{{ t('admin.loadMore') }}</AppButton>
         </div>
@@ -1024,10 +1040,23 @@ function durationToUntil(key, table) {
   return d && d.sec ? Math.floor(Date.now() / 1000) + d.sec : null
 }
 
+// Blocked users/guilds are censored (avatar + name blurred) until the admin
+// confirms once that they want to see them — resets when switching tabs.
+const revealBlocked = ref(false)
+const blockedCount = computed(() => {
+  const list = tab.value === 'users' ? users.value : tab.value === 'guilds' ? guilds.value : []
+  return list.filter((x) => x.blocked).length
+})
+function revealBlockedEntries() {
+  if (typeof window !== 'undefined' && !window.confirm(t('admin.censoredConfirm'))) return
+  revealBlocked.value = true
+}
+
 function switchTab(next) {
   if (tab.value === next) return
   tab.value = next
   search.value = ''
+  revealBlocked.value = false
   load()
 }
 
@@ -1845,6 +1874,18 @@ function goBack() { router.push('/dashboard') }
 .rows { display: flex; flex-direction: column; gap: var(--space-2); }
 .row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--space-4); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); transition: border-color var(--transition); }
 .row.is-blocked { border-color: var(--color-danger); background: var(--color-danger-soft); }
+/* Blocked entries are censored (avatar + name blurred) until the admin reveals them. */
+.row.is-censored .row__main { filter: blur(7px); pointer-events: none; user-select: none; transition: filter var(--transition); }
+.censor-bar {
+  display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4); margin-bottom: var(--space-3);
+  border: 1px solid var(--color-warning); background: var(--color-warning-soft);
+  border-radius: var(--radius-md);
+}
+.censor-bar__icon { color: var(--color-warning); flex-shrink: 0; }
+.censor-bar__text { flex: 1; min-width: 180px; font-size: 0.88rem; color: var(--color-text); }
+.censor-bar__btn { padding: 0.45rem 0.95rem; border-radius: var(--radius-md); font-weight: 700; font-size: 0.85rem; background: var(--color-warning); color: #1a1205; flex-shrink: 0; }
+.censor-bar__btn--ghost { background: transparent; border: 1px solid var(--color-border-strong); color: var(--color-text-muted); }
 .row__main { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
 .row__avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; flex-shrink: 0; background: var(--gradient-brand); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.8rem; }
 .row__text { min-width: 0; }
