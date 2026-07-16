@@ -102,6 +102,19 @@ function initializeDatabase() {
       }
     });
 
+    // Defensive ALTERs for the V55 guild-owner columns (bot-synced, for the inspector).
+    for (const stmt of [
+      'ALTER TABLE guilds ADD COLUMN owner_id TEXT',
+      'ALTER TABLE guilds ADD COLUMN owner_username TEXT',
+      'ALTER TABLE guilds ADD COLUMN owner_avatar_url TEXT'
+    ]) {
+      db.run(stmt, (err) => {
+        if (err && !/duplicate column name/i.test(err.message)) {
+          console.error('Warning: could not ensure guilds owner column:', err.message);
+        }
+      });
+    }
+
     // V19 command-manager per-command enable/disable overrides.
     db.run(`
       CREATE TABLE IF NOT EXISTS guild_command_settings (
@@ -2665,9 +2678,13 @@ export function getAuditActions() {
  */
 export async function getGuildInspect(guildId) {
   const guild = await dbGet(
-    `SELECT id, guild_name, guild_icon_url, bot_present, blocked, blocked_reason, blocked_at, blocked_until,
-            premium_tier, premium_source, premium_until, created_at
-     FROM guilds WHERE id = ?`, [guildId]);
+    `SELECT g.id, g.guild_name, g.guild_icon_url, g.bot_present, g.blocked, g.blocked_reason, g.blocked_at, g.blocked_until,
+            g.premium_tier, g.premium_source, g.premium_until, g.created_at,
+            g.owner_id, g.owner_username, g.owner_avatar_url,
+            u.username AS owner_user_name, u.avatar_url AS owner_user_avatar
+     FROM guilds g
+     LEFT JOIN users u ON u.discord_id = g.owner_id
+     WHERE g.id = ?`, [guildId]);
   if (!guild) return null;
 
   const modules = [];
@@ -2707,6 +2724,12 @@ export async function getGuildInspect(guildId) {
     premium_effective: effectiveTier(guild),
     dashboard_members: memberCount?.n || 0,
     created_at: guild.created_at,
+    // Server owner (bot-synced; falls back to the dashboard user row when known).
+    owner: guild.owner_id ? {
+      id: guild.owner_id,
+      username: guild.owner_username || guild.owner_user_name || null,
+      avatar_url: guild.owner_avatar_url || guild.owner_user_avatar || null
+    } : null,
     modules
   };
 }
@@ -4341,13 +4364,17 @@ export function replaceGuildChannels(guildId, channels, guildMeta = null) {
     const ensureGuild = (cb) => {
       if (!guildMeta) return cb();
       db.run(
-        `INSERT INTO guilds (id, guild_name, guild_icon_url)
-         VALUES (?, ?, ?)
+        `INSERT INTO guilds (id, guild_name, guild_icon_url, owner_id, owner_username, owner_avatar_url)
+         VALUES (?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            guild_name = COALESCE(NULLIF(excluded.guild_name, ''), guild_name),
            guild_icon_url = COALESCE(NULLIF(excluded.guild_icon_url, ''), guild_icon_url),
+           owner_id = COALESCE(NULLIF(excluded.owner_id, ''), owner_id),
+           owner_username = COALESCE(NULLIF(excluded.owner_username, ''), owner_username),
+           owner_avatar_url = COALESCE(NULLIF(excluded.owner_avatar_url, ''), owner_avatar_url),
            updated_at = CURRENT_TIMESTAMP`,
-        [guildId, guildMeta.name || guildId, guildMeta.icon_url || null],
+        [guildId, guildMeta.name || guildId, guildMeta.icon_url || null,
+         guildMeta.owner_id || null, guildMeta.owner_username || null, guildMeta.owner_avatar_url || null],
         (err) => err ? reject(err) : cb()
       );
     };
@@ -4426,13 +4453,17 @@ export function replaceGuildRoles(guildId, roles, guildMeta = null) {
     const ensureGuild = (cb) => {
       if (!guildMeta) return cb();
       db.run(
-        `INSERT INTO guilds (id, guild_name, guild_icon_url)
-         VALUES (?, ?, ?)
+        `INSERT INTO guilds (id, guild_name, guild_icon_url, owner_id, owner_username, owner_avatar_url)
+         VALUES (?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            guild_name = COALESCE(NULLIF(excluded.guild_name, ''), guild_name),
            guild_icon_url = COALESCE(NULLIF(excluded.guild_icon_url, ''), guild_icon_url),
+           owner_id = COALESCE(NULLIF(excluded.owner_id, ''), owner_id),
+           owner_username = COALESCE(NULLIF(excluded.owner_username, ''), owner_username),
+           owner_avatar_url = COALESCE(NULLIF(excluded.owner_avatar_url, ''), owner_avatar_url),
            updated_at = CURRENT_TIMESTAMP`,
-        [guildId, guildMeta.name || guildId, guildMeta.icon_url || null],
+        [guildId, guildMeta.name || guildId, guildMeta.icon_url || null,
+         guildMeta.owner_id || null, guildMeta.owner_username || null, guildMeta.owner_avatar_url || null],
         (err) => err ? reject(err) : cb()
       );
     };

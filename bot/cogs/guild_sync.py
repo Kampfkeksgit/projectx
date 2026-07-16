@@ -174,23 +174,49 @@ class GuildSync(commands.Cog):
     async def _sync_guild(self, guild):
         if not self._enabled():
             return
-        await self._sync_channels(guild)
-        await self._sync_roles(guild)
+        # Resolve the owner once (with a fetch fallback) and reuse for both PUTs.
+        meta = await self._resolve_owner(guild, self._guild_meta(guild))
+        await self._sync_channels(guild, meta)
+        await self._sync_roles(guild, meta)
 
     def _guild_meta(self, guild):
-        """Return name + icon URL so the backend can seed the guilds row if needed."""
+        """Name + icon URL + server owner (cache-based) so the backend can seed the
+        guilds row. The admin Server-Inspector shows the owner to contact them."""
         icon_url = ""
         try:
             if getattr(guild, "icon", None):
                 icon_url = str(guild.icon.url)
         except Exception:
             icon_url = ""
-        return {
+        meta = {
             "guild_name": getattr(guild, "name", "") or "",
-            "guild_icon_url": icon_url
+            "guild_icon_url": icon_url,
         }
+        oid = getattr(guild, "owner_id", None)
+        if oid:
+            meta["owner_id"] = str(oid)
+            user = guild.get_member(oid) or self.bot.get_user(oid)
+            if user is not None:
+                meta["owner_username"] = getattr(user, "global_name", None) or getattr(user, "name", "") or ""
+                try:
+                    meta["owner_avatar_url"] = str(user.display_avatar.url)
+                except Exception:
+                    pass
+        return meta
 
-    async def _sync_channels(self, guild):
+    async def _resolve_owner(self, guild, meta):
+        """Best-effort: fetch the owner's name/avatar when it isn't cached (used by
+        the full syncs, not the frequent channel/role event listeners)."""
+        if meta.get("owner_id") and not meta.get("owner_username"):
+            try:
+                user = await self.bot.fetch_user(int(meta["owner_id"]))
+                meta["owner_username"] = getattr(user, "global_name", None) or getattr(user, "name", "") or ""
+                meta["owner_avatar_url"] = str(user.display_avatar.url)
+            except Exception:
+                pass
+        return meta
+
+    async def _sync_channels(self, guild, meta=None):
         if not self._enabled():
             return
         payload = []
@@ -199,15 +225,15 @@ class GuildSync(commands.Cog):
             if item is not None:
                 payload.append(item)
         path = f"/api/bot/guilds/{guild.id}/channels"
-        body = {"channels": payload, **self._guild_meta(guild)}
+        body = {"channels": payload, **(meta if meta is not None else self._guild_meta(guild))}
         await bot_put(self.backend_url, self.api_key, path, body)
 
-    async def _sync_roles(self, guild):
+    async def _sync_roles(self, guild, meta=None):
         if not self._enabled():
             return
         payload = [_serialize_role(r) for r in (getattr(guild, 'roles', []) or [])]
         path = f"/api/bot/guilds/{guild.id}/roles"
-        body = {"roles": payload, **self._guild_meta(guild)}
+        body = {"roles": payload, **(meta if meta is not None else self._guild_meta(guild))}
         await bot_put(self.backend_url, self.api_key, path, body)
 
 
