@@ -1239,6 +1239,20 @@ function initializeDatabase() {
       )
     `, (err) => { if (err) console.error('Error creating admin_staff table:', err); });
 
+    // ----- Per-guild bot profile (v53) -----
+    db.run(`
+      CREATE TABLE IF NOT EXISTS guild_bot_profile (
+        guild_id       TEXT PRIMARY KEY,
+        nickname       TEXT,
+        avatar_url     TEXT,
+        dirty          INTEGER DEFAULT 0,
+        status         TEXT,
+        status_message TEXT,
+        updated_at     INTEGER DEFAULT 0,
+        FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+      )
+    `, (err) => { if (err) console.error('Error creating guild_bot_profile table:', err); });
+
     // ----- Changelog publisher (v47) -----
     db.run(`
       CREATE TABLE IF NOT EXISTS changelog_entries (
@@ -6647,6 +6661,86 @@ export function upsertGeneralSettings(guildId, settings) {
         if (err) reject(err);
         else resolve(this.changes);
       }
+    );
+  });
+}
+
+// ===== Per-guild bot profile (v53) =====
+
+export const BOT_PROFILE_DEFAULTS = {
+  nickname: '',
+  avatar_url: '',
+  status: '',
+  status_message: '',
+  dirty: false
+};
+
+function shapeBotProfile(row) {
+  if (!row) return { ...BOT_PROFILE_DEFAULTS };
+  return {
+    nickname: row.nickname || '',
+    avatar_url: row.avatar_url || '',
+    status: row.status || '',
+    status_message: row.status_message || '',
+    dirty: !!row.dirty,
+    updated_at: row.updated_at || 0
+  };
+}
+
+/** Dashboard: read the per-guild bot profile (nickname + avatar) + last apply status. */
+export function getBotProfile(guildId) {
+  return new Promise((resolve, reject) => {
+    db.get('SELECT * FROM guild_bot_profile WHERE guild_id = ?', [guildId], (err, row) => {
+      if (err) reject(err);
+      else resolve(shapeBotProfile(row));
+    });
+  });
+}
+
+/**
+ * Dashboard: set the per-guild bot nickname + avatar. Marks the row dirty so the
+ * bot re-applies it, and resets the status to 'pending'. Nickname is capped at 32
+ * (Discord limit); empty nickname/avatar mean "reset to default".
+ */
+export function upsertBotProfile(guildId, settings) {
+  return new Promise((resolve, reject) => {
+    const nickname = truncate(String(settings.nickname || '').trim(), 32);
+    const avatar = sanitizeUrlLike(settings.avatar_url);
+    db.run(
+      `INSERT INTO guild_bot_profile (guild_id, nickname, avatar_url, dirty, status, status_message, updated_at)
+       VALUES (?, ?, ?, 1, 'pending', '', ?)
+       ON CONFLICT(guild_id) DO UPDATE SET
+         nickname = excluded.nickname,
+         avatar_url = excluded.avatar_url,
+         dirty = 1,
+         status = 'pending',
+         status_message = '',
+         updated_at = excluded.updated_at`,
+      [guildId, nickname, avatar, Math.floor(Date.now() / 1000)],
+      (err) => (err ? reject(err) : getBotProfile(guildId).then(resolve).catch(reject))
+    );
+  });
+}
+
+/** Bot: per-guild bot profiles that changed and still need to be applied. */
+export function getPendingBotProfiles() {
+  return dbAll(
+    `SELECT gp.guild_id, gp.nickname, gp.avatar_url
+     FROM guild_bot_profile gp
+     WHERE gp.dirty = 1
+       AND gp.guild_id NOT IN (SELECT id FROM guilds WHERE blocked = 1)`
+  );
+}
+
+/** Bot: write back the apply result and clear dirty. */
+export function setBotProfileApplied(guildId, { status, status_message } = {}) {
+  const st = ['ok', 'error'].includes(status) ? status : 'ok';
+  const msg = truncate(String(status_message || '').trim(), 300);
+  return new Promise((resolve, reject) => {
+    db.run(
+      `UPDATE guild_bot_profile SET dirty = 0, status = ?, status_message = ?, updated_at = ? WHERE guild_id = ?`,
+      [st, msg, Math.floor(Date.now() / 1000), guildId],
+      function (err) { if (err) reject(err); else resolve(this.changes); }
     );
   });
 }

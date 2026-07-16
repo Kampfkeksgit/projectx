@@ -46,6 +46,21 @@
 
       <article class="config-card">
         <div class="config-card__head">
+          <div class="config-card__icon config-card__icon--botprofile">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/><path d="m17 3 1.5 1.5L21 2"/></svg>
+          </div>
+          <div>
+            <h3 class="config-card__title">{{ t('overview.botProfileTitle') }}</h3>
+            <p class="config-card__desc">{{ t('overview.botProfileDesc') }}</p>
+          </div>
+        </div>
+        <div class="config-card__cta">
+          <AppButton tag="router-link" :to="`/dashboard/${guildId}/botprofile`" variant="gradient">{{ t('common.configure') }}</AppButton>
+        </div>
+      </article>
+
+      <article class="config-card">
+        <div class="config-card__head">
           <div class="config-card__icon config-card__icon--welcome">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>
           </div>
@@ -740,11 +755,12 @@ const guildName = computed(() => {
 
 const botPresent = computed(() => !!store.cache.guild?.bot_present)
 
-// Bot invite URL for the current guild. Permissions bitmask 285223990 =
+// Bot invite URL for the current guild. Permissions bitmask 352332854 =
 // VIEW_CHANNEL + SEND_MESSAGES + MANAGE_MESSAGES + KICK_MEMBERS + BAN_MEMBERS +
 // MANAGE_ROLES + MANAGE_CHANNELS (Stats: rename/create channels) +
 // MOVE_MEMBERS (Temp-Voice: move members into their created channel) +
-// MANAGE_GUILD (Backup: restore the server name).
+// MANAGE_GUILD (Backup: restore the server name) +
+// CHANGE_NICKNAME (Bot-Profile: per-guild bot nickname).
 // disable_guild_select=true keeps Discord on the guild we pre-selected.
 const inviteUrl = computed(() => {
   const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID || ''
@@ -753,7 +769,7 @@ const inviteUrl = computed(() => {
   const params = new URLSearchParams({
     client_id: clientId,
     scope: 'bot applications.commands',
-    permissions: '285223990',
+    permissions: '352332854',
     guild_id: id,
     disable_guild_select: 'true'
   })
@@ -1055,6 +1071,7 @@ onMounted(() => {
 }
 
 .config-card__icon--general { background: linear-gradient(135deg, #64748b, #94a3b8); }
+.config-card__icon--botprofile { background: linear-gradient(135deg, #6366f1, #22d3ee); }
 .config-card__icon--welcome { background: linear-gradient(135deg, #5865f2, #a78bfa); }
 .config-card__icon--leave { background: linear-gradient(135deg, #f472b6, #a78bfa); }
 .config-card__icon--autorole { background: linear-gradient(135deg, #22d3ee, #5865f2); }

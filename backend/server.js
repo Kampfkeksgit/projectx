@@ -33,6 +33,7 @@ import economyRoutes from './routes/economy.js'
 import gamesRoutes from './routes/games.js'
 import backupRoutes from './routes/backup.js'
 import generalRoutes from './routes/general.js'
+import botProfileRoutes from './routes/botprofile.js'
 import minecraftRoutes from './routes/minecraft.js'
 import publicRoutes from './routes/public.js'
 import adminRoutes from './routes/admin.js'
@@ -140,6 +141,7 @@ app.use('/api/guilds/:guild_id/games', requirePremiumModule('games'), gamesRoute
 app.use('/api/guilds/:guild_id/backups', requirePremiumModule('backup'), backupRoutes)
 app.use('/api/guilds/:guild_id/music', requirePremiumModule('music'), musicRoutes)
 app.use('/api/guilds/:guild_id/general', generalRoutes)
+app.use('/api/guilds/:guild_id/botprofile', botProfileRoutes)
 app.use('/api/guilds/:guild_id/minecraft', minecraftRoutes)
 app.use('/api/guilds/:guild_id', resourcesRoutes)
 app.use('/api/public', publicRoutes)

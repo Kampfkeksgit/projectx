@@ -75,6 +75,8 @@ import {
   resolveTeamMember,
   getUnresolvedPartners,
   resolvePartner,
+  getPendingBotProfiles,
+  setBotProfileApplied,
   isGuildBlocked,
   getGuild,
   effectiveTier,
@@ -1495,6 +1497,29 @@ router.put('/partners/:id/resolved', requireBotToken, async (req, res) => {
   } catch (error) {
     console.error('Bot resolve partner error:', error.message)
     res.status(500).json({ error: 'Failed to resolve partner' })
+  }
+})
+
+// Bot profile: per-guild nickname/avatar changes that still need to be applied.
+router.get('/botprofile/pending', requireBotToken, async (req, res) => {
+  try {
+    const profiles = await getPendingBotProfiles()
+    return res.json({ profiles })
+  } catch (error) {
+    console.error('Bot get pending bot profiles error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch pending bot profiles' })
+  }
+})
+
+// Bot profile: the bot writes back the apply result (ok/error) and clears dirty.
+router.put('/guilds/:guild_id/botprofile/applied', requireBotToken, async (req, res) => {
+  try {
+    const b = req.body || {}
+    await setBotProfileApplied(req.params.guild_id, { status: b.status, status_message: b.status_message })
+    return res.json({ success: true })
+  } catch (error) {
+    console.error('Bot set bot profile applied error:', error.message)
+    res.status(500).json({ error: 'Failed to update bot profile' })
   }
 })
 
