@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 52;
+const CURRENT_SCHEMA_VERSION = 53;
 
 /**
  * Initialize schema version tracking
@@ -111,7 +111,8 @@ async function applyMigrations(fromVersion, toVersion) {
     49: migrationV49,
     50: migrationV50,
     51: migrationV51,
-    52: migrationV52
+    52: migrationV52,
+    53: migrationV53
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -2324,6 +2325,30 @@ function migrationV52() {
       added_by    TEXT,
       created_at  INTEGER DEFAULT 0,
       updated_at  INTEGER DEFAULT 0
+    )`
+  ]);
+}
+
+/**
+ * Migration V53: Per-guild bot profile.
+ *   - guild_bot_profile: lets an admin set the bot's nickname AND avatar just for
+ *     one guild (Discord supports server-specific bot profiles). `dirty` = 1 when
+ *     the dashboard changed it → the bot re-applies via guild.me.edit(nick, avatar)
+ *     and writes back status/status_message + dirty=0. Empty nickname → reset to
+ *     the default bot name; empty avatar_url → reset to the global avatar.
+ * Idempotent; mirrored in initializeDatabase().
+ */
+function migrationV53() {
+  return runSchemaBatch(53, [
+    `CREATE TABLE IF NOT EXISTS guild_bot_profile (
+      guild_id       TEXT PRIMARY KEY,
+      nickname       TEXT,
+      avatar_url     TEXT,
+      dirty          INTEGER DEFAULT 0,
+      status         TEXT,
+      status_message TEXT,
+      updated_at     INTEGER DEFAULT 0,
+      FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
     )`
   ]);
 }

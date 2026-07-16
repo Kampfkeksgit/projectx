@@ -43,6 +43,10 @@ SKU_BASIC_ID = os.getenv('SKU_BASIC_ID')
 SKU_PRO_ID = os.getenv('SKU_PRO_ID')
 PREMIUM_POLL_INTERVAL = int(os.getenv('PREMIUM_POLL_INTERVAL', '300'))
 
+# --- Per-guild bot profile (nickname + avatar) ---
+# How often the bot_profile cog polls for changed per-guild profiles (seconds).
+BOT_PROFILE_POLL_INTERVAL = max(int(os.getenv('BOT_PROFILE_POLL_INTERVAL', '60')), 30)
+
 # --- Music module / Lavalink (Pro) ---
 # The music cog connects to a Lavalink audio server via wavelink. If LAVALINK_HOST
 # is unset the cog stays inert (no node connection, no playback) — the rest of the

@@ -49,6 +49,7 @@ const Poker = () => import('../pages/Poker.vue')
 const Backup = () => import('../pages/Backup.vue')
 const Minecraft = () => import('../pages/Minecraft.vue')
 const General = () => import('../pages/General.vue')
+const BotProfile = () => import('../pages/BotProfile.vue')
 const Premium = () => import('../pages/Premium.vue')
 const Impressum = () => import('../pages/legal/Impressum.vue')
 const Privacy = () => import('../pages/legal/Privacy.vue')
@@ -133,6 +134,7 @@ const routes = [
       { path: 'poker', name: 'poker', component: Poker },
       { path: 'backup', name: 'backup', component: Backup },
       { path: 'general', name: 'general', component: General },
+      { path: 'botprofile', name: 'botprofile', component: BotProfile },
       { path: 'premium', name: 'premium', component: Premium }
     ]
   },
