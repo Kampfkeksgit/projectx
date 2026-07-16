@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 54;
+const CURRENT_SCHEMA_VERSION = 55;
 
 /**
  * Initialize schema version tracking
@@ -113,7 +113,8 @@ async function applyMigrations(fromVersion, toVersion) {
     51: migrationV51,
     52: migrationV52,
     53: migrationV53,
-    54: migrationV54
+    54: migrationV54,
+    55: migrationV55
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -2375,6 +2376,22 @@ function migrationV54() {
       updated_at     INTEGER DEFAULT 0,
       FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
     )`
+  ]);
+}
+
+/**
+ * Migration V55: Guild owner on the guilds row.
+ *   - guilds.owner_id / owner_username / owner_avatar_url: the Discord server
+ *     owner, synced by the bot (guild_sync) so the admin Server-Inspector can
+ *     show + link the owner ("contact him"). Username/avatar are best-effort
+ *     (resolved from cache or fetch_user); owner_id is always available.
+ * Idempotent; mirrored in initializeDatabase().
+ */
+function migrationV55() {
+  return runSchemaBatch(55, [
+    'ALTER TABLE guilds ADD COLUMN owner_id TEXT',
+    'ALTER TABLE guilds ADD COLUMN owner_username TEXT',
+    'ALTER TABLE guilds ADD COLUMN owner_avatar_url TEXT'
   ]);
 }
 

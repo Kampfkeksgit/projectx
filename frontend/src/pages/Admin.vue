@@ -795,6 +795,21 @@
               <span class="pill">{{ t('admin.inspectMembers', { n: inspect.dashboard_members }) }}</span>
             </div>
 
+            <h4 class="insp-sub">{{ t('admin.inspectOwner') }}</h4>
+            <div class="insp-owner">
+              <div class="insp-owner__av" :style="inspect.owner && inspect.owner.avatar_url ? { backgroundImage: `url('${inspect.owner.avatar_url}')` } : {}">
+                <span v-if="!(inspect.owner && inspect.owner.avatar_url)">{{ inspect.owner ? initials(inspect.owner.username || inspect.owner.id) : '—' }}</span>
+              </div>
+              <div class="insp-owner__meta">
+                <template v-if="inspect.owner">
+                  <span class="insp-owner__name">{{ inspect.owner.username ? '@' + inspect.owner.username : t('admin.inspectOwnerUnknown') }}</span>
+                  <span class="insp-owner__id">{{ inspect.owner.id }}</span>
+                </template>
+                <span v-else class="insp-owner__name insp-owner__name--muted">{{ t('admin.inspectOwnerNone') }}</span>
+              </div>
+              <a v-if="inspect.owner" :href="`https://discord.com/users/${inspect.owner.id}`" target="_blank" rel="noopener noreferrer" class="linkbtn">{{ t('admin.inspectOwnerOpen') }}</a>
+            </div>
+
             <h4 class="insp-sub">{{ t('admin.inspectModules') }}</h4>
             <div class="insp-modules">
               <span v-for="m in inspect.modules" :key="m.key" class="insp-mod" :class="{ 'insp-mod--on': m.enabled }">
@@ -1958,6 +1973,12 @@ function goBack() { router.push('/dashboard') }
 
 .insp-head { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); }
 .insp-facts { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-4); }
+.insp-owner { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface-2); }
+.insp-owner__av { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; color: #fff; background-color: var(--color-primary); }
+.insp-owner__meta { display: flex; flex-direction: column; min-width: 0; margin-right: auto; }
+.insp-owner__name { font-weight: 600; }
+.insp-owner__name--muted { color: var(--color-text-muted); font-weight: 500; }
+.insp-owner__id { font-family: var(--font-mono); font-size: 0.74rem; color: var(--color-text-soft); }
 .insp-sub { font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-soft); margin: var(--space-3) 0 var(--space-2); }
 .insp-modules { display: flex; flex-wrap: wrap; gap: 6px; }
 .insp-mod { font-size: 0.74rem; padding: 0.2rem 0.55rem; border-radius: var(--radius-full); background: var(--color-surface-2); color: var(--color-text-soft); display: inline-flex; align-items: center; gap: 5px; text-transform: capitalize; }

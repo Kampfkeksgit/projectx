@@ -470,8 +470,12 @@ router.put('/guilds/:guild_id/channels', requireBotToken, async (req, res) => {
       && typeof c.name === 'string' && c.name.length > 0
     ))
 
-    const guildMeta = (req.body?.guild_name || req.body?.guild_icon_url)
-      ? { name: req.body.guild_name, icon_url: req.body.guild_icon_url }
+    const guildMeta = (req.body?.guild_name || req.body?.guild_icon_url || req.body?.owner_id)
+      ? {
+          name: req.body.guild_name, icon_url: req.body.guild_icon_url,
+          owner_id: req.body.owner_id, owner_username: req.body.owner_username,
+          owner_avatar_url: req.body.owner_avatar_url
+        }
       : null
 
     const count = await replaceGuildChannels(guildId, channels, guildMeta)
@@ -510,8 +514,12 @@ router.put('/guilds/:guild_id/roles', requireBotToken, async (req, res) => {
       && typeof r.name === 'string' && r.name.length > 0
     ))
 
-    const guildMeta = (req.body?.guild_name || req.body?.guild_icon_url)
-      ? { name: req.body.guild_name, icon_url: req.body.guild_icon_url }
+    const guildMeta = (req.body?.guild_name || req.body?.guild_icon_url || req.body?.owner_id)
+      ? {
+          name: req.body.guild_name, icon_url: req.body.guild_icon_url,
+          owner_id: req.body.owner_id, owner_username: req.body.owner_username,
+          owner_avatar_url: req.body.owner_avatar_url
+        }
       : null
 
     const count = await replaceGuildRoles(guildId, roles, guildMeta)
