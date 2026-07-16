@@ -47,6 +47,11 @@ PREMIUM_POLL_INTERVAL = int(os.getenv('PREMIUM_POLL_INTERVAL', '300'))
 # How often the bot_profile cog polls for changed per-guild profiles (seconds).
 BOT_PROFILE_POLL_INTERVAL = max(int(os.getenv('BOT_PROFILE_POLL_INTERVAL', '60')), 30)
 
+# --- Native Discord AutoMod sync ---
+# How often the automod_sync cog reconciles native AutoMod rules for guilds whose
+# moderation config changed (seconds). Earns the "Uses AutoMod" badge.
+AUTOMOD_POLL_INTERVAL = max(int(os.getenv('AUTOMOD_POLL_INTERVAL', '90')), 60)
+
 # --- Music module / Lavalink (Pro) ---
 # The music cog connects to a Lavalink audio server via wavelink. If LAVALINK_HOST
 # is unset the cog stays inert (no node connection, no playback) — the rest of the

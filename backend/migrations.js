@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 53;
+const CURRENT_SCHEMA_VERSION = 54;
 
 /**
  * Initialize schema version tracking
@@ -112,7 +112,8 @@ async function applyMigrations(fromVersion, toVersion) {
     50: migrationV50,
     51: migrationV51,
     52: migrationV52,
-    53: migrationV53
+    53: migrationV53,
+    54: migrationV54
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -2344,6 +2345,30 @@ function migrationV53() {
       guild_id       TEXT PRIMARY KEY,
       nickname       TEXT,
       avatar_url     TEXT,
+      dirty          INTEGER DEFAULT 0,
+      status         TEXT,
+      status_message TEXT,
+      updated_at     INTEGER DEFAULT 0,
+      FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+    )`
+  ]);
+}
+
+/**
+ * Migration V54: Native Discord AutoMod sync.
+ *   - guild_moderation_settings.automod_native: when on, the bot mirrors the
+ *     moderation config (banned words, invite/link, anti-spam, mass mentions)
+ *     into REAL Discord AutoMod rules via the API. This is what earns an app the
+ *     "Uses AutoMod" badge (bot-side filtering alone does not).
+ *   - guild_automod_state: dirty/status queue — any moderation save marks it
+ *     dirty; the bot reconciles the native rules and writes back a status code.
+ * Idempotent; mirrored in initializeDatabase().
+ */
+function migrationV54() {
+  return runSchemaBatch(54, [
+    'ALTER TABLE guild_moderation_settings ADD COLUMN automod_native INTEGER DEFAULT 0',
+    `CREATE TABLE IF NOT EXISTS guild_automod_state (
+      guild_id       TEXT PRIMARY KEY,
       dirty          INTEGER DEFAULT 0,
       status         TEXT,
       status_message TEXT,

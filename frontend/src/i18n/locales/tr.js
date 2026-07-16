@@ -1162,7 +1162,18 @@ export default {
     ignoredChannelsHint: 'Bu kanallarda moderasyon asla çalışmaz.',
     ignoredChannelsAdd: 'Ekle',
     ignoredChannelsEmpty: 'Yok sayılan kanal yok.',
-    saved: 'Moderasyon ayarları kaydedildi'
+    saved: 'Moderasyon ayarları kaydedildi',
+    amLabel: 'Yerel Discord AutoMod\'u kullan',
+    amBadge: 'AutoMod rozeti',
+    amHint: 'Yasaklı kelimelerinizi, bağlantı/davet, spam önleme ve toplu bahsetme ayarlarınızı gerçek Discord AutoMod kurallarına yansıtır. Botunuza “Uses AutoMod” rozetini kazandıran şey budur — ve mesajları daha gönderilmeden engeller.',
+    amNote: 'Botun (davette bulunan) “Sunucuyu Yönet” iznine ihtiyacı vardır. Kurallar kaydettikten yaklaşık bir dakika içinde eşitlenir. Rozet, botunuz sunucular genelinde yeterli sayıda AutoMod kuralı oluşturduğunda Discord tarafından otomatik olarak verilir.',
+    amStatusOk: 'AutoMod kuralları sunucuda eşitlendi',
+    amStatusPending: 'AutoMod kuralları eşitleniyor…',
+    amErrGeneric: 'AutoMod kuralları eşitlenemedi.',
+    amErr_missing_permission: '“Sunucuyu Yönet” izni eksik',
+    amErr_rule_limit: 'Bu sunucuda Discord\'un AutoMod kural sınırına ulaşıldı',
+    amErr_not_in_guild: 'Bot bu sunucuda değil',
+    amErr_error: 'Eşitleme sırasında bir hata oluştu'
   },
   reactionRoles: {
     eyebrow: 'Etkileşim',

@@ -361,7 +361,8 @@ function initializeDatabase() {
       'ALTER TABLE guild_moderation_settings ADD COLUMN warn_threshold INTEGER DEFAULT 0',
       "ALTER TABLE guild_moderation_settings ADD COLUMN warn_escalation_action TEXT DEFAULT 'mute'",
       "ALTER TABLE guild_moderation_settings ADD COLUMN exempt_role_ids TEXT DEFAULT '[]'",
-      "ALTER TABLE guild_moderation_settings ADD COLUMN ignored_channel_ids TEXT DEFAULT '[]'"
+      "ALTER TABLE guild_moderation_settings ADD COLUMN ignored_channel_ids TEXT DEFAULT '[]'",
+      'ALTER TABLE guild_moderation_settings ADD COLUMN automod_native INTEGER DEFAULT 0'
     ];
     for (const stmt of moderationAlters) {
       db.run(stmt, (err) => {
@@ -386,6 +387,18 @@ function initializeDatabase() {
       if (err) console.error('Error creating guild_moderation_warnings table:', err);
       else console.log('✓ Guild moderation warnings table initialized');
     });
+
+    // Native AutoMod sync state (v54) — dirty/status queue for the bot.
+    db.run(`
+      CREATE TABLE IF NOT EXISTS guild_automod_state (
+        guild_id       TEXT PRIMARY KEY,
+        dirty          INTEGER DEFAULT 0,
+        status         TEXT,
+        status_message TEXT,
+        updated_at     INTEGER DEFAULT 0,
+        FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+      )
+    `, (err) => { if (err) console.error('Error creating guild_automod_state table:', err); });
 
     // Create guild_channels table (v6)
     db.run(`
@@ -3971,7 +3984,8 @@ const MODERATION_DEFAULTS = {
   warn_threshold: 0,
   warn_escalation_action: 'mute',
   exempt_role_ids: [],
-  ignored_channel_ids: []
+  ignored_channel_ids: [],
+  automod_native: false
 };
 
 // Per-message filter actions (banned words / invite / link / mention / caps).
@@ -4017,6 +4031,7 @@ export function getModerationSettings(guildId) {
             : 'mute',
           exempt_role_ids: parseStringArray(row.exempt_role_ids, []),
           ignored_channel_ids: parseStringArray(row.ignored_channel_ids, []),
+          automod_native: !!row.automod_native,
           created_at: row.created_at,
           updated_at: row.updated_at
         });
@@ -4063,6 +4078,7 @@ export function upsertModerationSettings(guildId, settings) {
       : 'mute';
     const exemptRoles = parseStringArray(settings.exempt_role_ids, []).filter((id) => isSnowflake(id));
     const ignoredChannels = parseStringArray(settings.ignored_channel_ids, []).filter((id) => isSnowflake(id));
+    const automodNative = settings.automod_native ? 1 : 0;
 
     db.run(
       `INSERT INTO guild_moderation_settings
@@ -4070,8 +4086,8 @@ export function upsertModerationSettings(guildId, settings) {
          banned_words, banned_word_action, mute_role_id,
          anti_invite, anti_link, filter_action, anti_mention, max_mentions,
          anti_caps, caps_percentage, timeout_duration, warn_threshold,
-         warn_escalation_action, exempt_role_ids, ignored_channel_ids)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         warn_escalation_action, exempt_role_ids, ignored_channel_ids, automod_native)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(guild_id) DO UPDATE SET
        enabled = excluded.enabled,
        anti_spam_enabled = excluded.anti_spam_enabled,
@@ -4091,15 +4107,86 @@ export function upsertModerationSettings(guildId, settings) {
        warn_escalation_action = excluded.warn_escalation_action,
        exempt_role_ids = excluded.exempt_role_ids,
        ignored_channel_ids = excluded.ignored_channel_ids,
+       automod_native = excluded.automod_native,
        updated_at = CURRENT_TIMESTAMP`,
       [guildId, enabled, antiSpam, rate, JSON.stringify(words), action, muteRoleId,
        antiInvite, antiLink, filterAction, antiMention, maxMentions,
        antiCaps, capsPct, timeoutDur, warnThreshold, escalation,
-       JSON.stringify(exemptRoles), JSON.stringify(ignoredChannels)],
+       JSON.stringify(exemptRoles), JSON.stringify(ignoredChannels), automodNative],
       function (err) {
         if (err) reject(err);
         else resolve(this.lastID);
       }
+    );
+  });
+}
+
+// ----- Native AutoMod sync (v54) -----
+
+/** Mark a guild's native-AutoMod as needing a re-sync (called on any moderation save). */
+export function markAutomodDirty(guildId) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `INSERT INTO guild_automod_state (guild_id, dirty, status, updated_at)
+       VALUES (?, 1, 'pending', ?)
+       ON CONFLICT(guild_id) DO UPDATE SET dirty = 1, status = 'pending', updated_at = excluded.updated_at`,
+      [guildId, Math.floor(Date.now() / 1000)],
+      (err) => (err ? reject(err) : resolve())
+    );
+  });
+}
+
+/** Dashboard: last native-AutoMod sync status for a guild. */
+export function getAutomodState(guildId) {
+  return dbGet('SELECT status, status_message, dirty FROM guild_automod_state WHERE guild_id = ?', [guildId])
+    .then((row) => ({
+      status: row?.status || '',
+      status_message: row?.status_message || '',
+      dirty: !!row?.dirty
+    }));
+}
+
+/**
+ * Bot: guilds whose native AutoMod needs a re-sync (dirty=1), with the full
+ * moderation config the bot needs to build the AutoMod rules. Excludes blocked
+ * guilds. Includes guilds with automod_native off too — the bot then removes its
+ * managed rules.
+ */
+export function getPendingAutomodSync() {
+  return dbAll(
+    `SELECT s.guild_id, m.automod_native, m.banned_words, m.anti_invite, m.anti_link,
+            m.anti_spam_enabled, m.anti_mention, m.max_mentions,
+            m.exempt_role_ids, m.ignored_channel_ids
+     FROM guild_automod_state s
+     JOIN guild_moderation_settings m ON m.guild_id = s.guild_id
+     WHERE s.dirty = 1
+       AND s.guild_id NOT IN (SELECT id FROM guilds WHERE blocked = 1)`
+  ).then((rows) => (rows || []).map((r) => ({
+    guild_id: r.guild_id,
+    automod_native: !!r.automod_native,
+    banned_words: parseStringArray(r.banned_words, []),
+    anti_invite: !!r.anti_invite,
+    anti_link: !!r.anti_link,
+    anti_spam_enabled: !!r.anti_spam_enabled,
+    anti_mention: !!r.anti_mention,
+    max_mentions: r.max_mentions ?? 5,
+    exempt_role_ids: parseStringArray(r.exempt_role_ids, []),
+    ignored_channel_ids: parseStringArray(r.ignored_channel_ids, [])
+  })));
+}
+
+/** Bot: write back the AutoMod sync result and clear dirty. */
+export function setAutomodApplied(guildId, { status, status_message } = {}) {
+  const st = ['ok', 'error'].includes(status) ? status : 'ok';
+  const msg = truncate(String(status_message || '').trim(), 300);
+  return new Promise((resolve, reject) => {
+    db.run(
+      `INSERT INTO guild_automod_state (guild_id, dirty, status, status_message, updated_at)
+       VALUES (?, 0, ?, ?, ?)
+       ON CONFLICT(guild_id) DO UPDATE SET dirty = 0, status = excluded.status,
+         status_message = excluded.status_message, updated_at = excluded.updated_at`,
+      [guildId, st, msg, Math.floor(Date.now() / 1000)],
+      function (err) { if (err) reject(err); else resolve(this.changes); }
     );
   });
 }

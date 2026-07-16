@@ -1204,7 +1204,18 @@ export default {
     ignoredChannelsHint: 'In diesen Channels greift die Moderation nie.',
     ignoredChannelsAdd: 'Hinzufügen',
     ignoredChannelsEmpty: 'Keine Channels ignoriert.',
-    saved: 'Moderations-Einstellungen gespeichert'
+    saved: 'Moderations-Einstellungen gespeichert',
+    amLabel: 'Natives Discord-AutoMod nutzen',
+    amBadge: 'AutoMod-Badge',
+    amHint: 'Spiegelt deine Banned-Words, Links/Einladungen, Anti-Spam und Massen-Erwähnungen in echte Discord-AutoMod-Regeln. Genau das schaltet den „Uses AutoMod"-Badge deines Bots frei – und blockiert Nachrichten schon, bevor sie gesendet werden.',
+    amNote: 'Der Bot braucht die Berechtigung „Server verwalten" (in der Einladung). Die Regeln werden binnen etwa einer Minute nach dem Speichern synchronisiert. Den Badge vergibt Discord automatisch, sobald dein Bot über genügend Server hinweg genug AutoMod-Regeln erstellt hat.',
+    amStatusOk: 'AutoMod-Regeln auf dem Server synchronisiert',
+    amStatusPending: 'AutoMod-Regeln werden synchronisiert…',
+    amErrGeneric: 'AutoMod-Regeln konnten nicht synchronisiert werden.',
+    amErr_missing_permission: 'Berechtigung „Server verwalten" fehlt',
+    amErr_rule_limit: 'Discords AutoMod-Regel-Limit ist auf diesem Server erreicht',
+    amErr_not_in_guild: 'Der Bot ist nicht auf diesem Server',
+    amErr_error: 'Beim Synchronisieren ist ein Fehler aufgetreten'
   },
   reactionRoles: {
     eyebrow: 'Engagement',
