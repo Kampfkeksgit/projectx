@@ -20,6 +20,25 @@
           </div>
         </div>
 
+        <!-- Native Discord AutoMod (earns the "Uses AutoMod" badge) -->
+        <div class="form-card" :class="{ 'is-disabled': !form.enabled }">
+          <div class="form-row form-row--toggle">
+            <div>
+              <div class="form-row__label">
+                {{ t('moderation.amLabel') }}
+                <span class="am-badge">{{ t('moderation.amBadge') }}</span>
+              </div>
+              <div class="form-row__hint">{{ t('moderation.amHint') }}</div>
+            </div>
+            <AppToggle v-model="form.automod_native" :disabled="!form.enabled" />
+          </div>
+          <div v-if="form.automod_native && automodStatusText" class="am-status" :class="`am-status--${automodState.status || 'pending'}`">
+            <span class="am-status__dot"></span>
+            <span>{{ automodStatusText }}</span>
+          </div>
+          <div v-if="form.automod_native" class="form-row__hint am-note">{{ t('moderation.amNote') }}</div>
+        </div>
+
         <div class="form-card" :class="{ 'is-disabled': !form.enabled }">
           <div class="form-row form-row--toggle">
             <div>
@@ -306,11 +325,14 @@ function defaults() {
     warn_threshold: 0,
     warn_escalation_action: 'mute',
     exempt_role_ids: [],
-    ignored_channel_ids: []
+    ignored_channel_ids: [],
+    automod_native: false
   }
 }
 
 const form = reactive(defaults())
+// Last native-AutoMod sync result reported by the bot.
+const automodState = reactive({ status: '', status_message: '', dirty: false })
 let initial = JSON.stringify(form)
 const saving = ref(false)
 const ignoredPick = ref('')
@@ -382,8 +404,27 @@ function hydrate(settings) {
   form.warn_escalation_action = ESCALATION_ACTIONS.includes(s.warn_escalation_action) ? s.warn_escalation_action : 'mute'
   form.exempt_role_ids = Array.isArray(s.exempt_role_ids) ? s.exempt_role_ids.slice() : []
   form.ignored_channel_ids = Array.isArray(s.ignored_channel_ids) ? s.ignored_channel_ids.slice() : []
+  form.automod_native = !!s.automod_native
   initial = JSON.stringify(form)
 }
+
+function applyAutomod(a) {
+  automodState.status = a?.status || ''
+  automodState.status_message = a?.status_message || ''
+  automodState.dirty = !!a?.dirty
+}
+
+// Bot reports errors as comma-separated codes; translate each.
+const automodStatusText = computed(() => {
+  if (!form.automod_native) return ''
+  if (automodState.status === 'ok') return t('moderation.amStatusOk')
+  if (automodState.status === 'error') {
+    const codes = String(automodState.status_message || '').split(',').map(c => c.trim()).filter(Boolean)
+    if (!codes.length) return t('moderation.amErrGeneric')
+    return codes.map(c => t(`moderation.amErr_${c}`)).join(' · ')
+  }
+  return t('moderation.amStatusPending')
+})
 
 async function load() {
   try {
@@ -393,6 +434,7 @@ async function load() {
     } else {
       hydrate(defaults())
     }
+    applyAutomod(data?.automod)
   } catch (err) {
     hydrate(defaults())
     toast.error(t('toast.couldNotLoadSettings'))
@@ -429,7 +471,8 @@ async function save() {
       warn_threshold: clampInt(form.warn_threshold, 0, 0, 20),
       warn_escalation_action: ESCALATION_ACTIONS.includes(form.warn_escalation_action) ? form.warn_escalation_action : 'mute',
       exempt_role_ids: form.exempt_role_ids.slice(),
-      ignored_channel_ids: form.ignored_channel_ids.slice()
+      ignored_channel_ids: form.ignored_channel_ids.slice(),
+      automod_native: !!form.automod_native
     }
     const { data } = await api.put(`/guilds/${guildId.value}/settings/moderation`, body)
     if (data?.success) {
@@ -437,6 +480,7 @@ async function save() {
     } else {
       hydrate(body)
     }
+    applyAutomod(data?.automod)
     toast.success(t('moderation.saved'))
   } catch (err) {
     toast.error(err.response?.data?.error || t('toast.failedToSave'))
@@ -703,4 +747,29 @@ async function save() {
     flex: 1;
   }
 }
+
+/* Native AutoMod */
+.am-badge {
+  display: inline-block; margin-left: 8px; vertical-align: middle;
+  font-size: 0.62rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 2px 8px; border-radius: var(--radius-full);
+  color: #fff; background: var(--gradient-brand);
+}
+.am-note { margin-top: var(--space-2); }
+.am-status {
+  display: flex; align-items: center; gap: var(--space-2);
+  margin-top: var(--space-3);
+  font-size: 0.85rem;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+}
+.am-status__dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--color-text-soft); }
+.am-status--ok { color: var(--color-success); border-color: rgba(34,197,94,0.3); }
+.am-status--ok .am-status__dot { background: var(--color-success); }
+.am-status--error { color: var(--color-danger); border-color: rgba(239,68,68,0.3); }
+.am-status--error .am-status__dot { background: var(--color-danger); }
+.am-status--pending { color: var(--color-warning); }
+.am-status--pending .am-status__dot { background: var(--color-warning); }
 </style>

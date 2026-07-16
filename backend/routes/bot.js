@@ -77,6 +77,8 @@ import {
   resolvePartner,
   getPendingBotProfiles,
   setBotProfileApplied,
+  getPendingAutomodSync,
+  setAutomodApplied,
   isGuildBlocked,
   getGuild,
   effectiveTier,
@@ -1520,6 +1522,29 @@ router.put('/guilds/:guild_id/botprofile/applied', requireBotToken, async (req, 
   } catch (error) {
     console.error('Bot set bot profile applied error:', error.message)
     res.status(500).json({ error: 'Failed to update bot profile' })
+  }
+})
+
+// Native AutoMod: guilds whose moderation config changed → bot re-syncs the
+// real Discord AutoMod rules (earns the "Uses AutoMod" badge).
+router.get('/automod/pending', requireBotToken, async (req, res) => {
+  try {
+    const guilds = await getPendingAutomodSync()
+    return res.json({ guilds })
+  } catch (error) {
+    console.error('Bot get pending automod error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch pending automod' })
+  }
+})
+
+router.put('/guilds/:guild_id/automod/applied', requireBotToken, async (req, res) => {
+  try {
+    const b = req.body || {}
+    await setAutomodApplied(req.params.guild_id, { status: b.status, status_message: b.status_message })
+    return res.json({ success: true })
+  } catch (error) {
+    console.error('Bot set automod applied error:', error.message)
+    res.status(500).json({ error: 'Failed to update automod state' })
   }
 })
 

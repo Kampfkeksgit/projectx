@@ -1162,7 +1162,18 @@ export default {
     ignoredChannelsHint: 'Moderacja nigdy nie działa na tych kanałach.',
     ignoredChannelsAdd: 'Dodaj',
     ignoredChannelsEmpty: 'Brak ignorowanych kanałów.',
-    saved: 'Ustawienia moderacji zapisane'
+    saved: 'Ustawienia moderacji zapisane',
+    amLabel: 'Użyj natywnego Discord AutoMod',
+    amBadge: 'Odznaka AutoMod',
+    amHint: 'Odzwierciedla Twoje zakazane słowa oraz ustawienia linków/zaproszeń, anty-spamu i masowych wzmianek w prawdziwych regułach Discord AutoMod. To właśnie zapewnia Twojemu botowi odznakę „Używa AutoMod” — i blokuje wiadomości, zanim jeszcze zostaną wysłane.',
+    amNote: 'Bot potrzebuje uprawnienia „Zarządzanie serwerem” (w zaproszeniu). Reguły synchronizują się w ciągu około minuty po zapisaniu. Odznaka jest przyznawana przez Discord automatycznie, gdy Twój bot utworzy wystarczająco dużo reguł AutoMod na różnych serwerach.',
+    amStatusOk: 'Reguły AutoMod zsynchronizowane na serwerze',
+    amStatusPending: 'Synchronizowanie reguł AutoMod…',
+    amErrGeneric: 'Nie udało się zsynchronizować reguł AutoMod.',
+    amErr_missing_permission: 'Brak uprawnienia „Zarządzanie serwerem”',
+    amErr_rule_limit: 'Osiągnięto limit reguł AutoMod Discorda na tym serwerze',
+    amErr_not_in_guild: 'Bota nie ma na tym serwerze',
+    amErr_error: 'Wystąpił błąd podczas synchronizacji'
   },
   reactionRoles: {
     eyebrow: 'Zaangażowanie',

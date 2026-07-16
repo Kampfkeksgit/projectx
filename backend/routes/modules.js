@@ -9,6 +9,8 @@ import {
   upsertLogSettings,
   getModerationSettings,
   upsertModerationSettings,
+  markAutomodDirty,
+  getAutomodState,
   logAuditAction
 } from '../db.js'
 import { requireGuildAccess } from '../middleware/auth.js'
@@ -151,13 +153,15 @@ router.get('/moderation', requireSession, requireGuildAccess, async (req, res) =
   try {
     const guildId = req.params.guild_id
     const row = await getModerationSettings(guildId)
+    const automod = await getAutomodState(guildId)
     if (!row) {
       return res.json({
         success: true,
-        settings: withGuildDefaults(guildId, MODULE_DEFAULTS.moderation)
+        settings: withGuildDefaults(guildId, MODULE_DEFAULTS.moderation),
+        automod
       })
     }
-    res.json({ success: true, settings: row })
+    res.json({ success: true, settings: row, automod })
   } catch (error) {
     console.error('Get moderation settings error:', error.message)
     res.status(500).json({ error: 'Failed to fetch moderation settings' })
@@ -203,18 +207,23 @@ router.put('/moderation', requireSession, requireGuildAccess, async (req, res) =
       warn_threshold: body.warn_threshold,
       warn_escalation_action: escalation,
       exempt_role_ids: sanitizeStringArray(body.exempt_role_ids),
-      ignored_channel_ids: sanitizeStringArray(body.ignored_channel_ids)
+      ignored_channel_ids: sanitizeStringArray(body.ignored_channel_ids),
+      automod_native: Boolean(body.automod_native)
     }
 
     await upsertModerationSettings(guildId, validated)
+    // Any moderation change → re-sync the native Discord AutoMod rules (bot picks it up).
+    await markAutomodDirty(guildId)
     await logAuditAction(req.user.id, guildId, 'UPDATE_MODERATION_SETTINGS', validated)
 
     // Re-read so the response reflects the clamped/validated numeric fields.
     const stored = await getModerationSettings(guildId)
+    const automod = await getAutomodState(guildId)
     res.json({
       success: true,
       message: 'Moderation settings updated',
-      settings: stored || { guild_id: guildId, ...validated }
+      settings: stored || { guild_id: guildId, ...validated },
+      automod
     })
   } catch (error) {
     console.error('Update moderation settings error:', error.message)

@@ -1204,7 +1204,18 @@ export default {
     ignoredChannelsHint: 'Moderation never runs in these channels.',
     ignoredChannelsAdd: 'Add',
     ignoredChannelsEmpty: 'No channels ignored.',
-    saved: 'Moderation settings saved'
+    saved: 'Moderation settings saved',
+    amLabel: 'Use native Discord AutoMod',
+    amBadge: 'AutoMod badge',
+    amHint: 'Mirrors your banned words, links/invites, anti-spam and mass-mention settings into real Discord AutoMod rules. This is what earns your bot the “Uses AutoMod” badge — and it blocks messages before they’re even sent.',
+    amNote: 'The bot needs the “Manage Server” permission (in the invite). Rules sync within about a minute after saving. The badge is granted by Discord automatically once your bot has created enough AutoMod rules across servers.',
+    amStatusOk: 'AutoMod rules synced on the server',
+    amStatusPending: 'Syncing AutoMod rules…',
+    amErrGeneric: 'AutoMod rules could not be synced.',
+    amErr_missing_permission: 'Missing the “Manage Server” permission',
+    amErr_rule_limit: 'Discord’s AutoMod rule limit is reached on this server',
+    amErr_not_in_guild: 'The bot is not on this server',
+    amErr_error: 'An error occurred while syncing'
   },
   reactionRoles: {
     eyebrow: 'Engagement',
