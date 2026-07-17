@@ -953,6 +953,88 @@ class Tickets(commands.Cog):
             return False
         return True
 
+    # --- Slash variants (mirror the staff prefix commands; shown in the bot profile) ---
+
+    async def _slash_in_ticket(self, interaction):
+        """Staff-in-ticket gate for slash commands. Replies ephemerally + returns
+        False when the channel isn't a ticket or the user isn't staff."""
+        lang = await lang_for(self.backend_url, self.api_key, interaction.guild.id)
+        settings = await self._get_settings(interaction.guild.id)
+        ticket = await self._ticket_for(interaction.guild.id, interaction.channel.id)
+        if not ticket:
+            await interaction.response.send_message(t(lang, "ticket.notATicket"), ephemeral=True)
+            return False
+        if not (interaction.user.guild_permissions.manage_channels or self._has_support_role(interaction.user, settings)):
+            await interaction.response.send_message(t(lang, "ticket.onlyStaffMembers"), ephemeral=True)
+            return False
+        return True
+
+    @app_commands.command(name="claim", description="Claim the current ticket (staff).")
+    @app_commands.guild_only()
+    async def claim_slash(self, interaction: discord.Interaction):
+        lang = await lang_for(self.backend_url, self.api_key, interaction.guild.id)
+        settings = await self._get_settings(interaction.guild.id)
+        ticket = await self._ticket_for(interaction.guild.id, interaction.channel.id)
+        if not ticket:
+            await interaction.response.send_message(t(lang, "ticket.notATicket"), ephemeral=True)
+            return
+        if not (interaction.user.guild_permissions.manage_channels or self._has_support_role(interaction.user, settings)):
+            await interaction.response.send_message(t(lang, "ticket.onlyStaffClaim"), ephemeral=True)
+            return
+        await bot_put(self.backend_url, self.api_key, f"/api/bot/guilds/{interaction.guild.id}/tickets/claim",
+                      {"channel_id": str(interaction.channel.id), "user_id": str(interaction.user.id)})
+        await interaction.response.send_message(embed=discord.Embed(description=t(lang, "ticket.claimedBy", user=interaction.user.mention), color=0x57F287))
+
+    @app_commands.command(name="ticketadd", description="Add a member to the current ticket (staff).")
+    @app_commands.guild_only()
+    @app_commands.describe(member="The member to add to this ticket")
+    async def ticketadd_slash(self, interaction: discord.Interaction, member: discord.Member):
+        if not await self._slash_in_ticket(interaction):
+            return
+        lang = await lang_for(self.backend_url, self.api_key, interaction.guild.id)
+        try:
+            await interaction.channel.set_permissions(member, view_channel=True, send_messages=True, attach_files=True, reason="Ticket add user")
+            await bot_put(self.backend_url, self.api_key, f"/api/bot/guilds/{interaction.guild.id}/tickets/users", {"channel_id": str(interaction.channel.id), "add": [str(member.id)]})
+            await interaction.response.send_message(embed=discord.Embed(description=t(lang, "ticket.membersAdded", names=member.mention), color=TICKET_COLOR))
+        except discord.Forbidden:
+            await interaction.response.send_message(t(lang, "ticket.permChangeFailed"), ephemeral=True)
+
+    @app_commands.command(name="ticketremove", description="Remove a member from the current ticket (staff).")
+    @app_commands.guild_only()
+    @app_commands.describe(member="The member to remove from this ticket")
+    async def ticketremove_slash(self, interaction: discord.Interaction, member: discord.Member):
+        if not await self._slash_in_ticket(interaction):
+            return
+        lang = await lang_for(self.backend_url, self.api_key, interaction.guild.id)
+        try:
+            await interaction.channel.set_permissions(member, overwrite=None, reason="Ticket remove user")
+            await bot_put(self.backend_url, self.api_key, f"/api/bot/guilds/{interaction.guild.id}/tickets/users", {"channel_id": str(interaction.channel.id), "remove": [str(member.id)]})
+            await interaction.response.send_message(embed=discord.Embed(description=t(lang, "ticket.membersRemoved", names=member.mention), color=TICKET_COLOR))
+        except discord.Forbidden:
+            await interaction.response.send_message(t(lang, "ticket.permChangeFailed"), ephemeral=True)
+
+    @app_commands.command(name="ticketclose", description="Close the current ticket (staff/owner).")
+    @app_commands.guild_only()
+    async def ticketclose_slash(self, interaction: discord.Interaction):
+        lang = await lang_for(self.backend_url, self.api_key, interaction.guild.id)
+        settings = await self._get_settings(interaction.guild.id)
+        ticket = await self._ticket_for(interaction.guild.id, interaction.channel.id)
+        if not ticket:
+            await interaction.response.send_message(t(lang, "ticket.notATicket"), ephemeral=True)
+            return
+        is_owner = str(ticket.get("user_id")) == str(interaction.user.id)
+        if not (interaction.user.guild_permissions.manage_channels or self._has_support_role(interaction.user, settings) or is_owner):
+            await interaction.response.send_message(t(lang, "ticket.onlyStaffOrOwner"), ephemeral=True)
+            return
+        await interaction.response.send_message(t(lang, "ticket.closingIn5"))
+        await bot_put(self.backend_url, self.api_key, f"/api/bot/guilds/{interaction.guild.id}/tickets/close", {"channel_id": str(interaction.channel.id), "closed_by": str(interaction.user.id)})
+        await self._maybe_transcript(interaction.channel, settings, interaction.user)
+        await asyncio.sleep(5)
+        try:
+            await interaction.channel.delete(reason="Ticket closed")
+        except Exception as exc:
+            print(f"[tickets] delete channel failed: {exc}")
+
 
 async def setup(bot):
     await bot.add_cog(Tickets(bot))

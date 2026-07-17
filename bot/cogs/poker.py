@@ -34,6 +34,7 @@ import uuid
 from collections import Counter
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 import config
@@ -1240,6 +1241,38 @@ class Poker(commands.Cog):
         except discord.Forbidden:
             del self.tables[ctx.channel.id]
             await ctx.reply(t(table.lang, "cant_post"), mention_author=False)
+
+    # -- slash command (mirrors !poker so it appears in the bot-profile preview) --
+    @app_commands.command(name="poker", description="Start a Texas Hold'em poker table in this channel.")
+    @app_commands.guild_only()
+    async def poker_slash(self, interaction: discord.Interaction):
+        settings = await self._settings(interaction.guild.id)
+        lang = lang_of(settings)
+        if not settings or not settings.get("poker_enabled"):
+            await interaction.response.send_message(t(lang, "not_enabled"), ephemeral=True)
+            return
+        ch = settings.get("games_channel_id")
+        if ch and str(interaction.channel.id) != str(ch):
+            await interaction.response.send_message(t(lang, "wrong_channel", channel=ch), ephemeral=True)
+            return
+        if interaction.channel.id in self.tables:
+            await interaction.response.send_message(t(lang, "already_open"), ephemeral=True)
+            return
+
+        table = PokerTable(interaction.guild.id, interaction.channel.id, interaction.user.id)
+        theme = settings.get("poker_table_theme")
+        if theme in THEMES:
+            table.theme = theme
+        table.lang = lang
+        table.players.append(PokerPlayer(interaction.user.id, interaction.user.display_name, STARTING_STACK))
+        table.participants[interaction.user.id] = interaction.user.display_name
+        self.tables[interaction.channel.id] = table
+        try:
+            await interaction.response.send_message(embed=self._lobby_embed(table), view=self._lobby_view(table))
+            table.message = await interaction.original_response()
+        except discord.Forbidden:
+            del self.tables[interaction.channel.id]
+            await interaction.response.send_message(t(table.lang, "cant_post"), ephemeral=True)
 
     # -- interaction routing --
     @commands.Cog.listener()

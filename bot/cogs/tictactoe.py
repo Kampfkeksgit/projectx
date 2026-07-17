@@ -21,6 +21,7 @@ import time
 import uuid
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 import config
@@ -244,6 +245,64 @@ class TicTacToe(commands.Cog):
             self._sessions.pop(token, None)
             print(f"[ttt] failed to start game in {ctx.guild.id}: {exc}")
             await ctx.reply(t(lang, "start_failed"), mention_author=False)
+            return
+        session["message_id"] = msg.id
+
+    async def _send_ephemeral(self, interaction, content):
+        """Reply ephemerally whether or not the interaction was already responded to."""
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(content, ephemeral=True)
+            else:
+                await interaction.response.send_message(content, ephemeral=True)
+        except Exception:
+            pass
+
+    @app_commands.command(name="ttt", description="Challenge a member to Tic-Tac-Toe.")
+    @app_commands.guild_only()
+    @app_commands.describe(opponent="The member to challenge")
+    async def ttt_slash(self, interaction: discord.Interaction, opponent: discord.Member):
+        if opponent.bot:
+            await self._send_ephemeral(interaction, t("en", "no_bot"))
+            return
+        if opponent.id == interaction.user.id:
+            await self._send_ephemeral(interaction, t("en", "no_self"))
+            return
+
+        settings = await self._get_settings(interaction.guild.id)
+        lang = lang_of(settings)
+        if not settings or not settings.get("tictactoe_enabled"):
+            await self._send_ephemeral(interaction, t(lang, "disabled"))
+            return
+        games_channel_id = settings.get("games_channel_id")
+        if games_channel_id and str(interaction.channel.id) != str(games_channel_id):
+            await self._send_ephemeral(interaction, t(lang, "channel_only", channel=games_channel_id))
+            return
+
+        token = uuid.uuid4().hex[:8]
+        board = [None] * 9
+        session = {
+            "board": board,
+            "players": {"X": interaction.user.id, "O": opponent.id},
+            "turn": "X",
+            "message_id": None,
+            "guild_id": interaction.guild.id,
+            "lang": lang,
+        }
+        self._sessions[token] = session
+
+        embed = self._build_embed(session)
+        try:
+            await interaction.response.send_message(embed=embed, view=build_board_view(token, board))
+            msg = await interaction.original_response()
+        except discord.Forbidden:
+            self._sessions.pop(token, None)
+            await self._send_ephemeral(interaction, t(lang, "cant_post"))
+            return
+        except Exception as exc:
+            self._sessions.pop(token, None)
+            print(f"[ttt] failed to start slash game in {interaction.guild.id}: {exc}")
+            await self._send_ephemeral(interaction, t(lang, "start_failed"))
             return
         session["message_id"] = msg.id
 

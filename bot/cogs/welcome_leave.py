@@ -11,6 +11,7 @@ import asyncio
 from datetime import datetime, timezone
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 import config
@@ -351,6 +352,34 @@ class WelcomeLeave(commands.Cog):
         except Exception as exc:
             try:
                 await ctx.send(f"Error: {exc}")
+            except Exception:
+                pass
+
+    @app_commands.command(name="welcome_test", description="Send a test welcome message targeting you (admin).")
+    @app_commands.guild_only()
+    @app_commands.default_permissions(administrator=True)
+    async def welcome_test_slash(self, interaction: discord.Interaction):
+        """Post a preview welcome targeting the invoker (admin only)."""
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("You need the Administrator permission for that.", ephemeral=True)
+            return
+        try:
+            settings = await self.get_guild_settings(interaction.guild.id)
+            if not settings:
+                await interaction.response.send_message("No settings found. Please configure welcome/leave on the dashboard.", ephemeral=True)
+                return
+            if not settings.get("welcome_channel_id"):
+                await interaction.response.send_message("No welcome channel configured.", ephemeral=True)
+                return
+
+            sent = await self._send_welcome(settings, interaction.user, interaction.guild, test_marker=True)
+            if sent is None:
+                await interaction.response.send_message("Failed to send test welcome (check channel/permissions).", ephemeral=True)
+                return
+            await interaction.response.send_message(f"Test welcome message sent to {sent.channel.mention}", ephemeral=True)
+        except Exception as exc:
+            try:
+                await interaction.response.send_message(f"Error: {exc}", ephemeral=True)
             except Exception:
                 pass
 

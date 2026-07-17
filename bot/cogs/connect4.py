@@ -23,6 +23,7 @@ import time
 import uuid
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 import config
@@ -331,6 +332,63 @@ class ConnectFour(commands.Cog):
             print(f"[connect4] start failed in {getattr(ctx.guild, 'id', '?')}: {exc}")
             try:
                 await ctx.reply(t("en", "start_failed"), mention_author=False)
+            except Exception:
+                pass
+
+    @app_commands.command(name="connect4", description="Challenge a member to Connect Four")
+    @app_commands.guild_only()
+    @app_commands.describe(opponent="The member to challenge")
+    async def connect4_slash(self, interaction: discord.Interaction, opponent: discord.Member):
+        try:
+            settings = await self._get_settings(interaction.guild.id)
+            lang = lang_of(settings)
+            if not settings or not settings.get("connect4_enabled"):
+                await interaction.response.send_message(t(lang, "not_enabled"), ephemeral=True)
+                return
+
+            games_channel_id = settings.get("games_channel_id")
+            if games_channel_id and str(games_channel_id) != str(interaction.channel.id):
+                await interaction.response.send_message(
+                    t(lang, "play_in_channel", channel=games_channel_id),
+                    ephemeral=True,
+                )
+                return
+
+            if opponent.bot:
+                await interaction.response.send_message(t("en", "no_bot"), ephemeral=True)
+                return
+            if opponent.id == interaction.user.id:
+                await interaction.response.send_message(t("en", "no_self"), ephemeral=True)
+                return
+
+            token = uuid.uuid4().hex[:8]
+            session = Connect4Session(
+                token=token,
+                guild_id=interaction.guild.id,
+                channel_id=interaction.channel.id,
+                p1_id=interaction.user.id,
+                p2_id=opponent.id,
+            )
+            session.lang = lang
+
+            embed = self._build_embed(session, self._turn_status(session))
+            try:
+                await interaction.response.send_message(embed=embed, view=build_view(session))
+            except discord.Forbidden:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(t(lang, "cant_post"), ephemeral=True)
+                return
+
+            msg = await interaction.original_response()
+            session.message_id = msg.id
+            self._sessions[token] = session
+        except Exception as exc:
+            print(f"[connect4] slash start failed in {getattr(interaction.guild, 'id', '?')}: {exc}")
+            try:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(t("en", "start_failed"), ephemeral=True)
+                else:
+                    await interaction.followup.send(t("en", "start_failed"), ephemeral=True)
             except Exception:
                 pass
 

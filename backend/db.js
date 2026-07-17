@@ -5041,6 +5041,44 @@ export function getLevelingUser(guildId, userId) {
   });
 }
 
+/**
+ * A member's rank card data: level, total XP, message count, rank position
+ * (1-based, among members with xp > 0) and the XP thresholds of the current and
+ * next level (for a progress bar). Used by the /rank slash command.
+ */
+export function getLevelingRank(guildId, userId) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      `SELECT xp, level, messages FROM guild_leveling_users WHERE guild_id = ? AND user_id = ?`,
+      [guildId, userId],
+      (err, row) => {
+        if (err) return reject(err);
+        const xp = Math.max(0, Math.floor(Number(row?.xp) || 0));
+        const level = row ? Math.max(0, Math.floor(Number(row.level) || 0)) : levelFromXp(xp);
+        const messages = Math.max(0, Math.floor(Number(row?.messages) || 0));
+        db.get(
+          `SELECT
+             (SELECT COUNT(*) FROM guild_leveling_users WHERE guild_id = ? AND xp > ?) AS ahead,
+             (SELECT COUNT(*) FROM guild_leveling_users WHERE guild_id = ? AND xp > 0) AS total`,
+          [guildId, xp, guildId],
+          (err2, r2) => {
+            if (err2) return reject(err2);
+            resolve({
+              xp,
+              level,
+              messages,
+              rank: xp > 0 ? (Number(r2?.ahead) || 0) + 1 : 0,
+              total: Number(r2?.total) || 0,
+              level_xp: totalXpForLevel(level),
+              next_level_xp: totalXpForLevel(level + 1)
+            });
+          }
+        );
+      }
+    );
+  });
+}
+
 function randomInt(min, max) {
   const lo = Math.ceil(min);
   const hi = Math.floor(max);
@@ -5364,15 +5402,15 @@ export function deleteCustomCommand(guildId, cmdId) {
 // Single source of truth for the bot's built-in commands. `key` MUST match the
 // command's qualified name in the cogs so the bot's disabled-set lines up.
 export const BUILTIN_COMMANDS = [
-  { key: 'welcome_test', name: 'welcome_test', type: 'prefix', module: 'welcome', usage: '{p}welcome_test', description: 'Send a test welcome message (admin).' },
-  { key: 'birthday', name: 'birthday', type: 'prefix', module: 'birthday', usage: '{p}birthday DD.MM[.YYYY]', description: 'Save your birthday.' },
-  { key: 'suggest', name: 'suggest', type: 'prefix', module: 'suggestions', usage: '{p}suggest <text>', description: 'Submit a suggestion.' },
+  { key: 'welcome_test', name: 'welcome_test', type: 'prefix', module: 'welcome', usage: '{p}welcome_test · /welcome_test', description: 'Send a test welcome message (admin).', slash: true },
+  { key: 'birthday', name: 'birthday', type: 'prefix', module: 'birthday', usage: '{p}birthday DD.MM[.YYYY] · /birthday', description: 'Save your birthday.', slash: true },
+  { key: 'suggest', name: 'suggest', type: 'prefix', module: 'suggestions', usage: '{p}suggest <text> · /suggest', description: 'Submit a suggestion.', slash: true },
   { key: 'verifypanel', name: 'verifypanel', type: 'slash', module: 'verification', usage: '/verifypanel', description: 'Post or refresh the verification panel (manage server).' },
   { key: 'ticketpanel', name: 'ticketpanel', type: 'slash', module: 'tickets', usage: '/ticketpanel', description: 'Post the ticket panel (admin).' },
-  { key: 'claim', name: 'claim', type: 'prefix', module: 'tickets', usage: '{p}claim', description: 'Claim the current ticket (staff).' },
-  { key: 'ticketadd', name: 'ticketadd', type: 'prefix', module: 'tickets', usage: '{p}ticketadd @user', description: 'Add a user to the current ticket (staff).' },
-  { key: 'ticketremove', name: 'ticketremove', type: 'prefix', module: 'tickets', usage: '{p}ticketremove @user', description: 'Remove a user from the current ticket (staff).' },
-  { key: 'ticketclose', name: 'ticketclose', type: 'prefix', module: 'tickets', usage: '{p}ticketclose', description: 'Close the current ticket (staff/owner).' },
+  { key: 'claim', name: 'claim', type: 'prefix', module: 'tickets', usage: '{p}claim · /claim', description: 'Claim the current ticket (staff).', slash: true },
+  { key: 'ticketadd', name: 'ticketadd', type: 'prefix', module: 'tickets', usage: '{p}ticketadd @user · /ticketadd', description: 'Add a user to the current ticket (staff).', slash: true },
+  { key: 'ticketremove', name: 'ticketremove', type: 'prefix', module: 'tickets', usage: '{p}ticketremove @user · /ticketremove', description: 'Remove a user from the current ticket (staff).', slash: true },
+  { key: 'ticketclose', name: 'ticketclose', type: 'prefix', module: 'tickets', usage: '{p}ticketclose · /ticketclose', description: 'Close the current ticket (staff/owner).', slash: true },
   { key: 'giveaway start', name: 'giveaway start', type: 'slash', module: 'giveaways', usage: '/giveaway start prize winners duration [requirements]', description: 'Start a giveaway with optional entry requirements (manage server).' },
   { key: 'giveaway reroll', name: 'giveaway reroll', type: 'slash', module: 'giveaways', usage: '/giveaway reroll id', description: 'Draw a new winner for a giveaway (manage server).' },
   { key: 'giveaway end', name: 'giveaway end', type: 'slash', module: 'giveaways', usage: '/giveaway end id', description: 'End a giveaway early and draw winners (manage server).' },
@@ -5386,21 +5424,22 @@ export const BUILTIN_COMMANDS = [
   { key: 'volume', name: 'volume', type: 'slash', module: 'music', usage: '/volume level', description: 'Set playback volume (0-150).' },
   { key: 'loop', name: 'loop', type: 'slash', module: 'music', usage: '/loop mode', description: 'Set loop mode (off/track/queue).' },
   { key: 'shuffle', name: 'shuffle', type: 'slash', module: 'music', usage: '/shuffle', description: 'Shuffle the queue.' },
-  { key: 'poll', name: 'poll', type: 'prefix', module: 'polls', usage: '{p}poll <question> | <A> | <B> | …', description: 'Start a button poll.' },
-  { key: 'applypanel', name: 'applypanel', type: 'prefix', module: 'applications', usage: '{p}applypanel', description: 'Post the application panel (admin).' },
-  { key: 'balance', name: 'balance', type: 'prefix', module: 'economy', usage: '{p}balance [member]', description: 'Show a balance.' },
-  { key: 'daily', name: 'daily', type: 'prefix', module: 'economy', usage: '{p}daily', description: 'Claim the daily reward.' },
-  { key: 'work', name: 'work', type: 'prefix', module: 'economy', usage: '{p}work', description: 'Work for currency.' },
-  { key: 'pay', name: 'pay', type: 'prefix', module: 'economy', usage: '{p}pay @user <amount>', description: 'Transfer currency to a member.' },
-  { key: 'rich', name: 'rich', type: 'prefix', module: 'economy', usage: '{p}rich', description: 'Show the balance leaderboard.' },
-  { key: 'shop', name: 'shop', type: 'prefix', module: 'economy', usage: '{p}shop', description: 'List shop items.' },
-  { key: 'buy', name: 'buy', type: 'prefix', module: 'economy', usage: '{p}buy <item>', description: 'Buy a shop item.' },
-  { key: 'ttt', name: 'ttt', type: 'prefix', module: 'games', usage: '{p}ttt @opponent', description: 'Start a Tic-Tac-Toe match.' },
-  { key: 'rps', name: 'rps', type: 'prefix', module: 'games', usage: '{p}rps [@opponent]', description: 'Play Rock-Paper-Scissors.' },
-  { key: 'trivia', name: 'trivia', type: 'prefix', module: 'games', usage: '{p}trivia', description: 'Start a trivia question.' },
-  { key: 'connect4', name: 'connect4', type: 'prefix', module: 'games', usage: '{p}connect4 @opponent', description: 'Start a Connect Four match.' },
-  { key: 'hangman', name: 'hangman', type: 'prefix', module: 'games', usage: '{p}hangman', description: 'Start a Hangman game.' },
-  { key: 'poker', name: 'poker', type: 'prefix', module: 'games', usage: '{p}poker', description: 'Open a Texas Hold’em table.' },
+  { key: 'poll', name: 'poll', type: 'prefix', module: 'polls', usage: '{p}poll <question> | <A> | <B> | … · /poll', description: 'Start a button poll (prefix or slash).', slash: true },
+  { key: 'rank', name: 'rank', type: 'slash', module: 'leveling', usage: '/rank [member]', description: 'Show your level, XP and rank.' },
+  { key: 'applypanel', name: 'applypanel', type: 'prefix', module: 'applications', usage: '{p}applypanel · /applypanel', description: 'Post the application panel (admin).', slash: true },
+  { key: 'balance', name: 'balance', type: 'prefix', module: 'economy', usage: '{p}balance [member]', description: 'Show a balance.', slash: true },
+  { key: 'daily', name: 'daily', type: 'prefix', module: 'economy', usage: '{p}daily · /daily', description: 'Claim the daily reward.', slash: true },
+  { key: 'work', name: 'work', type: 'prefix', module: 'economy', usage: '{p}work · /work', description: 'Work for currency.', slash: true },
+  { key: 'pay', name: 'pay', type: 'prefix', module: 'economy', usage: '{p}pay @user <amount> · /pay', description: 'Transfer currency to a member.', slash: true },
+  { key: 'rich', name: 'rich', type: 'prefix', module: 'economy', usage: '{p}rich · /rich', description: 'Show the balance leaderboard.', slash: true },
+  { key: 'shop', name: 'shop', type: 'prefix', module: 'economy', usage: '{p}shop · /shop', description: 'List shop items.', slash: true },
+  { key: 'buy', name: 'buy', type: 'prefix', module: 'economy', usage: '{p}buy <item> · /buy', description: 'Buy a shop item.', slash: true },
+  { key: 'ttt', name: 'ttt', type: 'prefix', module: 'games', usage: '{p}ttt @opponent · /ttt', description: 'Start a Tic-Tac-Toe match.', slash: true },
+  { key: 'rps', name: 'rps', type: 'prefix', module: 'games', usage: '{p}rps [@opponent] · /rps', description: 'Play Rock-Paper-Scissors.', slash: true },
+  { key: 'trivia', name: 'trivia', type: 'prefix', module: 'games', usage: '{p}trivia · /trivia', description: 'Start a trivia question.', slash: true },
+  { key: 'connect4', name: 'connect4', type: 'prefix', module: 'games', usage: '{p}connect4 @opponent · /connect4', description: 'Start a Connect Four match.', slash: true },
+  { key: 'hangman', name: 'hangman', type: 'prefix', module: 'games', usage: '{p}hangman · /hangman', description: 'Start a Hangman game.', slash: true },
+  { key: 'poker', name: 'poker', type: 'prefix', module: 'games', usage: '{p}poker · /poker', description: 'Open a Texas Hold’em table.', slash: true },
   { key: 'ping', name: 'ping', type: 'slash', module: 'utility', usage: '/ping', description: "Check the bot's latency." },
   { key: 'userinfo', name: 'userinfo', type: 'slash', module: 'utility', usage: '/userinfo [member]', description: 'Show information about a member.' },
   { key: 'serverinfo', name: 'serverinfo', type: 'slash', module: 'utility', usage: '/serverinfo', description: 'Show information about this server.' },

@@ -1286,7 +1286,9 @@ export default {
       polls: 'Anketler',
       applications: 'Başvurular',
       economy: 'Ekonomi',
-      games: 'Oyunlar'
+      games: 'Oyunlar',
+      leveling: 'Seviye',
+      music: 'Müzik'
     }
   },
   customCommands: {

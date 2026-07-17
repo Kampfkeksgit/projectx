@@ -16,6 +16,7 @@ Logging prefix: "[birthday]".
 import re
 
 import discord
+from discord import app_commands
 from discord.ext import commands, tasks
 
 import config
@@ -148,6 +149,33 @@ class Birthday(commands.Cog):
             await ctx.reply(t(lang, "bday.saveFailed"), mention_author=False)
             return
         await ctx.reply(t(lang, "bday.saved", date=f"{day:02d}.{month:02d}"), mention_author=False)
+
+    @app_commands.command(name="birthday", description="Save your birthday (DD.MM or DD.MM.YYYY).")
+    @app_commands.guild_only()
+    @app_commands.describe(date="Your birthday as DD.MM or DD.MM.YYYY")
+    async def birthday_slash(self, interaction: discord.Interaction, date: str):
+        lang = await lang_for(self.backend_url, self.api_key, interaction.guild.id)
+        m = BIRTHDAY_RE.match((date or "").strip())
+        if not m:
+            await interaction.response.send_message(t(lang, "bday.badFormat"), ephemeral=True)
+            return
+        day, month = int(m.group(1)), int(m.group(2))
+        year = int(m.group(3)) if m.group(3) else None
+        if not (1 <= month <= 12 and 1 <= day <= 31):
+            await interaction.response.send_message(t(lang, "bday.badDate"), ephemeral=True)
+            return
+
+        body = {"user_id": str(interaction.user.id), "day": day, "month": month}
+        if year:
+            body["year"] = year if year > 100 else 2000 + year
+        result = await bot_post(
+            self.backend_url, self.api_key,
+            f"/api/bot/guilds/{interaction.guild.id}/birthdays", body,
+        )
+        if result is None:
+            await interaction.response.send_message(t(lang, "bday.saveFailed"), ephemeral=True)
+            return
+        await interaction.response.send_message(t(lang, "bday.saved", date=f"{day:02d}.{month:02d}"), ephemeral=True)
 
 
 async def setup(bot):

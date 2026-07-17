@@ -1328,7 +1328,9 @@ export default {
       polls: 'Polls',
       applications: 'Applications',
       economy: 'Economy',
-      games: 'Games'
+      games: 'Games',
+      leveling: 'Leveling',
+      music: 'Music'
     }
   },
   customCommands: {

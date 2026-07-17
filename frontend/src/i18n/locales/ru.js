@@ -1286,7 +1286,9 @@ export default {
       polls: 'Опросы',
       applications: 'Заявки',
       economy: 'Экономика',
-      games: 'Игры'
+      games: 'Игры',
+      leveling: 'Уровни',
+      music: 'Музыка'
     }
   },
   customCommands: {

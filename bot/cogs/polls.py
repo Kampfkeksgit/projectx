@@ -15,6 +15,7 @@ Logging prefix: "[polls]".
 """
 
 import discord
+from discord import app_commands
 from discord.ext import commands, tasks
 
 import config
@@ -109,6 +110,40 @@ class Polls(commands.Cog):
             await ctx.message.delete()
         except Exception:
             pass
+
+    @app_commands.command(name="poll", description="Start a button poll (options separated by | or a comma).")
+    @app_commands.guild_only()
+    @app_commands.describe(question="The poll question", options="2–10 options separated by | or a comma")
+    async def poll_slash(self, interaction: discord.Interaction, question: str, options: str):
+        lang = await lang_for(self.backend_url, self.api_key, interaction.guild.id)
+        sep = "|" if "|" in options else ","
+        opts = [o.strip() for o in options.split(sep)]
+        opts = [o for o in opts if o][:10]
+        if not question.strip() or len(opts) < 2:
+            await interaction.response.send_message(t(lang, "poll.needOptions"), ephemeral=True)
+            return
+
+        created = await bot_post(
+            self.backend_url, self.api_key,
+            f"/api/bot/guilds/{interaction.guild.id}/polls",
+            {"channel_id": str(interaction.channel_id), "question": question.strip(), "options": opts, "multi": False, "ends_at": 0},
+        )
+        if not created or not created.get("id"):
+            await interaction.response.send_message(t(lang, "poll.createFailed"), ephemeral=True)
+            return
+        pid = created["id"]
+        color = await general_config.get_embed_color(self.backend_url, self.api_key, interaction.guild.id, fallback=POLL_COLOR)
+        embed = build_poll_embed(question.strip(), opts, [0] * len(opts), False, color=color, lang=lang)
+        try:
+            await interaction.response.send_message(embed=embed, view=build_poll_view(pid, opts))
+        except discord.Forbidden:
+            await interaction.followup.send(t(lang, "poll.cantPost"), ephemeral=True)
+            return
+        try:
+            msg = await interaction.original_response()
+            await bot_put(self.backend_url, self.api_key, f"/api/bot/guilds/{interaction.guild.id}/polls/{pid}/message", {"message_id": str(msg.id)})
+        except Exception as exc:
+            print(f"[polls] slash message-id save failed: {exc}")
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction):

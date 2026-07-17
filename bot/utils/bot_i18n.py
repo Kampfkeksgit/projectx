@@ -124,6 +124,7 @@ _EN = {
     "music.volumeLabel": "Volume",
     # --- economy ---
     "eco.balanceFailed": "Couldn't fetch the balance right now.",
+    "eco.disabled": "The economy module is not enabled on this server.",
     "eco.balance": "💰 {name} has {amount}.",
     "eco.dailyFailed": "Couldn't claim your daily right now.",
     "eco.dailyCooldown": "⏳ You already claimed your daily. Come back in **{time}**.",
@@ -157,6 +158,7 @@ _EN = {
     "app.formFallback": "Application",
     "app.applyButton": "Apply",
     "app.cantPost": "I can't post in this channel.",
+    "app.panelPosted": "✅ Application panel posted.",
     "app.accept": "Accept",
     "app.deny": "Deny",
     "app.noLongerAvailable": "This application is no longer available.",
@@ -207,6 +209,7 @@ _EN = {
     "ticket.claimedBy": "🙋 Ticket claimed by {user}.",
     "ticket.youClaimed": "You claimed this ticket.",
     "ticket.onlyStaffMembers": "Only staff can manage ticket members.",
+    "ticket.notATicket": "This command only works inside a ticket channel.",
     "ticket.selectAdd": "Select users to add…",
     "ticket.selectRemove": "Select users to remove…",
     "ticket.whoAdd": "Who should be added to this ticket?",
@@ -339,6 +342,15 @@ _EN = {
     "mc.defaultOnline": "🟢 **{name}** is online — {players}/{max} players",
     "mc.defaultOffline": "🔴 **{name}** is offline",
     "mc.defaultUnknown": "⚪ **{name}** — status unknown",
+    # --- rank / leveling ---
+    "rank.title": "📊 Rank — {name}",
+    "rank.disabled": "Leveling is not enabled on this server.",
+    "rank.level": "Level",
+    "rank.rank": "Rank",
+    "rank.xp": "XP",
+    "rank.messages": "Messages",
+    "rank.unranked": "Unranked",
+    "rank.progress": "Progress to level {level}",
 }
 
 _DE = {
@@ -442,6 +454,7 @@ _DE = {
     "music.volumeLabel": "Lautstärke",
     # --- economy ---
     "eco.balanceFailed": "Der Kontostand konnte gerade nicht abgerufen werden.",
+    "eco.disabled": "Das Wirtschaftsmodul ist auf diesem Server nicht aktiviert.",
     "eco.balance": "💰 {name} hat {amount}.",
     "eco.dailyFailed": "Deine tägliche Belohnung konnte gerade nicht abgeholt werden.",
     "eco.dailyCooldown": "⏳ Du hast deine tägliche Belohnung schon abgeholt. Komm in **{time}** wieder.",
@@ -475,6 +488,7 @@ _DE = {
     "app.formFallback": "Bewerbung",
     "app.applyButton": "Bewerben",
     "app.cantPost": "Ich kann in diesem Channel nicht posten.",
+    "app.panelPosted": "✅ Bewerbungs-Panel gepostet.",
     "app.accept": "Annehmen",
     "app.deny": "Ablehnen",
     "app.noLongerAvailable": "Diese Bewerbung ist nicht mehr verfügbar.",
@@ -525,6 +539,7 @@ _DE = {
     "ticket.claimedBy": "🙋 Ticket übernommen von {user}.",
     "ticket.youClaimed": "Du hast dieses Ticket übernommen.",
     "ticket.onlyStaffMembers": "Nur Teammitglieder können Ticket-Mitglieder verwalten.",
+    "ticket.notATicket": "Dieser Befehl funktioniert nur in einem Ticket-Channel.",
     "ticket.selectAdd": "Wähle Nutzer zum Hinzufügen…",
     "ticket.selectRemove": "Wähle Nutzer zum Entfernen…",
     "ticket.whoAdd": "Wer soll diesem Ticket hinzugefügt werden?",
@@ -657,6 +672,15 @@ _DE = {
     "mc.defaultOnline": "🟢 **{name}** ist online — {players}/{max} Spieler",
     "mc.defaultOffline": "🔴 **{name}** ist offline",
     "mc.defaultUnknown": "⚪ **{name}** — Status unbekannt",
+    # --- rank / leveling ---
+    "rank.title": "📊 Rang — {name}",
+    "rank.disabled": "Das Level-System ist auf diesem Server nicht aktiviert.",
+    "rank.level": "Level",
+    "rank.rank": "Rang",
+    "rank.xp": "XP",
+    "rank.messages": "Nachrichten",
+    "rank.unranked": "Ohne Rang",
+    "rank.progress": "Fortschritt zu Level {level}",
 }
 
 _TR = {
@@ -760,6 +784,7 @@ _TR = {
     "music.volumeLabel": "Ses",
     # --- economy ---
     "eco.balanceFailed": "Bakiye şu anda alınamadı.",
+    "eco.disabled": "Ekonomi modülü bu sunucuda etkin değil.",
     "eco.balance": "💰 {name} kullanıcısının {amount} bakiyesi var.",
     "eco.dailyFailed": "Günlük ödülün şu anda alınamadı.",
     "eco.dailyCooldown": "⏳ Günlük ödülünü zaten aldın. **{time}** sonra tekrar gel.",
@@ -793,6 +818,7 @@ _TR = {
     "app.formFallback": "Başvuru",
     "app.applyButton": "Başvur",
     "app.cantPost": "Bu kanala mesaj gönderemiyorum.",
+    "app.panelPosted": "✅ Başvuru paneli gönderildi.",
     "app.accept": "Kabul Et",
     "app.deny": "Reddet",
     "app.noLongerAvailable": "Bu başvuru artık mevcut değil.",
@@ -843,6 +869,7 @@ _TR = {
     "ticket.claimedBy": "🙋 Talep {user} tarafından üstlenildi.",
     "ticket.youClaimed": "Bu talebi üstlendin.",
     "ticket.onlyStaffMembers": "Talep üyelerini yalnızca yetkililer yönetebilir.",
+    "ticket.notATicket": "Bu komut yalnızca bir talep kanalında çalışır.",
     "ticket.selectAdd": "Eklenecek kullanıcıları seç…",
     "ticket.selectRemove": "Çıkarılacak kullanıcıları seç…",
     "ticket.whoAdd": "Bu talebe kim eklenmeli?",
@@ -975,6 +1002,15 @@ _TR = {
     "mc.defaultOnline": "🟢 **{name}** çevrimiçi — {players}/{max} oyuncu",
     "mc.defaultOffline": "🔴 **{name}** çevrimdışı",
     "mc.defaultUnknown": "⚪ **{name}** — durum bilinmiyor",
+    # --- rank / leveling ---
+    "rank.title": "📊 Sıralama — {name}",
+    "rank.disabled": "Seviye sistemi bu sunucuda etkin değil.",
+    "rank.level": "Seviye",
+    "rank.rank": "Sıra",
+    "rank.xp": "XP",
+    "rank.messages": "Mesaj",
+    "rank.unranked": "Sırasız",
+    "rank.progress": "{level}. seviyeye ilerleme",
 }
 
 _RU = {
@@ -1078,6 +1114,7 @@ _RU = {
     "music.volumeLabel": "Громкость",
     # --- economy ---
     "eco.balanceFailed": "Не удалось получить баланс прямо сейчас.",
+    "eco.disabled": "Модуль экономики не включён на этом сервере.",
     "eco.balance": "💰 У {name} есть {amount}.",
     "eco.dailyFailed": "Не удалось получить ежедневную награду прямо сейчас.",
     "eco.dailyCooldown": "⏳ Вы уже получили ежедневную награду. Возвращайтесь через **{time}**.",
@@ -1111,6 +1148,7 @@ _RU = {
     "app.formFallback": "Заявка",
     "app.applyButton": "Подать заявку",
     "app.cantPost": "Я не могу писать в этом канале.",
+    "app.panelPosted": "✅ Панель заявок опубликована.",
     "app.accept": "Принять",
     "app.deny": "Отклонить",
     "app.noLongerAvailable": "Эта заявка больше недоступна.",
@@ -1161,6 +1199,7 @@ _RU = {
     "ticket.claimedBy": "🙋 Тикет взят пользователем {user}.",
     "ticket.youClaimed": "Вы взяли этот тикет.",
     "ticket.onlyStaffMembers": "Только персонал может управлять участниками тикета.",
+    "ticket.notATicket": "Эта команда работает только в канале тикета.",
     "ticket.selectAdd": "Выберите пользователей для добавления…",
     "ticket.selectRemove": "Выберите пользователей для удаления…",
     "ticket.whoAdd": "Кого нужно добавить в этот тикет?",
@@ -1293,6 +1332,15 @@ _RU = {
     "mc.defaultOnline": "🟢 **{name}** в сети — {players}/{max} игроков",
     "mc.defaultOffline": "🔴 **{name}** не в сети",
     "mc.defaultUnknown": "⚪ **{name}** — статус неизвестен",
+    # --- rank / leveling ---
+    "rank.title": "📊 Ранг — {name}",
+    "rank.disabled": "Система уровней не включена на этом сервере.",
+    "rank.level": "Уровень",
+    "rank.rank": "Ранг",
+    "rank.xp": "Опыт",
+    "rank.messages": "Сообщения",
+    "rank.unranked": "Без ранга",
+    "rank.progress": "Прогресс до уровня {level}",
 }
 
 _PL = {
@@ -1396,6 +1444,7 @@ _PL = {
     "music.volumeLabel": "Głośność",
     # --- economy ---
     "eco.balanceFailed": "Nie udało się teraz pobrać salda.",
+    "eco.disabled": "Moduł ekonomii nie jest włączony na tym serwerze.",
     "eco.balance": "💰 {name} ma {amount}.",
     "eco.dailyFailed": "Nie udało się teraz odebrać dziennej nagrody.",
     "eco.dailyCooldown": "⏳ Już odebrałeś dzienną nagrodę. Wróć za **{time}**.",
@@ -1429,6 +1478,7 @@ _PL = {
     "app.formFallback": "Zgłoszenie",
     "app.applyButton": "Złóż zgłoszenie",
     "app.cantPost": "Nie mogę pisać na tym kanale.",
+    "app.panelPosted": "✅ Panel podań opublikowany.",
     "app.accept": "Akceptuj",
     "app.deny": "Odrzuć",
     "app.noLongerAvailable": "To zgłoszenie nie jest już dostępne.",
@@ -1479,6 +1529,7 @@ _PL = {
     "ticket.claimedBy": "🙋 Zgłoszenie przejęte przez {user}.",
     "ticket.youClaimed": "Przejąłeś to zgłoszenie.",
     "ticket.onlyStaffMembers": "Tylko personel może zarządzać członkami zgłoszenia.",
+    "ticket.notATicket": "Ta komenda działa tylko w kanale zgłoszenia.",
     "ticket.selectAdd": "Wybierz użytkowników do dodania…",
     "ticket.selectRemove": "Wybierz użytkowników do usunięcia…",
     "ticket.whoAdd": "Kto powinien zostać dodany do tego zgłoszenia?",
@@ -1611,6 +1662,15 @@ _PL = {
     "mc.defaultOnline": "🟢 **{name}** jest online — {players}/{max} graczy",
     "mc.defaultOffline": "🔴 **{name}** jest offline",
     "mc.defaultUnknown": "⚪ **{name}** — status nieznany",
+    # --- rank / leveling ---
+    "rank.title": "📊 Ranga — {name}",
+    "rank.disabled": "System poziomów nie jest włączony na tym serwerze.",
+    "rank.level": "Poziom",
+    "rank.rank": "Ranga",
+    "rank.xp": "XP",
+    "rank.messages": "Wiadomości",
+    "rank.unranked": "Bez rangi",
+    "rank.progress": "Postęp do poziomu {level}",
 }
 
 STRINGS = {"en": _EN, "de": _DE, "tr": _TR, "ru": _RU, "pl": _PL}

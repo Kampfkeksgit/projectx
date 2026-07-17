@@ -27,10 +27,17 @@ starts emitting the field.
 """
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 import config
-from utils.backend import bot_post
+from utils.backend import bot_post, bot_get, fetch_bot_settings
+from utils import general_config
+from utils.bot_i18n import t, lang_for
+
+
+LEVEL_COLOR = 0x5865F2
+RANK_BAR_LEN = 16
 
 
 def _apply_levelup_placeholders(template, *, member, guild, level):
@@ -196,6 +203,55 @@ class Leveling(commands.Cog):
             # raises will spam the entire event loop with the same error,
             # one per message bot-wide.
             print(f"[leveling] on_message fatal error: {exc}")
+
+    @app_commands.command(name="rank", description="Show your level, XP and rank on this server.")
+    @app_commands.guild_only()
+    @app_commands.describe(member="The member to check (defaults to you).")
+    async def rank_slash(self, interaction: discord.Interaction, member: discord.Member = None):
+        lang = await lang_for(self.backend_url, self.api_key, interaction.guild.id)
+        # Gate on the leveling module being enabled — this GET returns
+        # {enabled:false} both when the module is off and when the guild's tier
+        # has lapsed (Basic), so it doubles as the premium check.
+        settings = await fetch_bot_settings(self.backend_url, self.api_key, interaction.guild.id, "leveling")
+        if not settings or not settings.get("enabled"):
+            await interaction.response.send_message(t(lang, "rank.disabled"), ephemeral=True)
+            return
+
+        target = member or interaction.user
+        data = await bot_get(
+            self.backend_url, self.api_key,
+            f"/api/bot/guilds/{interaction.guild.id}/leveling/rank/{target.id}",
+        ) or {}
+
+        level = int(data.get("level") or 0)
+        xp = int(data.get("xp") or 0)
+        rank = int(data.get("rank") or 0)
+        total = int(data.get("total") or 0)
+        level_xp = int(data.get("level_xp") or 0)
+        next_xp = int(data.get("next_level_xp") or 0)
+
+        # Progress within the current level.
+        span = max(1, next_xp - level_xp)
+        into = max(0, min(span, xp - level_xp))
+        filled = int(round(into / span * RANK_BAR_LEN))
+        bar = "█" * filled + "░" * (RANK_BAR_LEN - filled)
+
+        color = await general_config.get_embed_color(self.backend_url, self.api_key, interaction.guild.id, fallback=LEVEL_COLOR)
+        embed = discord.Embed(title=t(lang, "rank.title", name=target.display_name), color=color)
+        embed.set_thumbnail(url=target.display_avatar.url)
+        embed.add_field(name=t(lang, "rank.level"), value=f"**{level}**", inline=True)
+        embed.add_field(
+            name=t(lang, "rank.rank"),
+            value=(f"**#{rank}** / {total}" if rank else t(lang, "rank.unranked")),
+            inline=True,
+        )
+        embed.add_field(name=t(lang, "rank.xp"), value=f"**{xp:,}**", inline=True)
+        embed.add_field(
+            name=t(lang, "rank.progress", level=level + 1),
+            value=f"`{bar}`\n{into:,} / {span:,} XP",
+            inline=False,
+        )
+        await interaction.response.send_message(embed=embed)
 
 
 async def setup(bot):
