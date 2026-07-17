@@ -5041,6 +5041,44 @@ export function getLevelingUser(guildId, userId) {
   });
 }
 
+/**
+ * A member's rank card data: level, total XP, message count, rank position
+ * (1-based, among members with xp > 0) and the XP thresholds of the current and
+ * next level (for a progress bar). Used by the /rank slash command.
+ */
+export function getLevelingRank(guildId, userId) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      `SELECT xp, level, messages FROM guild_leveling_users WHERE guild_id = ? AND user_id = ?`,
+      [guildId, userId],
+      (err, row) => {
+        if (err) return reject(err);
+        const xp = Math.max(0, Math.floor(Number(row?.xp) || 0));
+        const level = row ? Math.max(0, Math.floor(Number(row.level) || 0)) : levelFromXp(xp);
+        const messages = Math.max(0, Math.floor(Number(row?.messages) || 0));
+        db.get(
+          `SELECT
+             (SELECT COUNT(*) FROM guild_leveling_users WHERE guild_id = ? AND xp > ?) AS ahead,
+             (SELECT COUNT(*) FROM guild_leveling_users WHERE guild_id = ? AND xp > 0) AS total`,
+          [guildId, xp, guildId],
+          (err2, r2) => {
+            if (err2) return reject(err2);
+            resolve({
+              xp,
+              level,
+              messages,
+              rank: xp > 0 ? (Number(r2?.ahead) || 0) + 1 : 0,
+              total: Number(r2?.total) || 0,
+              level_xp: totalXpForLevel(level),
+              next_level_xp: totalXpForLevel(level + 1)
+            });
+          }
+        );
+      }
+    );
+  });
+}
+
 function randomInt(min, max) {
   const lo = Math.ceil(min);
   const hi = Math.floor(max);
@@ -5386,7 +5424,8 @@ export const BUILTIN_COMMANDS = [
   { key: 'volume', name: 'volume', type: 'slash', module: 'music', usage: '/volume level', description: 'Set playback volume (0-150).' },
   { key: 'loop', name: 'loop', type: 'slash', module: 'music', usage: '/loop mode', description: 'Set loop mode (off/track/queue).' },
   { key: 'shuffle', name: 'shuffle', type: 'slash', module: 'music', usage: '/shuffle', description: 'Shuffle the queue.' },
-  { key: 'poll', name: 'poll', type: 'prefix', module: 'polls', usage: '{p}poll <question> | <A> | <B> | …', description: 'Start a button poll.' },
+  { key: 'poll', name: 'poll', type: 'prefix', module: 'polls', usage: '{p}poll <question> | <A> | <B> | … · /poll', description: 'Start a button poll (prefix or slash).' },
+  { key: 'rank', name: 'rank', type: 'slash', module: 'leveling', usage: '/rank [member]', description: 'Show your level, XP and rank.' },
   { key: 'applypanel', name: 'applypanel', type: 'prefix', module: 'applications', usage: '{p}applypanel', description: 'Post the application panel (admin).' },
   { key: 'balance', name: 'balance', type: 'prefix', module: 'economy', usage: '{p}balance [member]', description: 'Show a balance.' },
   { key: 'daily', name: 'daily', type: 'prefix', module: 'economy', usage: '{p}daily', description: 'Claim the daily reward.' },

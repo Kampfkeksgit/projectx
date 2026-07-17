@@ -124,6 +124,7 @@ _EN = {
     "music.volumeLabel": "Volume",
     # --- economy ---
     "eco.balanceFailed": "Couldn't fetch the balance right now.",
+    "eco.disabled": "The economy module is not enabled on this server.",
     "eco.balance": "💰 {name} has {amount}.",
     "eco.dailyFailed": "Couldn't claim your daily right now.",
     "eco.dailyCooldown": "⏳ You already claimed your daily. Come back in **{time}**.",
@@ -339,6 +340,15 @@ _EN = {
     "mc.defaultOnline": "🟢 **{name}** is online — {players}/{max} players",
     "mc.defaultOffline": "🔴 **{name}** is offline",
     "mc.defaultUnknown": "⚪ **{name}** — status unknown",
+    # --- rank / leveling ---
+    "rank.title": "📊 Rank — {name}",
+    "rank.disabled": "Leveling is not enabled on this server.",
+    "rank.level": "Level",
+    "rank.rank": "Rank",
+    "rank.xp": "XP",
+    "rank.messages": "Messages",
+    "rank.unranked": "Unranked",
+    "rank.progress": "Progress to level {level}",
 }
 
 _DE = {
@@ -442,6 +452,7 @@ _DE = {
     "music.volumeLabel": "Lautstärke",
     # --- economy ---
     "eco.balanceFailed": "Der Kontostand konnte gerade nicht abgerufen werden.",
+    "eco.disabled": "Das Wirtschaftsmodul ist auf diesem Server nicht aktiviert.",
     "eco.balance": "💰 {name} hat {amount}.",
     "eco.dailyFailed": "Deine tägliche Belohnung konnte gerade nicht abgeholt werden.",
     "eco.dailyCooldown": "⏳ Du hast deine tägliche Belohnung schon abgeholt. Komm in **{time}** wieder.",
@@ -657,6 +668,15 @@ _DE = {
     "mc.defaultOnline": "🟢 **{name}** ist online — {players}/{max} Spieler",
     "mc.defaultOffline": "🔴 **{name}** ist offline",
     "mc.defaultUnknown": "⚪ **{name}** — Status unbekannt",
+    # --- rank / leveling ---
+    "rank.title": "📊 Rang — {name}",
+    "rank.disabled": "Das Level-System ist auf diesem Server nicht aktiviert.",
+    "rank.level": "Level",
+    "rank.rank": "Rang",
+    "rank.xp": "XP",
+    "rank.messages": "Nachrichten",
+    "rank.unranked": "Ohne Rang",
+    "rank.progress": "Fortschritt zu Level {level}",
 }
 
 _TR = {
@@ -760,6 +780,7 @@ _TR = {
     "music.volumeLabel": "Ses",
     # --- economy ---
     "eco.balanceFailed": "Bakiye şu anda alınamadı.",
+    "eco.disabled": "Ekonomi modülü bu sunucuda etkin değil.",
     "eco.balance": "💰 {name} kullanıcısının {amount} bakiyesi var.",
     "eco.dailyFailed": "Günlük ödülün şu anda alınamadı.",
     "eco.dailyCooldown": "⏳ Günlük ödülünü zaten aldın. **{time}** sonra tekrar gel.",
@@ -975,6 +996,15 @@ _TR = {
     "mc.defaultOnline": "🟢 **{name}** çevrimiçi — {players}/{max} oyuncu",
     "mc.defaultOffline": "🔴 **{name}** çevrimdışı",
     "mc.defaultUnknown": "⚪ **{name}** — durum bilinmiyor",
+    # --- rank / leveling ---
+    "rank.title": "📊 Sıralama — {name}",
+    "rank.disabled": "Seviye sistemi bu sunucuda etkin değil.",
+    "rank.level": "Seviye",
+    "rank.rank": "Sıra",
+    "rank.xp": "XP",
+    "rank.messages": "Mesaj",
+    "rank.unranked": "Sırasız",
+    "rank.progress": "{level}. seviyeye ilerleme",
 }
 
 _RU = {
@@ -1078,6 +1108,7 @@ _RU = {
     "music.volumeLabel": "Громкость",
     # --- economy ---
     "eco.balanceFailed": "Не удалось получить баланс прямо сейчас.",
+    "eco.disabled": "Модуль экономики не включён на этом сервере.",
     "eco.balance": "💰 У {name} есть {amount}.",
     "eco.dailyFailed": "Не удалось получить ежедневную награду прямо сейчас.",
     "eco.dailyCooldown": "⏳ Вы уже получили ежедневную награду. Возвращайтесь через **{time}**.",
@@ -1293,6 +1324,15 @@ _RU = {
     "mc.defaultOnline": "🟢 **{name}** в сети — {players}/{max} игроков",
     "mc.defaultOffline": "🔴 **{name}** не в сети",
     "mc.defaultUnknown": "⚪ **{name}** — статус неизвестен",
+    # --- rank / leveling ---
+    "rank.title": "📊 Ранг — {name}",
+    "rank.disabled": "Система уровней не включена на этом сервере.",
+    "rank.level": "Уровень",
+    "rank.rank": "Ранг",
+    "rank.xp": "Опыт",
+    "rank.messages": "Сообщения",
+    "rank.unranked": "Без ранга",
+    "rank.progress": "Прогресс до уровня {level}",
 }
 
 _PL = {
@@ -1396,6 +1436,7 @@ _PL = {
     "music.volumeLabel": "Głośność",
     # --- economy ---
     "eco.balanceFailed": "Nie udało się teraz pobrać salda.",
+    "eco.disabled": "Moduł ekonomii nie jest włączony na tym serwerze.",
     "eco.balance": "💰 {name} ma {amount}.",
     "eco.dailyFailed": "Nie udało się teraz odebrać dziennej nagrody.",
     "eco.dailyCooldown": "⏳ Już odebrałeś dzienną nagrodę. Wróć za **{time}**.",
@@ -1611,6 +1652,15 @@ _PL = {
     "mc.defaultOnline": "🟢 **{name}** jest online — {players}/{max} graczy",
     "mc.defaultOffline": "🔴 **{name}** jest offline",
     "mc.defaultUnknown": "⚪ **{name}** — status nieznany",
+    # --- rank / leveling ---
+    "rank.title": "📊 Ranga — {name}",
+    "rank.disabled": "System poziomów nie jest włączony na tym serwerze.",
+    "rank.level": "Poziom",
+    "rank.rank": "Ranga",
+    "rank.xp": "XP",
+    "rank.messages": "Wiadomości",
+    "rank.unranked": "Bez rangi",
+    "rank.progress": "Postęp do poziomu {level}",
 }
 
 STRINGS = {"en": _EN, "de": _DE, "tr": _TR, "ru": _RU, "pl": _PL}

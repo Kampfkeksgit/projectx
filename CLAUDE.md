@@ -110,7 +110,8 @@ projectx/
 │       ├── reaction_roles.py   # on_raw_reaction_add/remove → Rolle (de-)assign; in-memory Cache
 │       │                       # keyed by (guild_id, message_id); 10min refresh; exclusive-Mode
 │       ├── leveling.py         # on_message → POST /api/bot/.../leveling/xp; postet Announcement
-│       │                       # + Reward-Roles bei leveled_up; non-stacking respektiert
+│       │                       # + Reward-Roles bei leveled_up; non-stacking respektiert. Slash /rank [member] (Rang-Karte:
+│       │                       # Level/XP/Fortschrittsbalken/Rang-Position via GET .../leveling/rank/:user_id; gated über leveling-enabled)
 │       ├── custom_commands.py  # on_message → Match (exact/contains/starts_with) gegen Cache;
 │       │                       # 5min refresh; nutzt resolve_placeholders aus welcome_leave
 │       └── social_notify.py    # tasks.loop (SOCIAL_POLL_INTERVAL, default 180s) → pollt
@@ -135,7 +136,7 @@ projectx/
 │       ├── starboard.py        # on_raw_reaction_add/remove: zählt Stern-Emoji, ab threshold Repost ins
 │       │                       # star_channel (Embed + Jump), hält count aktuell, entfernt bei Unterschreitung.
 │       │                       # Entry-State via /api/bot/.../starboard/entries/:message_id.
-│       ├── suggestions.py      # !suggest <text> → postet Embed in suggest_channel + Up/Down-Vote-Reaktionen.
+│       ├── suggestions.py      # !suggest <text> ODER /suggest → postet Embed in suggest_channel + Up/Down-Vote-Reaktionen.
 │       ├── birthday.py         # 30min-Loop (1×/Tag aktiv): GET /birthdays/today → Announce + Geburtstags-Rolle,
 │       │                       # Rollen-Sweep (gestrige entfernen). !birthday TT.MM[.YYYY] speichert via POST.
 │       ├── scheduler.py        # 30s-Loop: GET /scheduled/due → postet Nachricht, PUT .../ran (Backend rechnet next/disable).
@@ -177,13 +178,13 @@ projectx/
 │                               # POSTet Snapshot. Rename/Reorder nur bei Abweichung (Rate-Limit-Schutz).
 │       ├── counting.py         # on_message im Zähl-Channel → POST /counting/count (Backend validiert atomar);
 │       │                       # ✅ bei Erfolg, ❌ + Reset bei falscher Zahl/Doppel-Count. (Free)
-│       ├── polls.py            # !poll Frage | A | B | … → Button-Umfrage; on_interaction "pv:<id>:<idx>" toggelt Vote,
+│       ├── polls.py            # !poll Frage | A | B | … ODER /poll (Frage + Optionen |/,) → Button-Umfrage; on_interaction "pv:<id>:<idx>" toggelt Vote,
 │       │                       # editiert Embed-Tally; 30s-Loop schließt fällige (timed) Umfragen. (Free)
 │       ├── invitetracking.py   # on_ready cached guild.invites(), on_member_join difft Use-Counts → Einlader,
 │       │                       # POST /invites/join + Ankündigung. Braucht MANAGE_GUILD. (Basic)
 │       ├── applications.py     # !applypanel postet Form-Buttons; "app:<fid>" → Modal (≤5 Fragen); Submit → Review-Embed
 │       │                       # mit Accept/Deny ("appok:"/"appno:"); Accept vergibt Rolle + DM. (Pro)
-│       ├── economy.py          # !balance/!daily/!work/!pay/!rich/!shop/!buy → POST /economy/* (Backend rechnet
+│       ├── economy.py          # !balance(+ /balance)/!daily/!work/!pay/!rich/!shop/!buy → POST /economy/* (Backend rechnet
 │       │                       # Balance/Cooldowns in Transaktionen); !buy vergibt optional Shop-Rolle. (Pro)
 │       ├── tictactoe.py        # Games-Kategorie (alle Basic, geteilte /games-Settings + /games/score):
 │       │                       # !ttt @gegner → 3×3 Button-Grid, on_interaction "ttt:<token>:<pos>", In-Memory-Session.
@@ -890,7 +891,7 @@ Mount-Points aus [backend/server.js](backend/server.js):
 - `GET /api/bot/guilds/:id/settings/{verification,tickets}` → raw Settings (verification inkl. `use_embed`/`embed`). `PUT .../verification/panel` / `.../tickets/panel` body `{ message_id }` (verification: setzt zusätzlich `dirty=0`). `GET /api/bot/verification/pending` → `{ panels }` (enabled + Channel + Rolle gesetzt, unposted ODER dirty — für Auto-Post/In-place-Update).
 - `GET /api/bot/rolemenus/pending` → `{ menus }` (konfiguriert, noch nicht gepostet). `PUT /api/bot/guilds/:id/rolemenus/:menu_id/message` body `{ channel_id, message_id }`.
 - Tickets: `GET /api/bot/guilds/:id/settings/tickets` liefert jetzt **settings + enabled `categories`** (`getTicketConfig`). `GET .../tickets/open?user_id=` (Dedup), `GET .../tickets/by-channel?channel_id=` → `{ ticket }`, `POST .../tickets` body `{ channel_id, user_id, ticket_category_id? }` → `{ id, number }`, `PUT .../tickets/close` body `{ channel_id, closed_by? }`, `PUT .../tickets/claim` body `{ channel_id, user_id }`, `PUT .../tickets/rating` body `{ ticket_id, rating, comment? }` (per Ticket-ID, damit DM-Rating funktioniert), `PUT .../tickets/users` body `{ channel_id, add?:[], remove?:[] }`.
-- Giveaways: `POST .../giveaways` body `{ channel_id, prize, winners_count, ends_at, host_id?, description?, required_role_ids?, min_account_age_days?, min_member_days?, min_level? }` → volle Giveaway-Shape (inkl. `id`); `PUT .../giveaways/:gid/message`; `POST .../giveaways/:gid/entries` body `{ user_id }` → `{ added }`; `GET .../giveaways/:gid` → `{ giveaway }` (inkl. Requirements, für Reroll + Entry-Check); `GET .../giveaways/:gid/entries` → `{ user_ids }`; `PUT .../giveaways/:gid/end` (vorzeitig beenden → `ends_at = now`); `GET /api/bot/giveaways/due` → `{ giveaways }`; `GET /api/bot/giveaways/pending` → `{ giveaways }` (Dashboard-erstellt, noch nicht gepostet); `PUT /api/bot/giveaways/:gid/ended`. Plus `GET /api/bot/guilds/:id/leveling/user/:user_id` → `{ level, xp }` (Giveaway-Level-Check).
+- Giveaways: `POST .../giveaways` body `{ channel_id, prize, winners_count, ends_at, host_id?, description?, required_role_ids?, min_account_age_days?, min_member_days?, min_level? }` → volle Giveaway-Shape (inkl. `id`); `PUT .../giveaways/:gid/message`; `POST .../giveaways/:gid/entries` body `{ user_id }` → `{ added }`; `GET .../giveaways/:gid` → `{ giveaway }` (inkl. Requirements, für Reroll + Entry-Check); `GET .../giveaways/:gid/entries` → `{ user_ids }`; `PUT .../giveaways/:gid/end` (vorzeitig beenden → `ends_at = now`); `GET /api/bot/giveaways/due` → `{ giveaways }`; `GET /api/bot/giveaways/pending` → `{ giveaways }` (Dashboard-erstellt, noch nicht gepostet); `PUT /api/bot/giveaways/:gid/ended`. Plus `GET /api/bot/guilds/:id/leveling/user/:user_id` → `{ level, xp }` (Giveaway-Level-Check) und `GET /api/bot/guilds/:id/leveling/rank/:user_id` → `{ xp, level, messages, rank, total, level_xp, next_level_xp }` (Rang-Karte für `/rank`).
 - Role-Menus: `GET /api/bot/guilds/:id/rolemenus/by-message/:message_id` → `{ menu }` (für exklusive Select-Auswertung).
 
 **Server-Backup & Restore (v32, Pro)** — async Job-Queue (Bot pollt, Dashboard kann nicht pushen).
@@ -1193,6 +1194,12 @@ Empfehlung aus [README.md](README.md): SQLite → PostgreSQL für Multi-Instance
 
 ## 14. Letzte Aktualisierung
 
+- **Datum:** 2026-07-18
+- **Slash-Varianten für populäre Prefix-Befehle → mehr in der Discord-Profil-Vorschau (kein Schema-Change):** Discord listet in der „Befehle"-Sektion des Bot-Profils nur **global gesyncte Application-Commands** — Prefix-Befehle tauchen dort nie auf. Damit mehr Befehle im Profil erscheinen, gibt es jetzt **parallele Slash-Varianten** (Prefix bleibt erhalten): `/suggest`, `/poll`, `/balance` (mirror der bestehenden Cog-Logik + i18n) und **neu `/rank`** (Rang-Karte).
+  - **`/rank [member]`** ([leveling.py](bot/cogs/leveling.py), Basic): zeigt Level, XP, Rang-Position (#x/y) + Fortschrittsbalken zum nächsten Level. Neuer Bot-Endpoint `GET /api/bot/guilds/:id/leveling/rank/:user_id` (db.js `getLevelingRank` — rank = Position unter `xp>0`, + `level_xp`/`next_level_xp` via `totalXpForLevel`). Gated über den bereits premium-gegateten `GET /settings/leveling` (enabled-Check) → bei Tier-Verlust/deaktiviert inert.
+  - **`/suggest`/`/poll`/`/balance`** teilen sich `qualified_name` (= Command-Manager-Key) mit dem jeweiligen Prefix-Befehl → **ein** Toggle steuert beide; der `_tree_gate` in [main.py](bot/main.py) sperrt sie mit. `/poll` nimmt Frage + Optionen (`|` oder `,` getrennt); `/balance` antwortet öffentlich (wie der Prefix). Katalog [db.js](backend/db.js) `BUILTIN_COMMANDS`: neuer `rank`-Eintrag (Modul `leveling`, slash), `poll`/`balance`-Usage um die Slash-Form ergänzt.
+  - **i18n:** neuer Bot-i18n-Namespace `rank.*` (8 Keys) + `eco.disabled` in **allen 5 Sprachen** (Parität 309 Keys/Sprache).
+  - Verifiziert: alle 4 Slash-Commands registrieren auf der Tree (`balance`/`poll`/`rank`/`suggest`), Cogs kompilieren, `getLevelingRank`-DB-Smoke grün (rank/total/thresholds), 74/74 Backend-Tests, Bot-i18n-Parität grün. **Hinweis:** globale Slash-Commands erscheinen nach dem nächsten `tree.sync()` (Bot-Neustart) + brauchen bis zu ~1h, bis Discord sie im Profil zeigt; der Bot muss mit `applications.commands`-Scope eingeladen sein (ist er). **⚠️ Nicht live gegen Discord getestet.**
 - **Datum:** 2026-07-17
 - **Server-Inhaber im Admin-Inspektor (Schema v55):** Der Server-Inspektor zeigt jetzt den **Server-Inhaber** (Avatar, `@username`, ID) + einen **„Profil öffnen"-Link** (`discord.com/users/:id`), um ihn zu kontaktieren.
   - **Schema v55:** 3 idempotente ALTERs auf `guilds` (`owner_id`, `owner_username`, `owner_avatar_url`) + Mirror. Der Bot-Cog [guild_sync.py](bot/cogs/guild_sync.py) sendet den Inhaber im vorhandenen `guildMeta`-Seed mit (`owner_id` immer via `guild.owner_id`; Name/Avatar best-effort aus dem Member-/User-Cache, mit `fetch_user`-Fallback in den Full-Syncs). `replaceGuildChannels`/`replaceGuildRoles` schreiben die Spalten (COALESCE/NULLIF — leere Werte bei einem Cache-Miss überschreiben nie einen bereits gesetzten Namen).

@@ -67,6 +67,7 @@ import {
   endGiveawayNow,
   markGiveawayEnded,
   getLevelingUser,
+  getLevelingRank,
   getMusicSettings,
   upsertMusicState,
   getAllMusicCommands,
@@ -1608,6 +1609,18 @@ router.get('/guilds/:guild_id/leveling/user/:user_id', requireBotToken, async (r
   } catch (error) {
     console.error('Bot get leveling user error:', error.message)
     res.status(500).json({ error: 'Failed to fetch leveling user' })
+  }
+})
+
+// Leveling: a member's full rank card (level, xp, rank position, next-level XP)
+// for the /rank slash command. The bot gates on leveling being enabled first.
+router.get('/guilds/:guild_id/leveling/rank/:user_id', requireBotToken, async (req, res) => {
+  try {
+    const r = await getLevelingRank(req.params.guild_id, req.params.user_id)
+    return res.json(r)
+  } catch (error) {
+    console.error('Bot get leveling rank error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch leveling rank' })
   }
 })
 

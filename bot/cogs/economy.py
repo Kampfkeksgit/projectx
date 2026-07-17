@@ -18,6 +18,7 @@ Logging prefix: "[economy]".
 """
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 import config
@@ -69,6 +70,24 @@ class Economy(commands.Cog):
             await ctx.reply(t(lang, "eco.balanceFailed"), mention_author=False)
             return
         await ctx.reply(t(lang, "eco.balance", name=target.display_name, amount=fmt_amount(result.get("balance", 0), result)), mention_author=False)
+
+    @app_commands.command(name="balance", description="Show your balance or another member's.")
+    @app_commands.guild_only()
+    @app_commands.describe(member="The member to check (defaults to you).")
+    async def balance_slash(self, interaction: discord.Interaction, member: discord.Member = None):
+        ok, _ = await self._enabled(interaction.guild.id)
+        lang = await lang_for(self.backend_url, self.api_key, interaction.guild.id)
+        if not ok:
+            await interaction.response.send_message(t(lang, "eco.disabled"), ephemeral=True)
+            return
+        target = member or interaction.user
+        result = await bot_post(self.backend_url, self.api_key, f"/api/bot/guilds/{interaction.guild.id}/economy/balance", {"user_id": str(target.id)})
+        if not result:
+            await interaction.response.send_message(t(lang, "eco.balanceFailed"), ephemeral=True)
+            return
+        await interaction.response.send_message(
+            t(lang, "eco.balance", name=target.display_name, amount=fmt_amount(result.get("balance", 0), result))
+        )
 
     @commands.command(name="daily")
     @commands.guild_only()
