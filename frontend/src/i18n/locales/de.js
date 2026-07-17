@@ -1,4 +1,8 @@
 export default {
+  chart: {
+    hide: 'Reihe ausblenden',
+    show: 'Reihe einblenden'
+  },
   common: {
     loading: 'Lädt…',
     refresh: 'Aktualisieren',

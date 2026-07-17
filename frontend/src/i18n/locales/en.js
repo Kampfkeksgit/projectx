@@ -1,4 +1,8 @@
 export default {
+  chart: {
+    hide: 'Hide series',
+    show: 'Show series'
+  },
   common: {
     loading: 'Loading…',
     refresh: 'Refresh',
