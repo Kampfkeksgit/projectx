@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 55;
+const CURRENT_SCHEMA_VERSION = 56;
 
 /**
  * Initialize schema version tracking
@@ -114,7 +114,8 @@ async function applyMigrations(fromVersion, toVersion) {
     52: migrationV52,
     53: migrationV53,
     54: migrationV54,
-    55: migrationV55
+    55: migrationV55,
+    56: migrationV56
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -2392,6 +2393,18 @@ function migrationV55() {
     'ALTER TABLE guilds ADD COLUMN owner_id TEXT',
     'ALTER TABLE guilds ADD COLUMN owner_username TEXT',
     'ALTER TABLE guilds ADD COLUMN owner_avatar_url TEXT'
+  ]);
+}
+
+/**
+ * v56 (Partner-Verknüpfung + Tags): verknüpft eine Partner-Row optional mit
+ * einer anderen (z. B. Creator ↔ sein Server) + freie Tags je Partner-Card.
+ * Idempotent; mirrored in initializeDatabase().
+ */
+function migrationV56() {
+  return runSchemaBatch(56, [
+    'ALTER TABLE partners ADD COLUMN linked_partner_id TEXT',
+    'ALTER TABLE partners ADD COLUMN tags TEXT'
   ]);
 }
 

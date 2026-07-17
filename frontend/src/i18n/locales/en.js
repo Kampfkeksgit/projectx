@@ -239,6 +239,12 @@ export default {
     partnerInviteRequired: 'An invite link is required for a partner server.',
     partnerUserRequired: 'Enter a Discord ID or a name.',
     partnerResolveHint: 'Tip: for a server just paste its invite link — the bot fills the name/icon/member count from Discord within a few minutes. For a user, add just their Discord ID. Values you set manually always win.',
+    partnerTags: 'Tags',
+    partnerTagsHint: 'Add tags like “Creator”, “Gaming”, “Community” — shown as chips on the card.',
+    partnerTagsPlaceholder: 'Type a tag and press Enter…',
+    partnerLinkPartner: 'Linked partner',
+    partnerLinkPartnerHint: 'Connect this partner with another — e.g. a creator with their server. Shown on both cards.',
+    partnerLinkNone: 'None —',
     partnerDeleteConfirm: 'Remove {name} from the partners?',
     clTitle: 'New changelog entry',
     clEditTitle: 'Edit changelog entry',
@@ -2002,7 +2008,8 @@ export default {
     kindGuild: 'Server',
     members: 'members',
     join: 'Join server',
-    visit: 'Visit'
+    visit: 'Visit',
+    linkedLabel: 'Connected with',
   },
   changelog: {
     eyebrow: 'What\'s new',

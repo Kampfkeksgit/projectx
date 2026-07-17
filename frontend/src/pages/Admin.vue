@@ -559,6 +559,21 @@
               <label class="tf"><span class="modal__label">{{ t('admin.partnerPosition') }}</span><input v-model.number="partnerForm.position" class="modal__input" type="number" min="0" /></label>
             </div>
             <label class="tf tf--wide"><span class="modal__label">{{ t('admin.partnerDescription') }}</span><textarea v-model="partnerForm.description" class="modal__input" rows="2" maxlength="500"></textarea></label>
+            <div class="tf tf--wide">
+              <span class="modal__label">{{ t('admin.partnerTags') }}</span>
+              <ChipInput v-model="partnerForm.tags" :placeholder="t('admin.partnerTagsPlaceholder')" />
+              <span class="tf__hint">{{ t('admin.partnerTagsHint') }}</span>
+            </div>
+            <div class="tf tf--wide">
+              <span class="modal__label">{{ t('admin.partnerLinkPartner') }}</span>
+              <select v-model="partnerForm.linked_partner_id" class="modal__input">
+                <option value="">{{ t('admin.partnerLinkNone') }}</option>
+                <option v-for="opt in partnerLinkOptions" :key="opt.id" :value="opt.id">
+                  {{ opt.kind === 'guild' ? '🏠' : '👤' }} {{ partnerName(opt) }}
+                </option>
+              </select>
+              <span class="tf__hint">{{ t('admin.partnerLinkPartnerHint') }}</span>
+            </div>
             <div class="team-form__actions">
               <AppButton v-if="partnerForm.id" variant="ghost" @click="resetPartnerForm">{{ t('common.cancel') }}</AppButton>
               <AppButton variant="primary" :loading="partnerSaving" @click="savePartner">{{ partnerForm.id ? t('admin.partnerUpdate') : t('admin.partnerAdd') }}</AppButton>
@@ -581,6 +596,10 @@
                   {{ p.kind === 'guild' ? t('admin.partnerKindGuild') : t('admin.partnerKindUser') }}
                   <template v-if="p.kind === 'guild' && p.member_count"> · {{ p.member_count }} {{ t('partners.members') }}</template>
                   · #{{ p.position }}
+                  <template v-for="l in (p.links || [])" :key="l.id"> · ↔ {{ l.name || '—' }}</template>
+                </span>
+                <span v-if="p.tags && p.tags.length" class="partner-tags">
+                  <span v-for="tg in p.tags" :key="tg" class="partner-tags__chip">{{ tg }}</span>
                 </span>
               </div>
               <template v-if="can('partners', 'manage')">
@@ -846,6 +865,7 @@ import { useRouter } from 'vue-router'
 import api from '../services/api.js'
 import AppButton from '../components/AppButton.vue'
 import AppToggle from '../components/AppToggle.vue'
+import ChipInput from '../components/ChipInput.vue'
 import GuildAvatar from '../components/GuildAvatar.vue'
 import LoadingPage from '../components/LoadingPage.vue'
 import StatsChart from '../components/StatsChart.vue'
@@ -1437,10 +1457,12 @@ async function removeTeamMember(m) {
 const partners = ref([])
 const partnerSaving = ref(false)
 function emptyPartnerForm() {
-  return { id: null, kind: 'user', discord_id: '', invite_url: '', name: '', description: '', avatar_url: '', position: 0 }
+  return { id: null, kind: 'user', discord_id: '', invite_url: '', name: '', description: '', avatar_url: '', position: 0, tags: [], linked_partner_id: '' }
 }
 const partnerForm = reactive(emptyPartnerForm())
 function resetPartnerForm() { Object.assign(partnerForm, emptyPartnerForm()) }
+// Other partners available to link to (exclude the one being edited).
+const partnerLinkOptions = computed(() => partners.value.filter((p) => p.id !== partnerForm.id))
 function partnerName(p) {
   if (p.name && p.name.trim()) return p.name
   if (p.resolved_name && p.resolved_name !== 'unknown') return p.kind === 'user' ? '@' + p.resolved_name : p.resolved_name
@@ -1451,7 +1473,8 @@ function editPartner(p) {
     id: p.id, kind: p.kind === 'guild' ? 'guild' : 'user',
     discord_id: p.discord_id || '', invite_url: p.invite_url || '',
     name: p.name || '', description: p.description || '',
-    avatar_url: p.avatar_url || '', position: p.position || 0
+    avatar_url: p.avatar_url || '', position: p.position || 0,
+    tags: Array.isArray(p.tags) ? [...p.tags] : [], linked_partner_id: p.linked_partner_id || ''
   })
   if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
 }
@@ -1464,7 +1487,9 @@ async function savePartner() {
     discord_id: partnerForm.kind === 'user' ? (partnerForm.discord_id.trim() || null) : null,
     invite_url: partnerForm.invite_url.trim(),
     name: partnerForm.name.trim(), description: partnerForm.description.trim(),
-    avatar_url: partnerForm.avatar_url.trim(), position: Number(partnerForm.position) || 0
+    avatar_url: partnerForm.avatar_url.trim(), position: Number(partnerForm.position) || 0,
+    tags: Array.isArray(partnerForm.tags) ? partnerForm.tags : [],
+    linked_partner_id: partnerForm.linked_partner_id || null
   }
   try {
     if (partnerForm.id) {
@@ -1856,6 +1881,8 @@ function goBack() { router.push('/dashboard') }
 .team-list__meta { display: flex; flex-direction: column; min-width: 0; margin-right: auto; }
 .team-list__name { font-weight: 600; }
 .team-list__role { font-size: 0.8rem; color: var(--color-text-muted); }
+.partner-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.partner-tags__chip { font-size: 0.66rem; font-weight: 600; padding: 1px 7px; border-radius: var(--radius-full); background: var(--color-surface-2); border: 1px solid var(--color-border-strong); color: var(--color-text-soft); }
 
 .pill { font-size: 0.7rem; font-weight: 700; padding: 0.2rem 0.55rem; border-radius: var(--radius-full); background: var(--color-surface-2); color: var(--color-text-soft); display: inline-flex; align-items: center; gap: 4px; }
 .pill--basic { background: rgba(99, 102, 241, 0.18); color: #a5b4fc; }

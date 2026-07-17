@@ -239,6 +239,12 @@ export default {
     partnerInviteRequired: 'Для партнёрского сервера требуется ссылка-приглашение.',
     partnerUserRequired: 'Введите Discord ID или имя.',
     partnerResolveHint: 'Совет: для сервера просто вставьте ссылку-приглашение — бот заполнит имя/иконку/количество участников из Discord в течение нескольких минут. Для пользователя достаточно добавить его Discord ID. Значения, заданные вручную, всегда имеют приоритет.',
+    partnerTags: 'Теги',
+    partnerTagsHint: 'Добавьте теги вроде «Creator», «Gaming», «Community» — показываются на карточке.',
+    partnerTagsPlaceholder: 'Введите тег и нажмите Enter…',
+    partnerLinkPartner: 'Связанный партнёр',
+    partnerLinkPartnerHint: 'Свяжите этого партнёра с другим — например, автора с его сервером. Показывается на обеих карточках.',
+    partnerLinkNone: 'Нет —',
     partnerDeleteConfirm: 'Удалить {name} из партнёров?',
     clTitle: 'Новая запись в списке изменений',
     clEditTitle: 'Редактировать запись списка изменений',
@@ -1960,7 +1966,8 @@ export default {
     kindGuild: 'Сервер',
     members: 'участников',
     join: 'Присоединиться к серверу',
-    visit: 'Перейти'
+    visit: 'Перейти',
+    linkedLabel: 'Связан с',
   },
   changelog: {
     eyebrow: 'Что нового',
