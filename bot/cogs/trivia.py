@@ -27,6 +27,7 @@ import random
 import asyncio
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 import config
@@ -432,6 +433,71 @@ class Trivia(commands.Cog):
                 await ctx.reply(t(lang, "start_failed"), mention_author=False)
             except Exception:
                 pass
+
+    async def _send_ephemeral(self, interaction, content):
+        """Reply ephemerally whether or not the interaction was already responded to."""
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(content, ephemeral=True)
+            else:
+                await interaction.response.send_message(content, ephemeral=True)
+        except Exception:
+            pass
+
+    @app_commands.command(name="trivia", description="Start a trivia round.")
+    @app_commands.guild_only()
+    async def trivia_slash(self, interaction: discord.Interaction):
+        lang = "en"
+        try:
+            settings = await self._get_settings(interaction.guild.id, force=True)
+            lang = lang_of(settings)
+            if not settings or not settings.get("trivia_enabled"):
+                await self._send_ephemeral(interaction, t(lang, "not_enabled"))
+                return
+
+            games_channel_id = settings.get("games_channel_id")
+            if games_channel_id and str(games_channel_id) != str(interaction.channel.id):
+                channel = interaction.guild.get_channel(int(games_channel_id))
+                where = channel.mention if channel else t(lang, "configured_channel")
+                await self._send_ephemeral(interaction, t(lang, "use_here", channel=where))
+                return
+
+            bank = QUESTIONS_BY_LANG.get(lang) or QUESTIONS_BY_LANG["en"]
+            question = random.choice(bank)
+            options = question["options"]
+            answer = int(question["answer"])
+
+            token = uuid.uuid4().hex[:8]
+            embed = discord.Embed(
+                title=t(lang, "title_question"),
+                description=question["q"],
+                color=TRIVIA_COLOR,
+            )
+            for i, opt in enumerate(options[:4]):
+                embed.add_field(name=f"{OPTION_LABELS[i]}", value=str(opt), inline=False)
+            embed.set_footer(text=t(lang, "footer", seconds=REVEAL_AFTER_SECONDS))
+
+            try:
+                await interaction.response.send_message(
+                    embed=embed, view=build_question_view(token, len(options)))
+                msg = await interaction.original_response()
+            except discord.Forbidden:
+                await self._send_ephemeral(interaction, t(lang, "cant_post"))
+                return
+
+            self._sessions[token] = {
+                "answer": answer,
+                "answered": set(),
+                "solved": False,
+                "message": msg,
+                "guild_id": interaction.guild.id,
+                "options": list(options[:4]),
+                "lang": lang,
+            }
+            asyncio.create_task(self._auto_reveal(token))
+        except Exception as exc:
+            print(f"[trivia] slash start failed in {getattr(interaction.guild, 'id', '?')}: {exc}")
+            await self._send_ephemeral(interaction, t(lang, "start_failed"))
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction):

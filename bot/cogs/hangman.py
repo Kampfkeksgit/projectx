@@ -22,6 +22,7 @@ Logging prefix: "[hangman]".
 import random
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 import config
@@ -257,6 +258,45 @@ class Hangman(commands.Cog):
         except Exception as exc:
             print(f"[hangman] failed to post game in {ctx.channel.id}: {exc}")
             self._games.pop(ctx.channel.id, None)
+
+    @app_commands.command(name="hangman", description="Start a game of Hangman.")
+    @app_commands.guild_only()
+    async def hangman_slash(self, interaction: discord.Interaction):
+        if interaction.channel.id in self._games:
+            await interaction.response.send_message(t("en", "already_running"), ephemeral=True)
+            return
+
+        settings = await fetch_bot_settings(self.backend_url, self.api_key, interaction.guild.id, "games")
+        lang = lang_of(settings)
+        if not settings or not settings.get("hangman_enabled"):
+            await interaction.response.send_message(t(lang, "not_enabled"), ephemeral=True)
+            return
+
+        games_channel_id = settings.get("games_channel_id")
+        if games_channel_id and str(interaction.channel.id) != str(games_channel_id):
+            channel = interaction.guild.get_channel(int(games_channel_id)) if str(games_channel_id).isdigit() else None
+            where = channel.mention if channel else t(lang, "configured_channel")
+            await interaction.response.send_message(t(lang, "wrong_channel", where=where), ephemeral=True)
+            return
+
+        bank = WORDS_BY_LANG.get(lang) or WORDS_BY_LANG["en"]
+        word = random.choice(bank)
+        game = {
+            "word": word,
+            "guessed": set(),
+            "wrong": set(),
+            "attempts_left": MAX_ATTEMPTS,
+            "message": None,
+            "lang": lang,
+        }
+        self._games[interaction.channel.id] = game
+
+        try:
+            await interaction.response.send_message(embed=self._build_embed(game))
+            game["message"] = await interaction.original_response()
+        except Exception as exc:
+            print(f"[hangman] failed to post game in {interaction.channel.id}: {exc}")
+            self._games.pop(interaction.channel.id, None)
 
     async def _refresh_embed(self, channel, game, **kwargs):
         """Edit the stored message if possible; fall back to posting a new one."""

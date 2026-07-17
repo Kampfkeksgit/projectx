@@ -15,6 +15,7 @@ Logging prefix: "[applications]".
 """
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 import config
@@ -88,6 +89,39 @@ class Applications(commands.Cog):
             await ctx.send(embed=embed, view=view)
         except discord.Forbidden:
             await ctx.reply(t(lang, "app.cantPost"), mention_author=False)
+
+    @app_commands.command(name="applypanel", description="Post the application panel (admin).")
+    @app_commands.guild_only()
+    @app_commands.default_permissions(administrator=True)
+    async def applypanel_slash(self, interaction: discord.Interaction):
+        if not interaction.user.guild_permissions.administrator:
+            lang = await lang_for(self.backend_url, self.api_key, interaction.guild.id)
+            await interaction.response.send_message(t(lang, "app.noPermission"), ephemeral=True)
+            return
+        lang = await lang_for(self.backend_url, self.api_key, interaction.guild.id)
+        data = await bot_get(self.backend_url, self.api_key, f"/api/bot/guilds/{interaction.guild.id}/settings/applications")
+        forms = (data or {}).get("forms") or []
+        if not forms:
+            await interaction.response.send_message(t(lang, "app.noForms"), ephemeral=True)
+            return
+        embed = discord.Embed(
+            title=t(lang, "app.panelTitle"),
+            description=t(lang, "app.panelDesc"),
+            color=await general_config.get_embed_color(self.backend_url, self.api_key, interaction.guild.id, fallback=APP_COLOR),
+        )
+        view = discord.ui.View(timeout=None)
+        for form in forms[:5]:
+            embed.add_field(name=form.get("name") or t(lang, "app.formFallback"), value=(form.get("description") or "—")[:1024], inline=False)
+            view.add_item(discord.ui.Button(
+                style=discord.ButtonStyle.primary,
+                label=(form.get("button_label") or form.get("name") or t(lang, "app.applyButton"))[:80],
+                custom_id=f"app:{form['id']}",
+            ))
+        try:
+            await interaction.channel.send(embed=embed, view=view)
+            await interaction.response.send_message(t(lang, "app.panelPosted"), ephemeral=True)
+        except discord.Forbidden:
+            await interaction.response.send_message(t(lang, "app.cantPost"), ephemeral=True)
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction):

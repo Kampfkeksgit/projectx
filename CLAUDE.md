@@ -138,7 +138,7 @@ projectx/
 │       │                       # Entry-State via /api/bot/.../starboard/entries/:message_id.
 │       ├── suggestions.py      # !suggest <text> ODER /suggest → postet Embed in suggest_channel + Up/Down-Vote-Reaktionen.
 │       ├── birthday.py         # 30min-Loop (1×/Tag aktiv): GET /birthdays/today → Announce + Geburtstags-Rolle,
-│       │                       # Rollen-Sweep (gestrige entfernen). !birthday TT.MM[.YYYY] speichert via POST.
+│       │                       # Rollen-Sweep (gestrige entfernen). !birthday TT.MM[.YYYY] (auch /birthday) speichert via POST.
 │       ├── scheduler.py        # 30s-Loop: GET /scheduled/due → postet Nachricht, PUT .../ran (Backend rechnet next/disable).
 │       ├── antiraid.py         # on_member_join: Account-Alter-Gate + Join-Rate-Burst (deque) → alert|kick|ban + Alarm.
 │       ├── slash_utils.py      # Slash-Commands /ping /userinfo /serverinfo /avatar (app_commands, tree.sync in main.py).
@@ -153,7 +153,7 @@ projectx/
 │       │                       # panel_embed + welcome_embed wahlweise klassisch ODER Components V2 = Container + Panel-/Control-Buttons via rich_message).
 │       │                       # on_interaction: ticket_select/ticketcat:<id>/ticket_open → Channel (Kategorie-Overrides),
 │       │                       # ticket_claim, ticket_add/ticket_remove (UserSelect), ticket_close (+confirm),
-│       │                       # ticketrate:<gid>:<id>:<n> → RatingModal. Commands: !claim/!ticketadd/!ticketremove/!ticketclose.
+│       │                       # ticketrate:<gid>:<id>:<n> → RatingModal. Commands: !claim/!ticketadd/!ticketremove/!ticketclose (alle auch als Slash).
 │       │                       # Bewertung (channel/dm/both), Transcript, Log-Channel, per-Guild-Nummerierung.
 │       ├── giveaways.py        # Slash-Gruppe /giveaway start|reroll|end (default_permissions manage_guild); Button-Entry "ge:<id>".
 │       │                       # Beim Klick prüft der Bot die Teilnahme-Voraussetzungen (Rollen any-of / Kontoalter / Serverzugehörigkeit /
@@ -182,17 +182,17 @@ projectx/
 │       │                       # editiert Embed-Tally; 30s-Loop schließt fällige (timed) Umfragen. (Free)
 │       ├── invitetracking.py   # on_ready cached guild.invites(), on_member_join difft Use-Counts → Einlader,
 │       │                       # POST /invites/join + Ankündigung. Braucht MANAGE_GUILD. (Basic)
-│       ├── applications.py     # !applypanel postet Form-Buttons; "app:<fid>" → Modal (≤5 Fragen); Submit → Review-Embed
+│       ├── applications.py     # !applypanel (auch /applypanel) postet Form-Buttons; "app:<fid>" → Modal (≤5 Fragen); Submit → Review-Embed
 │       │                       # mit Accept/Deny ("appok:"/"appno:"); Accept vergibt Rolle + DM. (Pro)
-│       ├── economy.py          # !balance(+ /balance)/!daily/!work/!pay/!rich/!shop/!buy → POST /economy/* (Backend rechnet
+│       ├── economy.py          # !balance/!daily/!work/!pay/!rich/!shop/!buy (alle auch als Slash) → POST /economy/* (Backend rechnet
 │       │                       # Balance/Cooldowns in Transaktionen); !buy vergibt optional Shop-Rolle. (Pro)
 │       ├── tictactoe.py        # Games-Kategorie (alle Basic, geteilte /games-Settings + /games/score):
-│       │                       # !ttt @gegner → 3×3 Button-Grid, on_interaction "ttt:<token>:<pos>", In-Memory-Session.
-│       ├── rps.py              # !rps [@gegner] → Schere/Stein/Papier-Buttons (vs Spieler oder Bot).
-│       ├── trivia.py           # !trivia → Frage-Bank (built-in) + 4 Buttons "trv:<token>:<idx>", erster Treffer punktet, 25s-Auto-Reveal.
-│       ├── connect4.py         # !connect4 @gegner → 7-Spalten-Buttons "c4:<token>:<col>", Emoji-Board, 4-in-Reihe.
-│       ├── hangman.py          # !hangman → Wort-Bank, Raten via on_message (Einzelbuchstaben), 6 Versuche, Solver punktet.
-│       └── poker.py            # !poker → Texas-Hold'em-Tisch (1 pro Channel): Lobby (Join/Start + Add/Remove bot), Blinds,
+│       │                       # !ttt @gegner (auch /ttt) → 3×3 Button-Grid, on_interaction "ttt:<token>:<pos>", In-Memory-Session.
+│       ├── rps.py              # !rps [@gegner] (auch /rps) → Schere/Stein/Papier-Buttons (vs Spieler oder Bot).
+│       ├── trivia.py           # !trivia (auch /trivia) → Frage-Bank (built-in) + 4 Buttons "trv:<token>:<idx>", erster Treffer punktet, 25s-Auto-Reveal.
+│       ├── connect4.py         # !connect4 @gegner (auch /connect4) → 7-Spalten-Buttons "c4:<token>:<col>", Emoji-Board, 4-in-Reihe.
+│       ├── hangman.py          # !hangman (auch /hangman) → Wort-Bank, Raten via on_message (Einzelbuchstaben), 6 Versuche, Solver punktet.
+│       └── poker.py            # !poker (auch /poker) → Texas-Hold'em-Tisch (1 pro Channel): Lobby (Join/Start + Add/Remove bot), Blinds,
 │                               # Hole-Cards (ephemeral via "🃏 My cards"-Button), Flop/Turn/River, Setzrunden (Fold/Check/Call/
 │                               # Raise-Modal/All-in) als State-Machine, layered Side-Pots, 7-Karten-Hand-Evaluator (mit Self-Test),
 │                               # KI-Bots füllen Sitze (Hand-Strength+Pot-Odds-Heuristik, auto-Act, nie im Leaderboard),
@@ -1195,11 +1195,12 @@ Empfehlung aus [README.md](README.md): SQLite → PostgreSQL für Multi-Instance
 ## 14. Letzte Aktualisierung
 
 - **Datum:** 2026-07-18
-- **Slash-Varianten für populäre Prefix-Befehle → mehr in der Discord-Profil-Vorschau (kein Schema-Change):** Discord listet in der „Befehle"-Sektion des Bot-Profils nur **global gesyncte Application-Commands** — Prefix-Befehle tauchen dort nie auf. Damit mehr Befehle im Profil erscheinen, gibt es jetzt **parallele Slash-Varianten** (Prefix bleibt erhalten): `/suggest`, `/poll`, `/balance` (mirror der bestehenden Cog-Logik + i18n) und **neu `/rank`** (Rang-Karte).
-  - **`/rank [member]`** ([leveling.py](bot/cogs/leveling.py), Basic): zeigt Level, XP, Rang-Position (#x/y) + Fortschrittsbalken zum nächsten Level. Neuer Bot-Endpoint `GET /api/bot/guilds/:id/leveling/rank/:user_id` (db.js `getLevelingRank` — rank = Position unter `xp>0`, + `level_xp`/`next_level_xp` via `totalXpForLevel`). Gated über den bereits premium-gegateten `GET /settings/leveling` (enabled-Check) → bei Tier-Verlust/deaktiviert inert.
-  - **`/suggest`/`/poll`/`/balance`** teilen sich `qualified_name` (= Command-Manager-Key) mit dem jeweiligen Prefix-Befehl → **ein** Toggle steuert beide; der `_tree_gate` in [main.py](bot/main.py) sperrt sie mit. `/poll` nimmt Frage + Optionen (`|` oder `,` getrennt); `/balance` antwortet öffentlich (wie der Prefix). Katalog [db.js](backend/db.js) `BUILTIN_COMMANDS`: neuer `rank`-Eintrag (Modul `leveling`, slash), `poll`/`balance`-Usage um die Slash-Form ergänzt.
-  - **i18n:** neuer Bot-i18n-Namespace `rank.*` (8 Keys) + `eco.disabled` in **allen 5 Sprachen** (Parität 309 Keys/Sprache).
-  - Verifiziert: alle 4 Slash-Commands registrieren auf der Tree (`balance`/`poll`/`rank`/`suggest`), Cogs kompilieren, `getLevelingRank`-DB-Smoke grün (rank/total/thresholds), 74/74 Backend-Tests, Bot-i18n-Parität grün. **Hinweis:** globale Slash-Commands erscheinen nach dem nächsten `tree.sync()` (Bot-Neustart) + brauchen bis zu ~1h, bis Discord sie im Profil zeigt; der Bot muss mit `applications.commands`-Scope eingeladen sein (ist er). **⚠️ Nicht live gegen Discord getestet.**
+- **Slash-Varianten für (fast) ALLE Prefix-Befehle → mehr in der Discord-Profil-Vorschau (kein Schema-Change):** Discord listet in der „Befehle"-Sektion des Bot-Profils nur **global gesyncte Application-Commands** — Prefix-Befehle tauchen dort nie auf. Damit möglichst viele Befehle im Profil erscheinen, haben jetzt **fast alle** member-/staff-sichtbaren Prefix-Befehle eine **parallele Slash-Variante** (der Prefix bleibt überall erhalten). **23 Slash-Commands** insgesamt: neu `/rank` + Mirror von `/suggest` `/poll` `/balance` `/daily` `/work` `/pay` `/rich` `/shop` `/buy` `/birthday` `/applypanel` `/claim` `/ticketadd` `/ticketremove` `/ticketclose` `/welcome_test` `/ttt` `/rps` `/trivia` `/connect4` `/hangman` `/poker`.
+  - **Prinzip:** Jede Slash-Variante trägt exakt den `name=` des zugehörigen Prefix-Befehls = dessen `qualified_name` = Command-Manager-Toggle-Key → **ein** Toggle steuert beide, und der `_tree_gate` in [main.py](bot/main.py) sperrt die Slash-Variante wenn deaktiviert. Gleiche Gating-/Premium-/Enabled-Checks + gleiche i18n wie der Prefix; Antwort über die Interaktion (Fehler/Cooldown/„nicht aktiviert" ephemeral, damit nie „application did not respond"). Die Cog-Logik/Sessions/Handler bleiben unverändert — es wird nur je eine `@app_commands.command`-Methode ergänzt.
+  - **`/rank [member]`** ([leveling.py](bot/cogs/leveling.py), Basic): Level, XP, Rang-Position (#x/y) + Fortschrittsbalken. Neuer Bot-Endpoint `GET /api/bot/guilds/:id/leveling/rank/:user_id` (db.js `getLevelingRank` — rank = Position unter `xp>0`, + `level_xp`/`next_level_xp` via `totalXpForLevel`). Gated über den premium-gegateten `GET /settings/leveling` (enabled-Check).
+  - **Umsetzung:** Games-Cogs (ttt/rps/trivia/connect4/hangman/poker) via 6 parallele Sub-Agents (je 1 Cog, keine Konflikte); Rest ([economy](bot/cogs/economy.py)/[birthday](bot/cogs/birthday.py)/[applications](bot/cogs/applications.py)/[tickets](bot/cogs/tickets.py)/[welcome_leave](bot/cogs/welcome_leave.py)) selbst (teilen sich `bot_i18n.py`).
+  - **Katalog** [db.js](backend/db.js) `BUILTIN_COMMANDS`: neuer `rank`-Eintrag (Modul `leveling`); die `usage`-Strings der konvertierten Befehle um die Slash-Form (`· /cmd`) ergänzt. **i18n:** neuer Bot-i18n-Namespace `rank.*` (8) + `eco.disabled` + `app.panelPosted` + `ticket.notATicket` in **allen 5 Sprachen** (Parität 311 Keys/Sprache).
+  - Verifiziert: **alle 23 Slash-Commands registrieren auf der Tree** (voller Cog-Load-Test, `MISSING: none`), alle Cogs kompilieren, Poker-Evaluator-Self-Test grün, `getLevelingRank`-DB-Smoke grün, 74/74 Backend-Tests, Bot-i18n-Parität grün. **Hinweis:** globale Slash-Commands erscheinen nach dem nächsten `tree.sync()` (Bot-Neustart) + brauchen bis zu ~1h, bis Discord sie im Profil zeigt; der Bot muss mit `applications.commands`-Scope eingeladen sein (ist er). Gesamt-App-Commands ~40 (< Discord-Limit 100). **⚠️ Nicht live gegen Discord getestet.**
 - **Datum:** 2026-07-17
 - **Server-Inhaber im Admin-Inspektor (Schema v55):** Der Server-Inspektor zeigt jetzt den **Server-Inhaber** (Avatar, `@username`, ID) + einen **„Profil öffnen"-Link** (`discord.com/users/:id`), um ihn zu kontaktieren.
   - **Schema v55:** 3 idempotente ALTERs auf `guilds` (`owner_id`, `owner_username`, `owner_avatar_url`) + Mirror. Der Bot-Cog [guild_sync.py](bot/cogs/guild_sync.py) sendet den Inhaber im vorhandenen `guildMeta`-Seed mit (`owner_id` immer via `guild.owner_id`; Name/Avatar best-effort aus dem Member-/User-Cache, mit `fetch_user`-Fallback in den Full-Syncs). `replaceGuildChannels`/`replaceGuildRoles` schreiben die Spalten (COALESCE/NULLIF — leere Werte bei einem Cache-Miss überschreiben nie einen bereits gesetzten Namen).

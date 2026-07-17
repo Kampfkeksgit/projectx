@@ -25,6 +25,7 @@ import uuid
 import random
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 import config
@@ -259,6 +260,74 @@ class RPS(commands.Cog):
 
         # vs bot
         await self._start_vs_bot(ctx, lang)
+
+    @app_commands.command(name="rps", description="Play Rock-Paper-Scissors against another member or the bot.")
+    @app_commands.describe(opponent="Optional: the member to challenge (leave empty to play the bot)")
+    @app_commands.guild_only()
+    async def rps_slash(self, interaction: discord.Interaction, opponent: discord.Member = None):
+        settings = await self._get_settings(interaction.guild.id, force=True)
+        lang = lang_of(settings)
+        if not settings or not settings.get("rps_enabled"):
+            await interaction.response.send_message(t(lang, "not_enabled"), ephemeral=True)
+            return
+
+        games_channel_id = settings.get("games_channel_id")
+        if games_channel_id and str(games_channel_id) != str(interaction.channel.id):
+            channel = interaction.guild.get_channel(int(games_channel_id)) if str(games_channel_id).isdigit() else None
+            where = channel.mention if channel else t(lang, "configured_channel")
+            await interaction.response.send_message(t(lang, "play_in_channel", where=where), ephemeral=True)
+            return
+
+        # vs opponent
+        if opponent is not None:
+            if opponent.bot:
+                await interaction.response.send_message(t(lang, "no_challenge_bot"), ephemeral=True)
+                return
+            if opponent.id == interaction.user.id:
+                await interaction.response.send_message(t(lang, "no_challenge_self"), ephemeral=True)
+                return
+            token = uuid.uuid4().hex[:8]
+            self._sessions[token] = {
+                "mode": "pvp",
+                "guild_id": interaction.guild.id,
+                "p1_id": interaction.user.id,
+                "p2_id": opponent.id,
+                "p1_choice": None,
+                "p2_choice": None,
+                "lang": lang,
+                "created": time.time(),
+            }
+            embed = discord.Embed(
+                title=t(lang, "title"),
+                description=t(lang, "pvp_intro", p1=interaction.user.mention, p2=opponent.mention),
+                color=RPS_COLOR,
+            )
+            try:
+                await interaction.response.send_message(embed=embed, view=build_view(lang, token))
+            except discord.Forbidden:
+                self._sessions.pop(token, None)
+                await interaction.response.send_message(t(lang, "cant_post"), ephemeral=True)
+            return
+
+        # vs bot
+        token = uuid.uuid4().hex[:8]
+        self._sessions[token] = {
+            "mode": "bot",
+            "guild_id": interaction.guild.id,
+            "author_id": interaction.user.id,
+            "lang": lang,
+            "created": time.time(),
+        }
+        embed = discord.Embed(
+            title=t(lang, "title"),
+            description=t(lang, "make_move", author=interaction.user.mention),
+            color=RPS_COLOR,
+        )
+        try:
+            await interaction.response.send_message(embed=embed, view=build_view(lang, token))
+        except discord.Forbidden:
+            self._sessions.pop(token, None)
+            await interaction.response.send_message(t(lang, "cant_post"), ephemeral=True)
 
     async def _start_vs_bot(self, ctx, lang):
         token = uuid.uuid4().hex[:8]
