@@ -397,7 +397,9 @@ projectx/
 │       │   ├── StatsCounterRow.vue # Inline-Editor-Row für Stats-Counter (Metrik-Typ/Name-Template mit
 │       │   │                       # {count}/Modus existing↔auto-create/Voice|Text/Toggle; ChannelSelector)
 │       │   │                       # Einklappbar (Caret im Header; gespeicherte Counter starten eingeklappt, Drafts offen)
-│       │   ├── StatsChart.vue  # Vanilla-SVG-Liniendiagramm (props: title, points[{ts,...}], lines[{key,label,color}])
+│       │   ├── StatsChart.vue  # Vanilla-SVG-Liniendiagramm (props: title, points[{ts,...}], lines[{key,label,color}]);
+│       │   │                   # interaktiv: klickbare Legende (Reihen aus-/einblenden → Y-Achse skaliert dynamisch nach), Hover-Crosshair +
+│       │   │                   # Tooltip (Datum + Werte je sichtbarer Reihe), Flächen-Gradient unter jeder Linie. Nutzt useI18n (chart.show/hide)
 │       │   ├── ScheduledMessageRow.vue # Inline-Editor-Row für geplante Nachrichten (once/interval, datetime-local)
 │       │   ├── RoleMenuRow.vue  # Inline-Editor-Row für Rollen-Menüs (Buttons/Select + Options-Repeater)
 │       │   │                   # Einklappbar (Caret + klickbarer Header; gespeicherte Menüs starten eingeklappt, Drafts offen) wie StatsCounterRow
@@ -1193,6 +1195,11 @@ Empfehlung aus [README.md](README.md): SQLite → PostgreSQL für Multi-Instance
 
 ## 14. Letzte Aktualisierung
 
+- **Datum:** 2026-07-18
+- **Analytics-Charts interaktiv/detailreicher (kein Schema-Change):** [StatsChart.vue](frontend/src/components/StatsChart.vue) (geteilt von Admin → Analytics **und** Dashboard → Statistik) wurde von einem statischen SVG-Liniendiagramm zu einem interaktiven Chart ausgebaut — Props (`title`/`points`/`lines`/`emptyText`) unverändert, daher keine Anpassung an den 6 Aufrufstellen ([Admin.vue](frontend/src/pages/Admin.vue) 4×, [Stats.vue](frontend/src/pages/Stats.vue) 2×).
+  - **Klickbare Legende:** jede Reihe lässt sich per Klick aus-/einblenden (Chip dimmt + Durchstreichung); die Y-Achse **reskaliert dynamisch** auf die sichtbaren Reihen. **Hover-Crosshair + Tooltip:** vertikale Linie am nächsten Datenpunkt, Punkte je sichtbarer Reihe, HTML-Tooltip mit vollem Datum (locale-formatiert) + Werten (Tausender-Trennung), Touch-fähig (`touchmove`). **Flächen-Gradient** unter jeder Linie (per-Reihe `linearGradient`, uid-scoped IDs gegen Kollision bei mehreren Charts). Y-Achsen-Labels kompakt (`k` ab 1000).
+  - **i18n:** neuer Namespace `chart` (2 Keys `show`/`hide`) in **allen 5 Sprachen** (Parität 1888/Locale).
+  - Verifiziert: i18n-Parität grün, Frontend-Build grün. **⚠️ Nur Build/Parität geprüft, nicht visuell im Browser durchgeklickt.**
 - **Datum:** 2026-07-17
 - **Server-Inhaber im Admin-Inspektor (Schema v55):** Der Server-Inspektor zeigt jetzt den **Server-Inhaber** (Avatar, `@username`, ID) + einen **„Profil öffnen"-Link** (`discord.com/users/:id`), um ihn zu kontaktieren.
   - **Schema v55:** 3 idempotente ALTERs auf `guilds` (`owner_id`, `owner_username`, `owner_avatar_url`) + Mirror. Der Bot-Cog [guild_sync.py](bot/cogs/guild_sync.py) sendet den Inhaber im vorhandenen `guildMeta`-Seed mit (`owner_id` immer via `guild.owner_id`; Name/Avatar best-effort aus dem Member-/User-Cache, mit `fetch_user`-Fallback in den Full-Syncs). `replaceGuildChannels`/`replaceGuildRoles` schreiben die Spalten (COALESCE/NULLIF — leere Werte bei einem Cache-Miss überschreiben nie einen bereits gesetzten Namen).

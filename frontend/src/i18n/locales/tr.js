@@ -1,4 +1,8 @@
 export default {
+  chart: {
+    hide: 'Seriyi gizle',
+    show: 'Seriyi göster'
+  },
   common: {
     loading: 'Yükleniyor…',
     refresh: 'Yenile',
