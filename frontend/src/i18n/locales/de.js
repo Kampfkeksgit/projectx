@@ -1324,7 +1324,9 @@ export default {
       polls: 'Umfragen',
       applications: 'Bewerbungen',
       economy: 'Wirtschaft',
-      games: 'Spiele'
+      games: 'Spiele',
+      leveling: 'Level-System',
+      music: 'Musik'
     }
   },
   customCommands: {

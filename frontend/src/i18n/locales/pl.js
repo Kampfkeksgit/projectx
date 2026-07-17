@@ -1282,7 +1282,9 @@ export default {
       polls: 'Ankiety',
       applications: 'Aplikacje',
       economy: 'Ekonomia',
-      games: 'Gry'
+      games: 'Gry',
+      leveling: 'Poziomy',
+      music: 'Muzyka'
     }
   },
   customCommands: {

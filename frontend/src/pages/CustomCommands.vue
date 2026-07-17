@@ -33,6 +33,7 @@
               <div class="cm-cmd__head">
                 <code class="cm-cmd__name">{{ formatUsage(cmd) }}</code>
                 <span class="cm-cmd__badge" :class="`cm-cmd__badge--${cmd.type}`">{{ cmd.type === 'slash' ? t('commandManager.badgeSlash') : t('commandManager.badgePrefix') }}</span>
+                <span v-if="cmd.slash && cmd.type !== 'slash'" class="cm-cmd__badge cm-cmd__badge--slash">{{ t('commandManager.badgeSlash') }}</span>
               </div>
               <div class="cm-cmd__desc">{{ cmd.description }}</div>
             </div>
