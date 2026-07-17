@@ -1,4 +1,8 @@
 export default {
+  chart: {
+    hide: 'Скрыть ряд',
+    show: 'Показать ряд'
+  },
   common: {
     loading: 'Загрузка…',
     refresh: 'Обновить',
