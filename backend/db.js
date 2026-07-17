@@ -1235,23 +1235,28 @@ function initializeDatabase() {
     // ----- Partners page (v51) -----
     db.run(`
       CREATE TABLE IF NOT EXISTS partners (
-        id            TEXT PRIMARY KEY,
-        kind          TEXT DEFAULT 'user',
-        discord_id    TEXT,
-        guild_id      TEXT,
-        invite_url    TEXT,
-        resolved_name TEXT,
-        name          TEXT,
-        description   TEXT,
-        avatar_url    TEXT,
-        member_count  INTEGER DEFAULT 0,
-        position      INTEGER DEFAULT 0,
-        created_at    INTEGER DEFAULT 0
+        id                TEXT PRIMARY KEY,
+        kind              TEXT DEFAULT 'user',
+        discord_id        TEXT,
+        guild_id          TEXT,
+        invite_url        TEXT,
+        resolved_name     TEXT,
+        name              TEXT,
+        description       TEXT,
+        avatar_url        TEXT,
+        member_count      INTEGER DEFAULT 0,
+        position          INTEGER DEFAULT 0,
+        linked_partner_id TEXT,
+        tags              TEXT,
+        created_at        INTEGER DEFAULT 0
       )
     `, (err) => { if (err) console.error('Error creating partners table:', err); });
     db.run('CREATE INDEX IF NOT EXISTS idx_partners_pos ON partners(position)', (err) => {
       if (err) console.error('Error creating idx_partners_pos:', err);
     });
+    // v56 mirror — link + tags (idempotent; "duplicate column" is swallowed).
+    db.run('ALTER TABLE partners ADD COLUMN linked_partner_id TEXT', () => {});
+    db.run('ALTER TABLE partners ADD COLUMN tags TEXT', () => {});
 
     // ----- Admin staff / permissions (v52) -----
     db.run(`
@@ -3122,6 +3127,36 @@ export function resolveTeamMember(id, { username, name, avatar_url } = {}) {
 // ----- Partners page (v51) -----
 
 export const PARTNER_KINDS = ['user', 'guild'];
+export const PARTNER_MAX_TAGS = 8;
+
+/** Parse/sanitize free-form partner tags → deduped array of short strings. */
+function sanitizePartnerTags(input) {
+  let arr = [];
+  if (Array.isArray(input)) arr = input;
+  else if (typeof input === 'string') {
+    // Accept a JSON array string or a comma-separated list.
+    try { const j = JSON.parse(input); if (Array.isArray(j)) arr = j; else arr = input.split(','); }
+    catch { arr = input.split(','); }
+  }
+  const out = [];
+  const seen = new Set();
+  for (const raw of arr) {
+    const t = truncate(String(raw == null ? '' : raw).trim(), 24);
+    if (!t) continue;
+    const key = t.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(t);
+    if (out.length >= PARTNER_MAX_TAGS) break;
+  }
+  return out;
+}
+
+function parsePartnerTags(raw) {
+  if (!raw) return [];
+  try { const j = JSON.parse(raw); return Array.isArray(j) ? j.filter((x) => typeof x === 'string') : []; }
+  catch { return []; }
+}
 
 /** Normalize a Discord invite input to a canonical https URL, or '' if invalid. */
 function normalizeInvite(input) {
@@ -3149,18 +3184,65 @@ function shapePartner(row) {
     avatar_url: row.avatar_url || row.user_avatar || null,
     member_count: row.member_count ?? 0,
     position: row.position ?? 0,
+    linked_partner_id: row.linked_partner_id ?? null,
+    tags: parsePartnerTags(row.tags),
     created_at: row.created_at ?? 0
   };
 }
 
-/** Public + admin: all partners, ordered. Joins users for a user-avatar fallback. */
+/** Display name for a partner (used to label a link chip). */
+function partnerDisplayName(p) {
+  if (p.name && p.name.trim()) return p.name.trim();
+  if (p.resolved_name && p.resolved_name !== 'unknown') {
+    return p.kind === 'user' ? '@' + p.resolved_name : p.resolved_name;
+  }
+  return '';
+}
+
+/** Compact info about a partner, embedded in another's `links` array. */
+function partnerLinkInfo(p) {
+  return {
+    id: p.id,
+    kind: p.kind,
+    name: partnerDisplayName(p),
+    avatar_url: p.avatar_url || null,
+    guild_id: p.guild_id || null,
+    invite_url: p.invite_url || null
+  };
+}
+
+/**
+ * Public + admin: all partners, ordered. Joins users for a user-avatar fallback.
+ * Each partner gets a `links` array = the partner it points to (linked_partner_id)
+ * PLUS every partner that points back at it — so a creator ↔ server link shows on
+ * both cards regardless of which side stored it. Dangling ids are ignored.
+ */
 export function getPartners() {
   return dbAll(
     `SELECT p.*, u.avatar_url AS user_avatar
      FROM partners p
      LEFT JOIN users u ON u.discord_id = p.discord_id
      ORDER BY p.position ASC, p.created_at ASC`
-  ).then((rows) => (rows || []).map(shapePartner));
+  ).then((rows) => {
+    const shaped = (rows || []).map(shapePartner);
+    const byId = new Map(shaped.map((p) => [p.id, p]));
+    for (const p of shaped) {
+      const links = [];
+      const seen = new Set();
+      if (p.linked_partner_id && byId.has(p.linked_partner_id)) {
+        links.push(partnerLinkInfo(byId.get(p.linked_partner_id)));
+        seen.add(p.linked_partner_id);
+      }
+      for (const q of shaped) {
+        if (q.linked_partner_id === p.id && q.id !== p.id && !seen.has(q.id)) {
+          links.push(partnerLinkInfo(q));
+          seen.add(q.id);
+        }
+      }
+      p.links = links;
+    }
+    return shaped;
+  });
 }
 
 function getPartnerById(id) {
@@ -3180,7 +3262,9 @@ function partnerFields(p) {
   const description = truncate(String(p.description || '').trim(), 500);
   const avatar = sanitizeUrlLike(p.avatar_url);
   const position = clampRange(p.position, 0, 100000, 0);
-  return { kind, discordId, invite, name, description, avatar, position };
+  const linkedId = p.linked_partner_id ? String(p.linked_partner_id).trim() || null : null;
+  const tags = sanitizePartnerTags(p.tags);
+  return { kind, discordId, invite, name, description, avatar, position, linkedId, tags };
 }
 
 export function createPartner(payload = {}) {
@@ -3196,8 +3280,8 @@ export function createPartner(payload = {}) {
   const now = Math.floor(Date.now() / 1000);
   return new Promise((resolve, reject) => {
     db.run(
-      'INSERT INTO partners (id, kind, discord_id, invite_url, name, description, avatar_url, position, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [id, f.kind, f.discordId, f.invite, f.name, f.description, f.avatar, f.position, now],
+      'INSERT INTO partners (id, kind, discord_id, invite_url, name, description, avatar_url, position, linked_partner_id, tags, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, f.kind, f.discordId, f.invite, f.name, f.description, f.avatar, f.position, f.linkedId, JSON.stringify(f.tags), now],
       (err) => (err ? reject(err) : getPartnerById(id).then(resolve).catch(reject))
     );
   });
@@ -3217,6 +3301,11 @@ export function updatePartner(id, patch = {}) {
       const description = p.description !== undefined ? truncate(String(p.description || '').trim(), 500) : existing.description;
       const avatar = p.avatar_url !== undefined ? sanitizeUrlLike(p.avatar_url) : existing.avatar_url;
       const position = p.position !== undefined ? clampRange(p.position, 0, 100000, 0) : existing.position;
+      // Link to another partner (never to itself). Tags: replace when provided.
+      const linkedId = p.linked_partner_id !== undefined
+        ? (p.linked_partner_id && String(p.linked_partner_id).trim() && String(p.linked_partner_id).trim() !== id ? String(p.linked_partner_id).trim() : null)
+        : (existing.linked_partner_id || null);
+      const tags = p.tags !== undefined ? sanitizePartnerTags(p.tags) : parsePartnerTags(existing.tags);
       if (kind === 'user' && !discordId && !name) return reject(Object.assign(new Error('discord_id required'), { code: 'VALIDATION' }));
       if (kind === 'guild' && !invite) return reject(Object.assign(new Error('invite required'), { code: 'VALIDATION' }));
       // Re-resolve when the resolution source (kind/id/invite) changed, OR when the
@@ -3228,8 +3317,8 @@ export function updatePartner(id, patch = {}) {
       const avatarCleared = p.avatar_url !== undefined && !avatar && !!existing.resolved_name;
       const resetSql = (srcChanged || avatarCleared) ? ', resolved_name = NULL, guild_id = NULL, member_count = 0' : '';
       db.run(
-        `UPDATE partners SET kind = ?, discord_id = ?, invite_url = ?, name = ?, description = ?, avatar_url = ?, position = ?${resetSql} WHERE id = ?`,
-        [kind, discordId, invite, name, description, avatar, position, id],
+        `UPDATE partners SET kind = ?, discord_id = ?, invite_url = ?, name = ?, description = ?, avatar_url = ?, position = ?, linked_partner_id = ?, tags = ?${resetSql} WHERE id = ?`,
+        [kind, discordId, invite, name, description, avatar, position, linkedId, JSON.stringify(tags), id],
         (err) => (err ? reject(err) : getPartnerById(id).then(resolve).catch(reject))
       );
     }).catch(reject);
@@ -3238,8 +3327,11 @@ export function updatePartner(id, patch = {}) {
 
 export function deletePartner(id) {
   return new Promise((resolve, reject) => {
-    db.run('DELETE FROM partners WHERE id = ?', [id], function (err) {
-      if (err) reject(err); else resolve(this.changes);
+    // Clear links pointing at this partner so no card references a gone entry.
+    db.run('UPDATE partners SET linked_partner_id = NULL WHERE linked_partner_id = ?', [id], () => {
+      db.run('DELETE FROM partners WHERE id = ?', [id], function (err) {
+        if (err) reject(err); else resolve(this.changes);
+      });
     });
   });
 }

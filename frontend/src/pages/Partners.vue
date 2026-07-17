@@ -24,6 +24,23 @@
           {{ formatCount(p.member_count) }} {{ t('partners.members') }}
         </div>
         <p v-if="p.description" class="partner-card__bio">{{ p.description }}</p>
+
+        <div v-if="p.tags && p.tags.length" class="partner-card__tags">
+          <span v-for="tg in p.tags" :key="tg" class="partner-card__tag">{{ tg }}</span>
+        </div>
+
+        <div v-if="p.links && p.links.length" class="partner-card__links">
+          <span class="partner-card__links-label">{{ t('partners.linkedLabel') }}</span>
+          <div class="partner-card__links-row">
+            <span v-for="l in p.links" :key="l.id" class="partner-card__link" :title="l.name">
+              <span class="partner-card__link-av" :style="linkAvatarStyle(l)">
+                <span v-if="!l.avatar_url">{{ initials(l.name) }}</span>
+              </span>
+              <span class="partner-card__link-name">{{ l.name || '—' }}</span>
+            </span>
+          </div>
+        </div>
+
         <a
           v-if="p.kind === 'guild' && isHttp(p.invite_url)"
           :href="p.invite_url"
@@ -71,6 +88,12 @@ function avatarStyle(p) {
   if (p.avatar_url) return { backgroundImage: `url('${p.avatar_url}')` }
   let h = 0
   for (const ch of String(displayName(p) || '')) h = (h * 31 + ch.charCodeAt(0)) % 360
+  return { background: `linear-gradient(135deg, hsl(${h},60%,45%), hsl(${(h + 40) % 360},60%,55%))` }
+}
+function linkAvatarStyle(l) {
+  if (l.avatar_url) return { backgroundImage: `url('${l.avatar_url}')` }
+  let h = 0
+  for (const ch of String(l.name || '')) h = (h * 31 + ch.charCodeAt(0)) % 360
   return { background: `linear-gradient(135deg, hsl(${h},60%,45%), hsl(${(h + 40) % 360},60%,55%))` }
 }
 function formatCount(n) {
@@ -145,6 +168,28 @@ useAutoRefresh(loadPartners)
 .partner-card__name { font-family: var(--font-display); font-size: 1.25rem; font-weight: 700; letter-spacing: -0.01em; margin-bottom: var(--space-2); }
 .partner-card__meta { font-size: 0.78rem; font-weight: 600; color: var(--color-text-soft); margin-bottom: var(--space-3); }
 .partner-card__bio { font-size: 0.86rem; color: var(--color-text-muted); line-height: 1.55; margin-bottom: var(--space-4); }
+
+.partner-card__tags { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-bottom: var(--space-4); }
+.partner-card__tag {
+  font-size: 0.68rem; font-weight: 600; padding: 3px 10px; border-radius: var(--radius-full);
+  color: var(--color-primary); background: var(--color-primary-soft); border: 1px solid transparent;
+}
+
+.partner-card__links { width: 100%; margin-bottom: var(--space-4); }
+.partner-card__links-label { display: block; font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-soft); margin-bottom: 6px; }
+.partner-card__links-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.partner-card__link {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  padding: 3px 10px 3px 3px; border-radius: var(--radius-full);
+  background: var(--color-surface-2); border: 1px solid var(--color-border-strong);
+}
+.partner-card__link-av {
+  width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0;
+  background-size: cover; background-position: center;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.55rem; font-weight: 700; color: #fff;
+}
+.partner-card__link-name { font-size: 0.76rem; font-weight: 600; color: var(--color-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .partner-card__btn {
   margin-top: auto; display: inline-flex; align-items: center; justify-content: center;
   padding: 8px 18px; border-radius: var(--radius-full); font-size: 0.85rem; font-weight: 700;

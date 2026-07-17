@@ -239,6 +239,12 @@ export default {
     partnerInviteRequired: 'Link z zaproszeniem jest wymagany dla serwera partnerskiego.',
     partnerUserRequired: 'Podaj ID Discord lub nazwę.',
     partnerResolveHint: 'Wskazówka: dla serwera wystarczy wkleić link z zaproszeniem — bot uzupełni nazwę/ikonę/liczbę członków z Discorda w ciągu kilku minut. Dla użytkownika podaj tylko jego ID Discord. Wartości ustawione ręcznie zawsze mają pierwszeństwo.',
+    partnerTags: 'Tagi',
+    partnerTagsHint: 'Dodaj tagi jak „Creator”, „Gaming”, „Community” — widoczne na karcie.',
+    partnerTagsPlaceholder: 'Wpisz tag i naciśnij Enter…',
+    partnerLinkPartner: 'Powiązany partner',
+    partnerLinkPartnerHint: 'Powiąż tego partnera z innym — np. twórcę z jego serwerem. Widoczne na obu kartach.',
+    partnerLinkNone: 'Brak —',
     partnerDeleteConfirm: 'Usunąć {name} z partnerów?',
     clTitle: 'Nowy wpis w dzienniku zmian',
     clEditTitle: 'Edytuj wpis w dzienniku zmian',
@@ -1960,7 +1966,8 @@ export default {
     kindGuild: 'Serwer',
     members: 'członków',
     join: 'Dołącz do serwera',
-    visit: 'Odwiedź'
+    visit: 'Odwiedź',
+    linkedLabel: 'Powiązany z',
   },
   changelog: {
     eyebrow: 'Co nowego',

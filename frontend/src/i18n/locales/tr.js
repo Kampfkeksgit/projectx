@@ -239,6 +239,12 @@ export default {
     partnerInviteRequired: 'Bir partner sunucusu için davet bağlantısı gereklidir.',
     partnerUserRequired: 'Bir Discord ID veya ad girin.',
     partnerResolveHint: 'İpucu: bir sunucu için sadece davet bağlantısını yapıştırın — bot birkaç dakika içinde adı/simgeyi/üye sayısını Discord\'dan doldurur. Bir kullanıcı için yalnızca Discord ID\'sini ekleyin. Elle ayarladığınız değerler her zaman geçerli olur.',
+    partnerTags: 'Etiketler',
+    partnerTagsHint: '“Creator”, “Gaming”, “Community” gibi etiketler ekleyin — kartta rozet olarak görünür.',
+    partnerTagsPlaceholder: 'Bir etiket yazıp Enter’a basın…',
+    partnerLinkPartner: 'Bağlı partner',
+    partnerLinkPartnerHint: 'Bu partneri başka biriyle bağlayın — örneğin bir içerik üreticisini sunucusuyla. Her iki kartta da görünür.',
+    partnerLinkNone: 'Yok —',
     partnerDeleteConfirm: '{name} partnerlerden kaldırılsın mı?',
     clTitle: 'Yeni değişiklik günlüğü kaydı',
     clEditTitle: 'Değişiklik günlüğü kaydını düzenle',
@@ -1960,7 +1966,8 @@ export default {
     kindGuild: 'Sunucu',
     members: 'üye',
     join: 'Sunucuya katıl',
-    visit: 'Ziyaret et'
+    visit: 'Ziyaret et',
+    linkedLabel: 'Bağlı',
   },
   changelog: {
     eyebrow: 'Yenilikler',
