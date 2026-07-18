@@ -499,6 +499,10 @@ function initializeDatabase() {
       if (err) console.error('Error creating guild_reaction_role_mappings table:', err);
       else console.log('✓ Guild reaction-role mappings table initialized');
     });
+    // v58 mirror — bot-posted reaction-role messages + in-place auto-update.
+    for (const col of [
+      'auto_post INTEGER DEFAULT 0', 'content TEXT', 'use_embed INTEGER DEFAULT 0', 'embed TEXT', 'dirty INTEGER DEFAULT 0'
+    ]) db.run(`ALTER TABLE guild_reaction_role_messages ADD COLUMN ${col}`, () => {});
 
     // Create guild_leveling_settings table (v7)
     db.run(`
@@ -4651,11 +4655,23 @@ function isSnowflake(value) {
 
 function shapeReactionRoleRow(row, mappings) {
   if (!row) return null;
+  const autoPost = !!row.auto_post;
+  // For bot-posted messages, message_id holds the row id as a UNIQUE-safe
+  // placeholder until the bot posts (the column is NOT NULL + UNIQUE). A real
+  // Discord snowflake (≠ id) means it's live.
+  const posted = !!(row.message_id && row.message_id !== row.id);
   return {
     id: row.id,
     guild_id: row.guild_id,
     channel_id: row.channel_id,
-    message_id: row.message_id,
+    // Hide the placeholder id from the dashboard for unposted auto-post rows.
+    message_id: (autoPost && !posted) ? '' : (row.message_id || ''),
+    auto_post: autoPost,
+    posted,
+    content: row.content ?? '',
+    use_embed: !!row.use_embed,
+    embed: parseEmbedColumn(row.embed),
+    dirty: !!row.dirty,
     name: row.name ?? null,
     exclusive: !!row.exclusive,
     created_at: row.created_at ?? null,
@@ -4751,13 +4767,22 @@ function sanitizeReactionRoleMappings(mappings) {
  * Generates a server-side UUID for the row id.
  */
 export function createReactionRoleMessage(guildId, payload) {
+  const autoPost = payload?.auto_post ? 1 : 0;
   const channelId = payload?.channel_id;
-  const messageId = payload?.message_id;
   if (!isSnowflake(channelId)) {
     return Promise.reject(new Error('Invalid channel_id'));
   }
-  if (!isSnowflake(messageId)) {
-    return Promise.reject(new Error('Invalid message_id'));
+  const id = randomUUID();
+  // auto_post rows start with message_id = id (UNIQUE-safe placeholder → the bot
+  // posts and writes back the real snowflake). Legacy rows need a real message_id.
+  let messageId;
+  if (autoPost) {
+    messageId = id;
+  } else {
+    messageId = payload?.message_id;
+    if (!isSnowflake(messageId)) {
+      return Promise.reject(new Error('Invalid message_id'));
+    }
   }
   const mappings = sanitizeReactionRoleMappings(payload?.mappings);
   if (mappings.length === 0) {
@@ -4765,14 +4790,16 @@ export function createReactionRoleMessage(guildId, payload) {
   }
   const name = typeof payload?.name === 'string' ? payload.name.slice(0, 100) : null;
   const exclusive = payload?.exclusive ? 1 : 0;
-  const id = randomUUID();
+  const content = typeof payload?.content === 'string' ? payload.content.slice(0, 2000) : null;
+  const useEmbed = payload?.use_embed ? 1 : 0;
+  const embed = JSON.stringify(sanitizeEmbed(payload?.embed));
 
   return runInTransaction(() => new Promise((resolve, reject) => {
     db.run(
       `INSERT INTO guild_reaction_role_messages
-         (id, guild_id, channel_id, message_id, name, exclusive)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [id, guildId, channelId, messageId, name, exclusive],
+         (id, guild_id, channel_id, message_id, name, exclusive, auto_post, content, use_embed, embed, dirty)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+      [id, guildId, channelId, messageId, name, exclusive, autoPost, content, useEmbed, embed],
       (insErr) => {
         if (insErr) return reject(insErr);
 
@@ -4812,12 +4839,8 @@ export function createReactionRoleMessage(guildId, payload) {
  */
 export function updateReactionRoleMessage(guildId, rrId, payload) {
   const channelId = payload?.channel_id;
-  const messageId = payload?.message_id;
   if (!isSnowflake(channelId)) {
     return Promise.reject(new Error('Invalid channel_id'));
-  }
-  if (!isSnowflake(messageId)) {
-    return Promise.reject(new Error('Invalid message_id'));
   }
   const mappings = sanitizeReactionRoleMappings(payload?.mappings);
   if (mappings.length === 0) {
@@ -4825,14 +4848,36 @@ export function updateReactionRoleMessage(guildId, rrId, payload) {
   }
   const name = typeof payload?.name === 'string' ? payload.name.slice(0, 100) : null;
   const exclusive = payload?.exclusive ? 1 : 0;
+  const content = typeof payload?.content === 'string' ? payload.content.slice(0, 2000) : null;
+  const useEmbed = payload?.use_embed ? 1 : 0;
+  const embed = JSON.stringify(sanitizeEmbed(payload?.embed));
 
   return runInTransaction(() => new Promise((resolve, reject) => {
+    // Read the existing row to resolve auto_post + repost-on-channel-change.
+    db.get('SELECT auto_post, channel_id, message_id FROM guild_reaction_role_messages WHERE guild_id = ? AND id = ?', [guildId, rrId], (readErr, existing) => {
+      if (readErr) return reject(readErr);
+      if (!existing) return reject(Object.assign(new Error('Reaction role message not found'), { code: 'NOT_FOUND' }));
+      const autoPost = payload?.auto_post !== undefined ? (payload.auto_post ? 1 : 0) : (existing.auto_post ? 1 : 0);
+      let messageId;
+      let dirty = 0;
+      if (autoPost) {
+        // Changing the channel (or switching to auto-post) → repost fresh:
+        // reset message_id to the placeholder (= id) so the bot posts anew.
+        const wasAutoPosted = !!existing.auto_post && existing.message_id && existing.message_id !== rrId;
+        const channelChanged = String(existing.channel_id || '') !== String(channelId);
+        messageId = (!wasAutoPosted || channelChanged) ? rrId : existing.message_id;
+        dirty = 1; // any edit → bot re-renders the message + reconciles reactions
+      } else {
+        messageId = payload?.message_id;
+        if (!isSnowflake(messageId)) return reject(new Error('Invalid message_id'));
+      }
     db.run(
       `UPDATE guild_reaction_role_messages
          SET channel_id = ?, message_id = ?, name = ?, exclusive = ?,
+             auto_post = ?, content = ?, use_embed = ?, embed = ?, dirty = ?,
              updated_at = CURRENT_TIMESTAMP
        WHERE guild_id = ? AND id = ?`,
-      [channelId, messageId, name, exclusive, guildId, rrId],
+      [channelId, messageId, name, exclusive, autoPost, content, useEmbed, embed, dirty, guildId, rrId],
       function (updErr) {
         if (updErr) return reject(updErr);
         if (this.changes === 0) {
@@ -4870,7 +4915,73 @@ export function updateReactionRoleMessage(guildId, rrId, payload) {
         );
       }
     );
+    });
   })).then(() => readReactionRoleMessage(guildId, rrId));
+}
+
+/**
+ * Bot: reaction-role messages that the bot must post or re-render.
+ * `auto_post = 1` AND either never posted (message_id = id placeholder) OR dirty.
+ * Returns a bot-shaped payload: `message_id` is null when it still needs posting,
+ * or the live snowflake when it needs an in-place edit + reaction reconcile.
+ */
+export function getPendingReactionRoles() {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `SELECT * FROM guild_reaction_role_messages
+       WHERE auto_post = 1
+         AND channel_id IS NOT NULL AND channel_id != ''
+         AND (message_id = id OR dirty = 1)`,
+      [],
+      (err, msgs) => {
+        if (err) return reject(err);
+        if (!msgs || msgs.length === 0) return resolve([]);
+        const ids = msgs.map((m) => m.id);
+        const placeholders = ids.map(() => '?').join(',');
+        db.all(
+          `SELECT rr_message_id, emoji, role_id FROM guild_reaction_role_mappings
+           WHERE rr_message_id IN (${placeholders}) ORDER BY id ASC`,
+          ids,
+          (mErr, mRows) => {
+            if (mErr) return reject(mErr);
+            const byMsg = new Map();
+            for (const r of mRows || []) {
+              if (!byMsg.has(r.rr_message_id)) byMsg.set(r.rr_message_id, []);
+              byMsg.get(r.rr_message_id).push({ emoji: r.emoji, role_id: r.role_id });
+            }
+            resolve(msgs.map((m) => ({
+              id: m.id,
+              guild_id: m.guild_id,
+              channel_id: m.channel_id,
+              // null → post new; snowflake → edit the existing message.
+              message_id: (m.message_id && m.message_id !== m.id) ? m.message_id : null,
+              name: m.name ?? null,
+              exclusive: !!m.exclusive,
+              content: m.content ?? '',
+              use_embed: !!m.use_embed,
+              embed: parseEmbedColumn(m.embed),
+              mappings: byMsg.get(m.id) || []
+            })));
+          }
+        );
+      }
+    );
+  });
+}
+
+/**
+ * Bot: write back the posted message snowflake and clear the dirty flag.
+ * Called after the bot posts (real id) or re-renders (same id) an auto-post message.
+ */
+export function setReactionRoleMessage(guildId, rrId, messageId) {
+  return new Promise((resolve, reject) => {
+    if (!isSnowflake(messageId)) return reject(new Error('Invalid message_id'));
+    db.run(
+      `UPDATE guild_reaction_role_messages SET message_id = ?, dirty = 0, updated_at = CURRENT_TIMESTAMP WHERE guild_id = ? AND id = ?`,
+      [String(messageId), guildId, rrId],
+      function (err) { if (err) reject(err); else resolve(this.changes); }
+    );
+  });
 }
 
 /**

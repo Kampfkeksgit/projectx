@@ -10,6 +10,8 @@ import {
   replaceGuildChannels,
   replaceGuildRoles,
   getReactionRoleMessages,
+  getPendingReactionRoles,
+  setReactionRoleMessage,
   getLevelingSettings,
   getLevelingRewards,
   grantXp,
@@ -554,6 +556,39 @@ router.get('/guilds/:guild_id/reaction-roles', requireBotToken, async (req, res)
   } catch (error) {
     console.error('Bot get reaction roles error:', error.message)
     res.status(500).json({ error: 'Failed to fetch reaction roles' })
+  }
+})
+
+/**
+ * Bot-only: reaction-role messages the bot must post (message_id null) or
+ * re-render in-place (message_id set, dirty). Across all guilds.
+ *   GET /api/bot/reaction-roles/pending
+ */
+router.get('/reaction-roles/pending', requireBotToken, async (req, res) => {
+  try {
+    const messages = await getPendingReactionRoles()
+    return res.json({ messages })
+  } catch (error) {
+    console.error('Bot get pending reaction roles error:', error.message)
+    res.status(500).json({ error: 'Failed to fetch pending reaction roles' })
+  }
+})
+
+/**
+ * Bot-only: write back the posted message snowflake + clear the dirty flag.
+ *   PUT /api/bot/guilds/:guild_id/reaction-roles/:rr_id/message  body { message_id }
+ */
+router.put('/guilds/:guild_id/reaction-roles/:rr_id/message', requireBotToken, async (req, res) => {
+  try {
+    const { message_id } = req.body || {}
+    if (!SNOWFLAKE_REGEX.test(message_id || '')) {
+      return res.status(400).json({ error: 'message_id must be a snowflake' })
+    }
+    await setReactionRoleMessage(req.params.guild_id, req.params.rr_id, message_id)
+    return res.json({ success: true })
+  } catch (error) {
+    console.error('Bot set reaction role message error:', error.message)
+    res.status(500).json({ error: 'Failed to set reaction role message' })
   }
 })
 

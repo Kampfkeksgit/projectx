@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 57;
+const CURRENT_SCHEMA_VERSION = 58;
 
 /**
  * Initialize schema version tracking
@@ -116,7 +116,8 @@ async function applyMigrations(fromVersion, toVersion) {
     54: migrationV54,
     55: migrationV55,
     56: migrationV56,
-    57: migrationV57
+    57: migrationV57,
+    58: migrationV58
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -2484,6 +2485,24 @@ function migrationV57() {
     'ALTER TABLE guild_economy_users ADD COLUMN last_mine INTEGER DEFAULT 0',
     'ALTER TABLE guild_economy_users ADD COLUMN last_chat_earn INTEGER DEFAULT 0',
     'ALTER TABLE guild_economy_users ADD COLUMN daily_streak INTEGER DEFAULT 0'
+  ]);
+}
+
+/**
+ * v58 (Reaction-Roles: Bot postet + Auto-Update): der Bot kann die Reaction-
+ * Nachricht selbst posten (+ Emojis anhängen) und bei Dashboard-Änderungen
+ * in-place editieren (dirty-Flag, wie Rollen-Menü/Verification). `auto_post`=1
+ * markiert bot-verwaltete Nachrichten; unposted-Sentinel = `message_id` == `id`
+ * (UNIQUE-sicher, da die Spalte NOT NULL + UNIQUE ist — Recreate vermieden).
+ * Idempotent; mirrored in initializeDatabase().
+ */
+function migrationV58() {
+  return runSchemaBatch(58, [
+    'ALTER TABLE guild_reaction_role_messages ADD COLUMN auto_post INTEGER DEFAULT 0',
+    'ALTER TABLE guild_reaction_role_messages ADD COLUMN content TEXT',
+    'ALTER TABLE guild_reaction_role_messages ADD COLUMN use_embed INTEGER DEFAULT 0',
+    'ALTER TABLE guild_reaction_role_messages ADD COLUMN embed TEXT',
+    'ALTER TABLE guild_reaction_role_messages ADD COLUMN dirty INTEGER DEFAULT 0'
   ]);
 }
 
