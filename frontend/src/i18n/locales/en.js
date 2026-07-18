@@ -1707,6 +1707,9 @@ export default {
     sourceHttp: 'Direct/Radio URLs'
   },
   verification: {
+    removeRoleLabel: 'Remove role on verify (optional)',
+    removeRoleHint: 'This role is removed when a member verifies — e.g. an “Unverified” gate role.',
+    removeRolePlaceholder: 'No role',
     eyebrow: 'Moderation',
     title: 'Verification',
     sub: 'New members must click a button to get the verified role and access the server.',

@@ -1665,6 +1665,9 @@ export default {
     sourceHttp: 'Doğrudan/Radyo URL\'leri'
   },
   verification: {
+    removeRoleLabel: 'Doğrulamada rolü kaldır (isteğe bağlı)',
+    removeRoleHint: 'Bu rol, bir üye doğrulandığında kaldırılır — ör. bir "Doğrulanmamış" kapı rolü.',
+    removeRolePlaceholder: 'Rol yok',
     eyebrow: 'Moderasyon',
     title: 'Doğrulama',
     sub: 'Yeni üyeler, doğrulanmış rolü almak ve sunucuya erişmek için bir düğmeye tıklamalıdır.',

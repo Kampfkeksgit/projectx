@@ -1707,6 +1707,9 @@ export default {
     sourceHttp: 'Direkt-/Radio-URLs'
   },
   verification: {
+    removeRoleLabel: 'Rolle beim Verifizieren entfernen (optional)',
+    removeRoleHint: 'Diese Rolle wird beim Verifizieren entfernt — z. B. eine „Unverifiziert"-Sperrrolle.',
+    removeRolePlaceholder: 'Keine Rolle',
     eyebrow: 'Moderation',
     title: 'Verifizierung',
     sub: 'Neue Member müssen einen Button klicken, um die Verifiziert-Rolle und Server-Zugang zu bekommen.',

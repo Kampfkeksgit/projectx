@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 58;
+const CURRENT_SCHEMA_VERSION = 59;
 
 /**
  * Initialize schema version tracking
@@ -117,7 +117,8 @@ async function applyMigrations(fromVersion, toVersion) {
     55: migrationV55,
     56: migrationV56,
     57: migrationV57,
-    58: migrationV58
+    58: migrationV58,
+    59: migrationV59
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -2503,6 +2504,17 @@ function migrationV58() {
     'ALTER TABLE guild_reaction_role_messages ADD COLUMN use_embed INTEGER DEFAULT 0',
     'ALTER TABLE guild_reaction_role_messages ADD COLUMN embed TEXT',
     'ALTER TABLE guild_reaction_role_messages ADD COLUMN dirty INTEGER DEFAULT 0'
+  ]);
+}
+
+/**
+ * v59 (Verification: Rolle beim Verifizieren entfernen): optionale zweite Rolle,
+ * die beim Verifizieren entfernt wird (z. B. „Unverifiziert"-Rolle → weg, während
+ * die Verifiziert-Rolle vergeben wird). Idempotent; mirrored in initializeDatabase().
+ */
+function migrationV59() {
+  return runSchemaBatch(59, [
+    'ALTER TABLE guild_verification_settings ADD COLUMN remove_role_id TEXT'
   ]);
 }
 

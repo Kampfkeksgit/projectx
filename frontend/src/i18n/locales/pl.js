@@ -1665,6 +1665,9 @@ export default {
     sourceHttp: 'Bezpośrednie/radiowe adresy URL'
   },
   verification: {
+    removeRoleLabel: 'Usuń rolę przy weryfikacji (opcjonalnie)',
+    removeRoleHint: 'Ta rola jest usuwana, gdy członek się zweryfikuje — np. rola bramkująca „Niezweryfikowany".',
+    removeRolePlaceholder: 'Brak roli',
     eyebrow: 'Moderacja',
     title: 'Weryfikacja',
     sub: 'Nowi członkowie muszą kliknąć przycisk, aby otrzymać rolę zweryfikowanego i dostęp do serwera.',

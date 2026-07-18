@@ -29,6 +29,12 @@
             <RoleSelector v-model="form.verified_role_id" :guild-id="guildId" :placeholder="t('verification.rolePlaceholder')" />
           </div>
 
+          <div class="row">
+            <label class="row__label">{{ t('verification.removeRoleLabel') }}</label>
+            <div class="row__hint">{{ t('verification.removeRoleHint') }}</div>
+            <RoleSelector v-model="form.remove_role_id" :guild-id="guildId" :placeholder="t('verification.removeRolePlaceholder')" />
+          </div>
+
           <!-- Message mode: plain text or a designed embed -->
           <div class="row">
             <label class="row__label">{{ t('verification.messageModeLabel') }}</label>
@@ -102,7 +108,7 @@ function defaultEmbed() {
 }
 
 const form = reactive({
-  enabled: false, channel_id: '', verified_role_id: '',
+  enabled: false, channel_id: '', verified_role_id: '', remove_role_id: '',
   message: 'Click the button below to verify and unlock the server.',
   button_label: 'Verify', use_embed: false, embed: defaultEmbed()
 })
@@ -120,6 +126,7 @@ function hydrate(s) {
   form.enabled = !!s.enabled
   form.channel_id = s.channel_id || ''
   form.verified_role_id = s.verified_role_id || ''
+  form.remove_role_id = s.remove_role_id || ''
   form.message = s.message || form.message
   form.button_label = s.button_label || 'Verify'
   form.use_embed = !!s.use_embed
@@ -148,6 +155,7 @@ async function save() {
       enabled: !!form.enabled,
       channel_id: form.channel_id || null,
       verified_role_id: form.verified_role_id || null,
+      remove_role_id: form.remove_role_id || null,
       message: form.message,
       button_label: form.button_label || 'Verify',
       use_embed: !!form.use_embed,
