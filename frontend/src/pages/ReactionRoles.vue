@@ -36,15 +36,26 @@
             </div>
 
             <div class="form-row">
+              <label class="form-row__label">{{ t('reactionRoles.modeLabel') }}</label>
+              <div class="rr-mode">
+                <button type="button" class="rr-mode__btn" :class="{ 'is-active': draft.auto_post }" @click="draft.auto_post = true">{{ t('reactionRoles.modeBotPost') }}</button>
+                <button type="button" class="rr-mode__btn" :class="{ 'is-active': !draft.auto_post }" @click="draft.auto_post = false">{{ t('reactionRoles.modeExisting') }}</button>
+              </div>
+              <div class="form-row__hint">{{ t('reactionRoles.modeHint') }}</div>
+            </div>
+
+            <div class="form-row">
               <label class="form-row__label">{{ t('reactionRoles.channelLabel') }}</label>
               <ChannelSelector
                 v-model="draft.channel_id"
                 :guild-id="guildId"
                 :types="['text', 'announcement']"
               />
+              <div v-if="draft.auto_post" class="form-row__hint">{{ t('reactionRoles.channelPostHint') }}</div>
             </div>
 
-            <div class="form-row">
+            <!-- Legacy: attach to an existing message -->
+            <div v-if="!draft.auto_post" class="form-row">
               <label class="form-row__label rr-label-row" for="rr-msg-id">
                 {{ t('reactionRoles.messageIdLabel') }}
                 <span class="rr-tooltip" :title="t('reactionRoles.messageIdHint')" aria-hidden="true">?</span>
@@ -60,6 +71,61 @@
                 :placeholder="t('reactionRoles.messageIdPlaceholder')"
               />
             </div>
+
+            <!-- Auto-post: the bot posts (and keeps updating) the message -->
+            <template v-if="draft.auto_post">
+              <div class="form-row">
+                <label class="form-row__label" for="rr-content">{{ t('reactionRoles.contentLabel') }}</label>
+                <div class="form-row__hint">{{ t('reactionRoles.contentHint') }}</div>
+                <textarea
+                  id="rr-content"
+                  v-model="draft.content"
+                  class="input rr-textarea"
+                  rows="3"
+                  maxlength="2000"
+                  :placeholder="t('reactionRoles.contentPlaceholder')"
+                ></textarea>
+              </div>
+
+              <div class="form-row">
+                <label class="form-row__label">{{ t('reactionRoles.messageModeLabel') }}</label>
+                <div class="rr-mode">
+                  <button type="button" class="rr-mode__btn" :class="{ 'is-active': !draft.use_embed }" @click="draft.use_embed = false">{{ t('reactionRoles.messageModePlain') }}</button>
+                  <button type="button" class="rr-mode__btn" :class="{ 'is-active': draft.use_embed }" @click="draft.use_embed = true">{{ t('reactionRoles.messageModeEmbed') }}</button>
+                </div>
+                <div class="form-row__hint">{{ t('reactionRoles.messageModeHint') }}</div>
+              </div>
+
+              <div v-if="draft.use_embed" class="form-row">
+                <label class="form-row__label">{{ t('reactionRoles.embedLabel') }}</label>
+                <div class="form-row__hint">{{ t('reactionRoles.embedHint') }}</div>
+                <EmbedEditor v-model="draft.embed" />
+              </div>
+
+              <div class="form-row">
+                <div class="rr-preview__label">{{ t('reactionRoles.livePreview') }}</div>
+                <DiscordMessagePreview
+                  :mode="draft.use_embed ? 'embed' : 'plain'"
+                  :message="draft.content"
+                  :embed="draft.embed"
+                  :guild-name="guildName"
+                  :channel-name="previewChannelName"
+                >
+                  <template #components>
+                    <div v-if="previewMappings.length" class="rr-reactions">
+                      <span v-for="(mp, i) in previewMappings" :key="i" class="rr-reaction">
+                        <span class="rr-reaction__emoji">{{ mp.emoji }}</span>
+                        <span class="rr-reaction__count">1</span>
+                      </span>
+                    </div>
+                  </template>
+                </DiscordMessagePreview>
+                <div class="rr-status" :class="draft.posted ? 'is-posted' : 'is-pending'">
+                  {{ draft.posted ? t('reactionRoles.statusPosted') : t('reactionRoles.statusPending') }}
+                </div>
+                <div class="form-row__hint">{{ t('reactionRoles.postHint') }}</div>
+              </div>
+            </template>
 
             <div class="form-row">
               <label class="form-row__label" for="rr-name">{{ t('reactionRoles.nameLabel') }}</label>
@@ -157,7 +223,12 @@
               <div class="rr-card__title">{{ m.name || t('reactionRoles.untitled', { id: m.id }) }}</div>
               <div class="rr-card__meta">
                 <span class="rr-card__channel">#{{ resolveChannelName(m.channel_id) }}</span>
-                <span class="rr-card__msg" :title="m.message_id">ID {{ shortenId(m.message_id) }}</span>
+                <span
+                  v-if="m.auto_post"
+                  class="rr-card__mode"
+                  :class="m.posted ? 'is-posted' : 'is-pending'"
+                >{{ m.posted ? t('reactionRoles.statusPosted') : t('reactionRoles.statusPending') }}</span>
+                <span v-else class="rr-card__msg" :title="m.message_id">ID {{ shortenId(m.message_id) }}</span>
                 <span v-if="m.exclusive" class="rr-card__tag">{{ t('reactionRoles.exclusiveLabel') }}</span>
                 <span class="rr-card__count">{{ m.mappings?.length || 0 }} × {{ t('reactionRoles.roleLabel') }}</span>
               </div>
@@ -189,8 +260,11 @@ import AppButton from '../components/AppButton.vue'
 import AppToggle from '../components/AppToggle.vue'
 import ChannelSelector from '../components/ChannelSelector.vue'
 import RoleSelector from '../components/RoleSelector.vue'
+import EmbedEditor from '../components/EmbedEditor.vue'
+import DiscordMessagePreview from '../components/DiscordMessagePreview.vue'
 import api from '../services/api.js'
 import { useGuildResources } from '../composables/useGuildResources.js'
+import { useGuildSettings } from '../stores/guildSettings.js'
 import { useToast } from '../composables/useToast.js'
 import { useI18n } from '../i18n/index.js'
 import { useAutoRefresh } from '../composables/useAutoRefresh.js'
@@ -198,9 +272,14 @@ import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 const route = useRoute()
 const toast = useToast()
 const { t } = useI18n()
+const store = useGuildSettings()
 
 const guildId = computed(() => route.params.guild_id)
 const resources = computed(() => useGuildResources(guildId.value))
+const guildName = computed(() => {
+  const g = store.cache.guild
+  return g?.guild_name || g?.name || 'Your Server'
+})
 
 const messages = ref([])
 const loading = ref(false)
@@ -210,12 +289,22 @@ const deletingId = ref(null)
 const editorOpen = ref(false)
 const editingId = ref(null)
 
+function defaultEmbed() {
+  return { title: '', description: '', color: '#5865F2', thumbnail: '', image: '', footer: '', show_timestamp: false, author_name: '', author_icon_url: '', format: 'embed', accent_color: '#5865F2', blocks: [] }
+}
+
+// New entries default to the bot posting the message itself (auto_post).
 function emptyDraft() {
   return {
     channel_id: '',
     message_id: '',
     name: '',
     exclusive: false,
+    auto_post: true,
+    content: '',
+    use_embed: false,
+    embed: defaultEmbed(),
+    posted: false,
     mappings: [{ emoji: '', role_id: '' }]
   }
 }
@@ -223,13 +312,32 @@ function emptyDraft() {
 const draft = reactive(emptyDraft())
 
 function resetDraft() {
-  const d = emptyDraft()
-  draft.channel_id = d.channel_id
-  draft.message_id = d.message_id
-  draft.name = d.name
-  draft.exclusive = d.exclusive
-  draft.mappings = d.mappings
+  Object.assign(draft, emptyDraft())
 }
+
+/** True when the embed carries something worth posting (classic fields or a
+ * Components-V2 block with content). Used to allow embed-only auto-post entries. */
+function embedHasContent(e) {
+  if (!e) return false
+  if (e.format === 'components_v2') {
+    return Array.isArray(e.blocks) && e.blocks.some(b =>
+      (b.type === 'text' && (b.content || '').trim()) ||
+      (b.type === 'section' && ((b.content || '').trim() || b.thumbnail)) ||
+      (b.type === 'image' && b.url))
+  }
+  return !!(
+    (e.title || '').trim() || (e.description || '').trim() || e.image ||
+    e.thumbnail || (e.author_name || '').trim() || (e.footer || '').trim()
+  )
+}
+
+// Emoji reactions the bot will attach — mirrored below the live preview.
+const previewMappings = computed(() => draft.mappings.filter(m => m.emoji && m.emoji.trim()))
+const previewChannelName = computed(() => {
+  if (!draft.channel_id) return ''
+  const ch = resources.value.state.channels?.find(c => c.id === draft.channel_id)
+  return ch?.name || 'channel'
+})
 
 function shortenId(id) {
   if (!id) return ''
@@ -287,6 +395,11 @@ function openEditorFor(m) {
   draft.message_id = m.message_id || ''
   draft.name = m.name || ''
   draft.exclusive = !!m.exclusive
+  draft.auto_post = !!m.auto_post
+  draft.content = m.content || ''
+  draft.use_embed = !!m.use_embed
+  draft.embed = { ...defaultEmbed(), ...(m.embed || {}) }
+  draft.posted = !!m.posted
   draft.mappings = Array.isArray(m.mappings) && m.mappings.length
     ? m.mappings.map(x => ({ emoji: x.emoji || '', role_id: x.role_id || '' }))
     : [{ emoji: '', role_id: '' }]
@@ -316,7 +429,8 @@ function validateDraft() {
     toast.error(t('reactionRoles.channelMissing'))
     return false
   }
-  if (!/^\d{17,20}$/.test(draft.message_id)) {
+  // Legacy path attaches to an existing message → a message ID is required.
+  if (!draft.auto_post && !/^\d{17,20}$/.test(draft.message_id)) {
     toast.error(t('reactionRoles.messageIdInvalid'))
     return false
   }
@@ -348,6 +462,15 @@ function validateDraft() {
     }
     seen.add(k)
   }
+  // Auto-post entries need something to post: message text and/or an embed.
+  if (draft.auto_post) {
+    const hasContent = (draft.content || '').trim().length > 0
+    const hasEmbed = draft.use_embed && embedHasContent(draft.embed)
+    if (!hasContent && !hasEmbed) {
+      toast.error(t('reactionRoles.contentOrEmbedMissing'))
+      return false
+    }
+  }
   return true
 }
 
@@ -356,12 +479,19 @@ async function saveDraft() {
   saving.value = true
   const body = {
     channel_id: draft.channel_id,
-    message_id: draft.message_id.trim(),
     name: draft.name.trim(),
     exclusive: !!draft.exclusive,
+    auto_post: !!draft.auto_post,
+    content: draft.content || '',
+    use_embed: !!draft.use_embed,
+    embed: draft.embed || defaultEmbed(),
     mappings: draft.mappings
       .filter(m => m.emoji.trim() && m.role_id)
       .map(m => ({ emoji: m.emoji.trim(), role_id: m.role_id }))
+  }
+  // Only the legacy (existing-message) path sends a message_id.
+  if (!draft.auto_post) {
+    body.message_id = draft.message_id.trim()
   }
   try {
     if (editingId.value) {
@@ -518,6 +648,98 @@ async function confirmDelete(m) {
   font-family: var(--font-mono);
 }
 
+.rr-textarea {
+  resize: vertical;
+  min-height: 74px;
+  line-height: 1.5;
+}
+
+/* Segmented mode switches (bot-post vs existing, plain vs embed) */
+.rr-mode {
+  display: inline-flex;
+  gap: 4px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  padding: 3px;
+  width: fit-content;
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+.rr-mode__btn {
+  padding: 0.45rem 0.9rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.rr-mode__btn.is-active {
+  background: var(--gradient-brand);
+  color: #fff;
+}
+
+/* Live preview */
+.rr-preview__label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-soft);
+  margin-bottom: var(--space-2);
+}
+
+.rr-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.rr-reaction {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 8px;
+  background: #3b3d44;
+  border: 1px solid #232428;
+  font-size: 0.82rem;
+  color: #dbdee1;
+}
+
+.rr-reaction__emoji {
+  font-family: var(--font-mono);
+  line-height: 1;
+}
+
+.rr-reaction__count {
+  font-weight: 600;
+  color: #b5bac1;
+}
+
+.rr-status {
+  margin-top: var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-sm);
+}
+
+.rr-status.is-posted {
+  color: var(--color-success);
+  background: rgba(34, 197, 94, 0.12);
+}
+
+.rr-status.is-pending {
+  color: var(--color-warning);
+  background: rgba(245, 158, 11, 0.14);
+}
+
 /* Editor */
 .rr-editor__head {
   display: flex;
@@ -667,6 +889,23 @@ async function confirmDelete(m) {
 .rr-card__msg {
   font-family: var(--font-mono);
   font-size: 0.78rem;
+}
+
+.rr-card__mode {
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 0.78rem;
+}
+
+.rr-card__mode.is-posted {
+  color: var(--color-success);
+  background: rgba(34, 197, 94, 0.12);
+}
+
+.rr-card__mode.is-pending {
+  color: var(--color-warning);
+  background: rgba(245, 158, 11, 0.14);
 }
 
 .rr-card__tag {

@@ -30,13 +30,78 @@ import discord
 from discord.ext import commands, tasks
 
 import config
-from utils.backend import bot_get
+from utils.backend import bot_get, bot_put
 
 
 REFRESH_INTERVAL_MINUTES = 10
+# How often the bot posts / re-renders dashboard-managed (auto_post) messages.
+POST_INTERVAL_SECONDS = 60
 
 # Matches "<:name:1234567890>" or "<a:name:1234567890>" and captures the id.
 CUSTOM_EMOJI_RE = re.compile(r"^<a?:[^:]+:(\d+)>$")
+
+
+def _build_rr_embed(cfg, guild):
+    """Build a discord.Embed from the dashboard embed config (or None if empty)."""
+    if not isinstance(cfg, dict):
+        return None
+    gname = getattr(guild, "name", "")
+
+    def sub(v):
+        return str(v or "").replace("{guild}", gname)
+
+    embed = discord.Embed()
+    title = sub(cfg.get("title")).strip()
+    desc = sub(cfg.get("description")).strip()
+    footer = sub(cfg.get("footer")).strip()
+    author = sub(cfg.get("author_name")).strip()
+    thumb = str(cfg.get("thumbnail") or "").strip()
+    img = str(cfg.get("image") or "").strip()
+    if not (title or desc or footer or author or thumb or img):
+        return None
+    if title:
+        embed.title = title[:256]
+    if desc:
+        embed.description = desc[:4000]
+    color = cfg.get("color")
+    try:
+        if isinstance(color, str) and color.startswith("#"):
+            embed.colour = discord.Colour(int(color[1:], 16))
+    except (ValueError, TypeError):
+        pass
+    if thumb.startswith("http"):
+        embed.set_thumbnail(url=thumb)
+    if img.startswith("http"):
+        embed.set_image(url=img)
+    if footer:
+        embed.set_footer(text=footer[:2048])
+    if author:
+        icon = str(cfg.get("author_icon_url") or "").strip()
+        embed.set_author(name=author[:256], icon_url=icon if icon.startswith("http") else None)
+    return embed
+
+
+def _reaction_for(raw):
+    """Convert a stored emoji string to an add_reaction() argument.
+
+    Custom emoji → PartialEmoji; unicode → the raw string. None if unusable.
+    """
+    s = str(raw or "").strip()
+    if not s:
+        return None
+    if CUSTOM_EMOJI_RE.match(s):
+        try:
+            return discord.PartialEmoji.from_str(s)
+        except Exception:
+            return None
+    return s
+
+
+def _reaction_key(emoji):
+    """Normalized key for a live reaction.emoji (matches _emoji_key_from_config)."""
+    if getattr(emoji, "id", None):
+        return str(emoji.id)
+    return str(getattr(emoji, "name", emoji))
 
 
 def _emoji_key_from_config(raw):
@@ -83,12 +148,14 @@ class ReactionRoles(commands.Cog):
         # Keyed by (guild_id, message_id)
         self.cache = {}
         self.refresh_loop.start()
+        self.post_loop.start()
 
     def cog_unload(self):
-        try:
-            self.refresh_loop.cancel()
-        except Exception:
-            pass
+        for loop in (self.refresh_loop, self.post_loop):
+            try:
+                loop.cancel()
+            except Exception:
+                pass
 
     # ---------- cache management ----------
 
@@ -170,6 +237,115 @@ class ReactionRoles(commands.Cog):
     @refresh_loop.before_loop
     async def _before_refresh(self):
         await self.bot.wait_until_ready()
+
+    # ---------- auto-post (bot posts + in-place auto-update) ----------
+
+    @tasks.loop(seconds=POST_INTERVAL_SECONDS)
+    async def post_loop(self):
+        """Post unposted (auto_post) reaction-role messages and re-render dirty
+        ones in-place (edit content/embed + reconcile the reaction emojis)."""
+        if not self._enabled():
+            return
+        data = await bot_get(self.backend_url, self.api_key, "/api/bot/reaction-roles/pending")
+        if not data:
+            return
+        touched = set()
+        for m in (data.get("messages") or []):
+            try:
+                if await self._post_or_edit(m):
+                    touched.add(int(m["guild_id"]))
+            except Exception as exc:
+                print(f"[reaction_roles] post/edit failed for {m.get('id')}: {exc}")
+        # Rebuild the listener cache for affected guilds so the new/edited
+        # message responds to reactions immediately (not only after 10min).
+        for gid in touched:
+            guild = self.bot.get_guild(gid)
+            if guild is not None:
+                try:
+                    await self._refresh_guild(guild)
+                except Exception:
+                    pass
+
+    @post_loop.before_loop
+    async def _before_post(self):
+        await self.bot.wait_until_ready()
+
+    async def _post_or_edit(self, m):
+        guild = self.bot.get_guild(int(m["guild_id"]))
+        if guild is None:
+            return False
+        try:
+            channel = guild.get_channel(int(m["channel_id"]))
+        except (TypeError, ValueError):
+            channel = None
+        if channel is None:
+            return False
+
+        content = (str(m.get("content") or "").replace("{guild}", guild.name)).strip() or None
+        embed = _build_rr_embed(m.get("embed"), guild) if m.get("use_embed") else None
+        if content is None and embed is None:
+            content = m.get("name") or "Reaction Roles"
+        mappings = m.get("mappings") or []
+        message_id = m.get("message_id")
+
+        msg = None
+        if message_id:  # re-render an existing message
+            try:
+                msg = await channel.fetch_message(int(message_id))
+            except discord.NotFound:
+                msg = None  # message was deleted → repost below
+            except discord.Forbidden:
+                return False
+            if msg is not None:
+                try:
+                    await msg.edit(content=content, embed=embed)
+                except Exception as exc:
+                    print(f"[reaction_roles] edit failed: {exc}")
+
+        if msg is None:  # post a new message
+            try:
+                msg = await channel.send(content=content, embed=embed)
+            except discord.Forbidden:
+                print(f"[reaction_roles] missing permission to post in channel {channel.id}")
+                return False
+            except Exception as exc:
+                print(f"[reaction_roles] post failed: {exc}")
+                return False
+
+        await self._reconcile_reactions(msg, mappings)
+        await bot_put(
+            self.backend_url, self.api_key,
+            f"/api/bot/guilds/{guild.id}/reaction-roles/{m['id']}/message",
+            {"message_id": str(msg.id)},
+        )
+        return True
+
+    async def _reconcile_reactions(self, msg, mappings):
+        """Ensure the message's reactions are exactly the mapping emojis:
+        add missing ones, clear ones that were removed."""
+        desired = []
+        desired_keys = set()
+        for entry in mappings:
+            raw = entry.get("emoji")
+            key = _emoji_key_from_config(raw)
+            react = _reaction_for(raw)
+            if key and react is not None:
+                desired.append((key, react))
+                desired_keys.add(key)
+        existing_keys = {_reaction_key(r.emoji) for r in getattr(msg, "reactions", [])}
+        for key, react in desired:
+            if key not in existing_keys:
+                try:
+                    await msg.add_reaction(react)
+                except Exception as exc:
+                    print(f"[reaction_roles] add_reaction failed: {exc}")
+        # Remove reactions that are no longer mapped (best-effort; needs Manage Messages).
+        for reaction in getattr(msg, "reactions", []):
+            if _reaction_key(reaction.emoji) not in desired_keys:
+                try:
+                    await msg.clear_reaction(reaction.emoji)
+                except Exception:
+                    pass
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):

@@ -28,7 +28,16 @@ function validateBody(body) {
   if (!SNOWFLAKE_REGEX.test(body.channel_id || '')) {
     errors.push('channel_id must be a Discord snowflake')
   }
-  if (!SNOWFLAKE_REGEX.test(body.message_id || '')) {
+  // auto_post mode: the bot posts the message itself, so no message_id is
+  // required (but the message needs content or an embed). Legacy mode still
+  // attaches to an existing message → message_id required.
+  if (body.auto_post) {
+    const hasContent = typeof body.content === 'string' && body.content.trim().length > 0
+    const hasEmbed = body.use_embed && body.embed && typeof body.embed === 'object'
+    if (!hasContent && !hasEmbed) {
+      errors.push('auto_post messages need content or an embed')
+    }
+  } else if (!SNOWFLAKE_REGEX.test(body.message_id || '')) {
     errors.push('message_id must be a Discord snowflake')
   }
   if (body.name !== undefined && body.name !== null && typeof body.name !== 'string') {
@@ -58,9 +67,15 @@ function validateBody(body) {
 }
 
 function shapeBody(body) {
+  const autoPost = Boolean(body.auto_post)
   return {
     channel_id: String(body.channel_id),
-    message_id: String(body.message_id),
+    // Only forward message_id in legacy mode; auto_post rows get a placeholder in db.js.
+    message_id: autoPost ? undefined : String(body.message_id),
+    auto_post: autoPost,
+    content: typeof body.content === 'string' ? body.content.slice(0, 2000) : '',
+    use_embed: Boolean(body.use_embed),
+    embed: (body.embed && typeof body.embed === 'object') ? body.embed : null,
     name: typeof body.name === 'string' ? body.name.slice(0, MAX_NAME_LEN) : null,
     exclusive: Boolean(body.exclusive),
     mappings: body.mappings.map((m) => ({
