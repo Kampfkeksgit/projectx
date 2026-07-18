@@ -1492,6 +1492,26 @@ function initializeDatabase() {
       )
     `, (err) => { if (err) console.error('Error creating guild_economy_shop table:', err); });
     db.run('CREATE INDEX IF NOT EXISTS idx_economy_shop_guild ON guild_economy_shop(guild_id)', () => {});
+    // v57 mirror — economy expansion (bank / new earners / gambling / passive /
+    // streak / role multipliers). Idempotent; "duplicate column" is swallowed.
+    for (const col of [
+      'bank_enabled INTEGER DEFAULT 1', 'bank_max INTEGER DEFAULT 0', 'interest_rate INTEGER DEFAULT 0',
+      'weekly_enabled INTEGER DEFAULT 1', 'weekly_amount INTEGER DEFAULT 1000', 'weekly_cooldown INTEGER DEFAULT 604800',
+      'beg_enabled INTEGER DEFAULT 1', 'beg_min INTEGER DEFAULT 10', 'beg_max INTEGER DEFAULT 80', 'beg_cooldown INTEGER DEFAULT 300', 'beg_success INTEGER DEFAULT 70',
+      'crime_enabled INTEGER DEFAULT 1', 'crime_min INTEGER DEFAULT 150', 'crime_max INTEGER DEFAULT 600', 'crime_fine_min INTEGER DEFAULT 100', 'crime_fine_max INTEGER DEFAULT 400', 'crime_cooldown INTEGER DEFAULT 3600', 'crime_success INTEGER DEFAULT 55',
+      'rob_enabled INTEGER DEFAULT 1', 'rob_cooldown INTEGER DEFAULT 7200', 'rob_success INTEGER DEFAULT 40', 'rob_max_percent INTEGER DEFAULT 40', 'rob_fine_percent INTEGER DEFAULT 25', 'rob_min_balance INTEGER DEFAULT 100',
+      'fish_enabled INTEGER DEFAULT 1', 'fish_min INTEGER DEFAULT 20', 'fish_max INTEGER DEFAULT 150', 'fish_cooldown INTEGER DEFAULT 600',
+      'mine_enabled INTEGER DEFAULT 1', 'mine_min INTEGER DEFAULT 30', 'mine_max INTEGER DEFAULT 200', 'mine_cooldown INTEGER DEFAULT 900',
+      'gambling_enabled INTEGER DEFAULT 1', 'min_bet INTEGER DEFAULT 10', 'max_bet INTEGER DEFAULT 10000', 'coinflip_enabled INTEGER DEFAULT 1', 'dice_enabled INTEGER DEFAULT 1', 'slots_enabled INTEGER DEFAULT 1',
+      'chat_earn_enabled INTEGER DEFAULT 0', 'chat_earn_min INTEGER DEFAULT 1', 'chat_earn_max INTEGER DEFAULT 5', 'chat_earn_cooldown INTEGER DEFAULT 60',
+      'voice_earn_enabled INTEGER DEFAULT 0', 'voice_earn_amount INTEGER DEFAULT 5',
+      'daily_streak_enabled INTEGER DEFAULT 1', 'daily_streak_bonus INTEGER DEFAULT 50', 'daily_streak_max INTEGER DEFAULT 500',
+      "role_multipliers TEXT DEFAULT '[]'"
+    ]) db.run(`ALTER TABLE guild_economy_settings ADD COLUMN ${col}`, () => {});
+    for (const col of [
+      'bank INTEGER DEFAULT 0', 'last_weekly INTEGER DEFAULT 0', 'last_beg INTEGER DEFAULT 0', 'last_crime INTEGER DEFAULT 0',
+      'last_rob INTEGER DEFAULT 0', 'last_fish INTEGER DEFAULT 0', 'last_mine INTEGER DEFAULT 0', 'last_chat_earn INTEGER DEFAULT 0', 'daily_streak INTEGER DEFAULT 0'
+    ]) db.run(`ALTER TABLE guild_economy_users ADD COLUMN ${col}`, () => {});
 
     // ----- Games category (v28): shared settings + scores -----
     db.run(`
@@ -5526,6 +5546,17 @@ export const BUILTIN_COMMANDS = [
   { key: 'rich', name: 'rich', type: 'prefix', module: 'economy', usage: '{p}rich · /rich', description: 'Show the balance leaderboard.', slash: true },
   { key: 'shop', name: 'shop', type: 'prefix', module: 'economy', usage: '{p}shop · /shop', description: 'List shop items.', slash: true },
   { key: 'buy', name: 'buy', type: 'prefix', module: 'economy', usage: '{p}buy <item> · /buy', description: 'Buy a shop item.', slash: true },
+  { key: 'weekly', name: 'weekly', type: 'prefix', module: 'economy', usage: '{p}weekly · /weekly', description: 'Claim the weekly reward.', slash: true },
+  { key: 'beg', name: 'beg', type: 'prefix', module: 'economy', usage: '{p}beg · /beg', description: 'Beg for a small reward.', slash: true },
+  { key: 'crime', name: 'crime', type: 'prefix', module: 'economy', usage: '{p}crime · /crime', description: 'Commit a crime — risky, high reward.', slash: true },
+  { key: 'rob', name: 'rob', type: 'prefix', module: 'economy', usage: '{p}rob @user · /rob', description: 'Rob another member (risky).', slash: true },
+  { key: 'fish', name: 'fish', type: 'prefix', module: 'economy', usage: '{p}fish · /fish', description: 'Go fishing for currency.', slash: true },
+  { key: 'mine', name: 'mine', type: 'prefix', module: 'economy', usage: '{p}mine · /mine', description: 'Mine for currency.', slash: true },
+  { key: 'deposit', name: 'deposit', type: 'prefix', module: 'economy', usage: '{p}deposit <amount|all> · /deposit', description: 'Deposit money into your bank.', slash: true },
+  { key: 'withdraw', name: 'withdraw', type: 'prefix', module: 'economy', usage: '{p}withdraw <amount|all> · /withdraw', description: 'Withdraw money from your bank.', slash: true },
+  { key: 'coinflip', name: 'coinflip', type: 'prefix', module: 'economy', usage: '{p}coinflip <bet> [heads|tails] · /coinflip', description: 'Bet on a coin flip.', slash: true },
+  { key: 'dice', name: 'dice', type: 'prefix', module: 'economy', usage: '{p}dice <bet> [1-6] · /dice', description: 'Bet on a dice roll.', slash: true },
+  { key: 'slots', name: 'slots', type: 'prefix', module: 'economy', usage: '{p}slots <bet> · /slots', description: 'Spin the slot machine.', slash: true },
   { key: 'ttt', name: 'ttt', type: 'prefix', module: 'games', usage: '{p}ttt @opponent · /ttt', description: 'Start a Tic-Tac-Toe match.', slash: true },
   { key: 'rps', name: 'rps', type: 'prefix', module: 'games', usage: '{p}rps [@opponent] · /rps', description: 'Play Rock-Paper-Scissors.', slash: true },
   { key: 'trivia', name: 'trivia', type: 'prefix', module: 'games', usage: '{p}trivia · /trivia', description: 'Start a trivia question.', slash: true },
@@ -8829,13 +8860,98 @@ export const ECONOMY_DEFAULTS = {
   daily_amount: 200,
   work_min: 50,
   work_max: 250,
-  work_cooldown: 3600
+  work_cooldown: 3600,
+  // Bank
+  bank_enabled: true,
+  bank_max: 0,
+  interest_rate: 0,
+  // Weekly
+  weekly_enabled: true,
+  weekly_amount: 1000,
+  weekly_cooldown: 604800,
+  // Beg
+  beg_enabled: true,
+  beg_min: 10,
+  beg_max: 80,
+  beg_cooldown: 300,
+  beg_success: 70,
+  // Crime
+  crime_enabled: true,
+  crime_min: 150,
+  crime_max: 600,
+  crime_fine_min: 100,
+  crime_fine_max: 400,
+  crime_cooldown: 3600,
+  crime_success: 55,
+  // Rob
+  rob_enabled: true,
+  rob_cooldown: 7200,
+  rob_success: 40,
+  rob_max_percent: 40,
+  rob_fine_percent: 25,
+  rob_min_balance: 100,
+  // Fish / Mine
+  fish_enabled: true,
+  fish_min: 20,
+  fish_max: 150,
+  fish_cooldown: 600,
+  mine_enabled: true,
+  mine_min: 30,
+  mine_max: 200,
+  mine_cooldown: 900,
+  // Gambling
+  gambling_enabled: true,
+  min_bet: 10,
+  max_bet: 10000,
+  coinflip_enabled: true,
+  dice_enabled: true,
+  slots_enabled: true,
+  // Passive earning
+  chat_earn_enabled: false,
+  chat_earn_min: 1,
+  chat_earn_max: 5,
+  chat_earn_cooldown: 60,
+  voice_earn_enabled: false,
+  voice_earn_amount: 5,
+  // Modifiers
+  daily_streak_enabled: true,
+  daily_streak_bonus: 50,
+  daily_streak_max: 500,
+  role_multipliers: []
 };
 
 const DAILY_COOLDOWN = 86400;
+const MONEY_MAX = 1000000000000; // 1e12 hard cap on any single amount/balance field
+
+/** Parse the role_multipliers JSON column → [{ role_id, multiplier }]. */
+function parseRoleMultipliers(raw) {
+  let arr = [];
+  if (Array.isArray(raw)) arr = raw;
+  else if (typeof raw === 'string') { try { const j = JSON.parse(raw); if (Array.isArray(j)) arr = j; } catch { arr = []; } }
+  const out = [];
+  for (const m of arr) {
+    const rid = m && isSnowflake(m.role_id) ? String(m.role_id) : null;
+    let mult = Number(m && m.multiplier);
+    if (!rid || !Number.isFinite(mult)) continue;
+    mult = Math.min(100, Math.max(0.1, mult));
+    out.push({ role_id: rid, multiplier: Math.round(mult * 100) / 100 });
+  }
+  return out.slice(0, 25);
+}
+
+/** Pick the highest earn multiplier among the member's roles (default 1). */
+function pickMultiplier(roleIds, mults) {
+  if (!Array.isArray(roleIds) || !roleIds.length || !Array.isArray(mults) || !mults.length) return 1;
+  const set = new Set(roleIds.map(String));
+  let best = 1;
+  for (const m of mults) if (set.has(String(m.role_id)) && m.multiplier > best) best = m.multiplier;
+  return best;
+}
 
 function shapeEconomy(row) {
-  if (!row) return { ...ECONOMY_DEFAULTS };
+  if (!row) return { ...ECONOMY_DEFAULTS, role_multipliers: [] };
+  const num = (v, d) => (row[v] == null ? d : (row[v] || 0));
+  const bool = (v, d) => (row[v] == null ? d : !!row[v]);
   return {
     enabled: !!row.enabled,
     currency_name: row.currency_name || 'coins',
@@ -8844,7 +8960,32 @@ function shapeEconomy(row) {
     daily_amount: row.daily_amount || 0,
     work_min: row.work_min || 0,
     work_max: row.work_max || 0,
-    work_cooldown: row.work_cooldown || 0
+    work_cooldown: row.work_cooldown || 0,
+    bank_enabled: bool('bank_enabled', true),
+    bank_max: num('bank_max', 0),
+    interest_rate: num('interest_rate', 0),
+    weekly_enabled: bool('weekly_enabled', true),
+    weekly_amount: num('weekly_amount', 1000),
+    weekly_cooldown: num('weekly_cooldown', 604800),
+    beg_enabled: bool('beg_enabled', true),
+    beg_min: num('beg_min', 10), beg_max: num('beg_max', 80), beg_cooldown: num('beg_cooldown', 300), beg_success: num('beg_success', 70),
+    crime_enabled: bool('crime_enabled', true),
+    crime_min: num('crime_min', 150), crime_max: num('crime_max', 600), crime_fine_min: num('crime_fine_min', 100), crime_fine_max: num('crime_fine_max', 400), crime_cooldown: num('crime_cooldown', 3600), crime_success: num('crime_success', 55),
+    rob_enabled: bool('rob_enabled', true),
+    rob_cooldown: num('rob_cooldown', 7200), rob_success: num('rob_success', 40), rob_max_percent: num('rob_max_percent', 40), rob_fine_percent: num('rob_fine_percent', 25), rob_min_balance: num('rob_min_balance', 100),
+    fish_enabled: bool('fish_enabled', true),
+    fish_min: num('fish_min', 20), fish_max: num('fish_max', 150), fish_cooldown: num('fish_cooldown', 600),
+    mine_enabled: bool('mine_enabled', true),
+    mine_min: num('mine_min', 30), mine_max: num('mine_max', 200), mine_cooldown: num('mine_cooldown', 900),
+    gambling_enabled: bool('gambling_enabled', true),
+    min_bet: num('min_bet', 10), max_bet: num('max_bet', 10000),
+    coinflip_enabled: bool('coinflip_enabled', true), dice_enabled: bool('dice_enabled', true), slots_enabled: bool('slots_enabled', true),
+    chat_earn_enabled: bool('chat_earn_enabled', false),
+    chat_earn_min: num('chat_earn_min', 1), chat_earn_max: num('chat_earn_max', 5), chat_earn_cooldown: num('chat_earn_cooldown', 60),
+    voice_earn_enabled: bool('voice_earn_enabled', false), voice_earn_amount: num('voice_earn_amount', 5),
+    daily_streak_enabled: bool('daily_streak_enabled', true),
+    daily_streak_bonus: num('daily_streak_bonus', 50), daily_streak_max: num('daily_streak_max', 500),
+    role_multipliers: parseRoleMultipliers(row.role_multipliers)
   };
 }
 
@@ -8856,24 +8997,50 @@ export function getEconomySettings(guildId) {
   });
 }
 
+// Integer settings → [min, max, default]. Drives the dynamic upsert below.
+const ECONOMY_INT_FIELDS = {
+  start_balance: [0, MONEY_MAX, 0], daily_amount: [0, MONEY_MAX, 200],
+  work_min: [0, MONEY_MAX, 50], work_max: [0, MONEY_MAX, 250], work_cooldown: [0, 604800, 3600],
+  bank_max: [0, MONEY_MAX, 0], interest_rate: [0, 100, 0],
+  weekly_amount: [0, MONEY_MAX, 1000], weekly_cooldown: [0, 2592000, 604800],
+  beg_min: [0, MONEY_MAX, 10], beg_max: [0, MONEY_MAX, 80], beg_cooldown: [0, 604800, 300], beg_success: [0, 100, 70],
+  crime_min: [0, MONEY_MAX, 150], crime_max: [0, MONEY_MAX, 600], crime_fine_min: [0, MONEY_MAX, 100], crime_fine_max: [0, MONEY_MAX, 400], crime_cooldown: [0, 604800, 3600], crime_success: [0, 100, 55],
+  rob_cooldown: [0, 604800, 7200], rob_success: [0, 100, 40], rob_max_percent: [1, 100, 40], rob_fine_percent: [0, 100, 25], rob_min_balance: [0, MONEY_MAX, 100],
+  fish_min: [0, MONEY_MAX, 20], fish_max: [0, MONEY_MAX, 150], fish_cooldown: [0, 604800, 600],
+  mine_min: [0, MONEY_MAX, 30], mine_max: [0, MONEY_MAX, 200], mine_cooldown: [0, 604800, 900],
+  min_bet: [1, MONEY_MAX, 10], max_bet: [1, MONEY_MAX, 10000],
+  chat_earn_min: [0, MONEY_MAX, 1], chat_earn_max: [0, MONEY_MAX, 5], chat_earn_cooldown: [0, 604800, 60],
+  voice_earn_amount: [0, MONEY_MAX, 5],
+  daily_streak_bonus: [0, MONEY_MAX, 50], daily_streak_max: [0, MONEY_MAX, 500]
+};
+const ECONOMY_BOOL_FIELDS = [
+  'bank_enabled', 'weekly_enabled', 'beg_enabled', 'crime_enabled', 'rob_enabled', 'fish_enabled', 'mine_enabled',
+  'gambling_enabled', 'coinflip_enabled', 'dice_enabled', 'slots_enabled', 'chat_earn_enabled', 'voice_earn_enabled', 'daily_streak_enabled'
+];
+const ECONOMY_MINMAX_PAIRS = [
+  ['work_min', 'work_max'], ['beg_min', 'beg_max'], ['crime_min', 'crime_max'],
+  ['crime_fine_min', 'crime_fine_max'], ['fish_min', 'fish_max'], ['mine_min', 'mine_max'], ['min_bet', 'max_bet']
+];
+
 export function upsertEconomySettings(guildId, settings) {
-  const enabled = settings.enabled ? 1 : 0;
-  const name = truncate(settings.currency_name || 'coins', 32);
-  const symbol = truncate(settings.currency_symbol || '🪙', 16);
-  const start = clampRange(settings.start_balance, 0, 1000000000, 0);
-  const daily = clampRange(settings.daily_amount, 0, 1000000000, 200);
-  let wmin = clampRange(settings.work_min, 0, 1000000000, 50);
-  let wmax = clampRange(settings.work_max, 0, 1000000000, 250);
-  if (wmax < wmin) wmax = wmin;
-  const cd = clampRange(settings.work_cooldown, 0, 604800, 3600);
+  const s = settings || {};
+  const vals = {
+    enabled: s.enabled ? 1 : 0,
+    currency_name: truncate(s.currency_name || 'coins', 32),
+    currency_symbol: truncate(s.currency_symbol || '🪙', 16)
+  };
+  for (const [f, [lo, hi, def]] of Object.entries(ECONOMY_INT_FIELDS)) vals[f] = clampRange(s[f], lo, hi, def);
+  for (const f of ECONOMY_BOOL_FIELDS) vals[f] = (s[f] === undefined ? (ECONOMY_DEFAULTS[f] ? 1 : 0) : (s[f] ? 1 : 0));
+  for (const [mn, mx] of ECONOMY_MINMAX_PAIRS) if (vals[mx] < vals[mn]) vals[mx] = vals[mn];
+  vals.role_multipliers = JSON.stringify(parseRoleMultipliers(s.role_multipliers));
+
+  const cols = Object.keys(vals);
+  const placeholders = cols.map(() => '?').join(', ');
+  const updates = cols.map((c) => `${c} = excluded.${c}`).join(', ');
   return runStmt(
-    `INSERT INTO guild_economy_settings (guild_id, enabled, currency_name, currency_symbol, start_balance, daily_amount, work_min, work_max, work_cooldown)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(guild_id) DO UPDATE SET
-       enabled = excluded.enabled, currency_name = excluded.currency_name, currency_symbol = excluded.currency_symbol,
-       start_balance = excluded.start_balance, daily_amount = excluded.daily_amount, work_min = excluded.work_min,
-       work_max = excluded.work_max, work_cooldown = excluded.work_cooldown, updated_at = CURRENT_TIMESTAMP`,
-    [guildId, enabled, name, symbol, start, daily, wmin, wmax, cd]
+    `INSERT INTO guild_economy_settings (guild_id, ${cols.join(', ')}) VALUES (?, ${placeholders})
+     ON CONFLICT(guild_id) DO UPDATE SET ${updates}, updated_at = CURRENT_TIMESTAMP`,
+    [guildId, ...cols.map((c) => vals[c])]
   );
 }
 
@@ -8881,16 +9048,22 @@ async function ensureEconomyUserRow(guildId, userId, startBalance) {
   await runStmt('INSERT OR IGNORE INTO guild_economy_users (guild_id, user_id, balance) VALUES (?, ?, ?)', [guildId, String(userId), Math.trunc(startBalance) || 0]);
 }
 
+// ----- Economy helpers (shared by the expanded income/gambling/bank commands) -----
+const clampMoney = (v) => Math.max(0, Math.min(MONEY_MAX, Math.trunc(Number(v) || 0)));
+const capBank = (v, max) => (max > 0 ? Math.min(v, max) : v);
+const cur = (s) => ({ currency_name: s.currency_name, currency_symbol: s.currency_symbol });
+const randBetween = (min, max) => { const lo = Math.min(min, max); const hi = Math.max(min, max); return lo + Math.floor(Math.random() * (hi - lo + 1)); };
+
 export function getEconomyBalance(guildId, userId) {
   return runInTransaction(async () => {
     const s = shapeEconomy(await dbGet('SELECT * FROM guild_economy_settings WHERE guild_id = ?', [guildId]));
     await ensureEconomyUserRow(guildId, userId, s.start_balance);
-    const u = await dbGet('SELECT balance FROM guild_economy_users WHERE guild_id = ? AND user_id = ?', [guildId, String(userId)]);
-    return { balance: u?.balance || 0, currency_name: s.currency_name, currency_symbol: s.currency_symbol };
+    const u = await dbGet('SELECT balance, bank, daily_streak FROM guild_economy_users WHERE guild_id = ? AND user_id = ?', [guildId, String(userId)]);
+    return { balance: u?.balance || 0, bank: u?.bank || 0, daily_streak: u?.daily_streak || 0, bank_enabled: s.bank_enabled, ...cur(s) };
   });
 }
 
-export function economyDaily(guildId, userId, now) {
+export function economyDaily(guildId, userId, now, roleIds) {
   return runInTransaction(async () => {
     const s = shapeEconomy(await dbGet('SELECT * FROM guild_economy_settings WHERE guild_id = ?', [guildId]));
     if (!s.enabled) return { ok: false, reason: 'disabled' };
@@ -8898,15 +9071,24 @@ export function economyDaily(guildId, userId, now) {
     const u = await dbGet('SELECT * FROM guild_economy_users WHERE guild_id = ? AND user_id = ?', [guildId, String(userId)]);
     const elapsed = now - (u.last_daily || 0);
     if (u.last_daily && elapsed < DAILY_COOLDOWN) {
-      return { ok: false, reason: 'cooldown', remaining: DAILY_COOLDOWN - elapsed, balance: u.balance, currency_name: s.currency_name, currency_symbol: s.currency_symbol };
+      return { ok: false, reason: 'cooldown', remaining: DAILY_COOLDOWN - elapsed, balance: u.balance, ...cur(s) };
     }
-    const balance = (u.balance || 0) + s.daily_amount;
-    await runStmt('UPDATE guild_economy_users SET balance = ?, last_daily = ? WHERE guild_id = ? AND user_id = ?', [balance, now, guildId, String(userId)]);
-    return { ok: true, amount: s.daily_amount, balance, currency_name: s.currency_name, currency_symbol: s.currency_symbol };
+    // Streak: consecutive if the previous claim was < 48h ago; else reset to 1.
+    let streak = s.daily_streak_enabled && u.last_daily && elapsed < DAILY_COOLDOWN * 2 ? (u.daily_streak || 0) + 1 : 1;
+    const mult = pickMultiplier(roleIds, s.role_multipliers);
+    let amount = Math.round(s.daily_amount * mult);
+    let streakBonus = 0;
+    if (s.daily_streak_enabled) { streakBonus = Math.min(s.daily_streak_max, Math.max(0, streak - 1) * s.daily_streak_bonus); amount += streakBonus; }
+    // Bank interest applied here (once/day when daily is claimed).
+    let bank = u.bank || 0; let interest = 0;
+    if (s.bank_enabled && s.interest_rate > 0 && bank > 0) { interest = Math.floor(bank * s.interest_rate / 100); bank = capBank(clampMoney(bank + interest), s.bank_max); }
+    const balance = clampMoney((u.balance || 0) + amount);
+    await runStmt('UPDATE guild_economy_users SET balance = ?, bank = ?, last_daily = ?, daily_streak = ? WHERE guild_id = ? AND user_id = ?', [balance, bank, now, streak, guildId, String(userId)]);
+    return { ok: true, amount, streak, streak_bonus: streakBonus, interest, multiplier: mult, balance, bank, ...cur(s) };
   });
 }
 
-export function economyWork(guildId, userId, now) {
+export function economyWork(guildId, userId, now, roleIds) {
   return runInTransaction(async () => {
     const s = shapeEconomy(await dbGet('SELECT * FROM guild_economy_settings WHERE guild_id = ?', [guildId]));
     if (!s.enabled) return { ok: false, reason: 'disabled' };
@@ -8914,15 +9096,39 @@ export function economyWork(guildId, userId, now) {
     const u = await dbGet('SELECT * FROM guild_economy_users WHERE guild_id = ? AND user_id = ?', [guildId, String(userId)]);
     const elapsed = now - (u.last_work || 0);
     if (u.last_work && elapsed < s.work_cooldown) {
-      return { ok: false, reason: 'cooldown', remaining: s.work_cooldown - elapsed, balance: u.balance, currency_name: s.currency_name, currency_symbol: s.currency_symbol };
+      return { ok: false, reason: 'cooldown', remaining: s.work_cooldown - elapsed, balance: u.balance, ...cur(s) };
     }
-    const span = Math.max(0, s.work_max - s.work_min);
-    const amount = s.work_min + Math.floor(Math.random() * (span + 1));
-    const balance = (u.balance || 0) + amount;
+    const mult = pickMultiplier(roleIds, s.role_multipliers);
+    const amount = Math.round(randBetween(s.work_min, s.work_max) * mult);
+    const balance = clampMoney((u.balance || 0) + amount);
     await runStmt('UPDATE guild_economy_users SET balance = ?, last_work = ? WHERE guild_id = ? AND user_id = ?', [balance, now, guildId, String(userId)]);
-    return { ok: true, amount, balance, currency_name: s.currency_name, currency_symbol: s.currency_symbol };
+    return { ok: true, amount, multiplier: mult, balance, ...cur(s) };
   });
 }
+
+/** Generic timed income (weekly / fish / mine). `kind` selects the settings block. */
+function economyTimedIncome(guildId, userId, now, kind, roleIds) {
+  return runInTransaction(async () => {
+    const s = shapeEconomy(await dbGet('SELECT * FROM guild_economy_settings WHERE guild_id = ?', [guildId]));
+    if (!s.enabled) return { ok: false, reason: 'disabled' };
+    if (!s[`${kind}_enabled`]) return { ok: false, reason: 'command_disabled' };
+    await ensureEconomyUserRow(guildId, userId, s.start_balance);
+    const stamp = kind === 'weekly' ? 'last_weekly' : (kind === 'fish' ? 'last_fish' : 'last_mine');
+    const cd = kind === 'weekly' ? s.weekly_cooldown : s[`${kind}_cooldown`];
+    const u = await dbGet('SELECT * FROM guild_economy_users WHERE guild_id = ? AND user_id = ?', [guildId, String(userId)]);
+    const elapsed = now - (u[stamp] || 0);
+    if (u[stamp] && elapsed < cd) return { ok: false, reason: 'cooldown', remaining: cd - elapsed, balance: u.balance, ...cur(s) };
+    const mult = pickMultiplier(roleIds, s.role_multipliers);
+    const amount = kind === 'weekly'
+      ? Math.round(s.weekly_amount * mult)
+      : Math.round(randBetween(s[`${kind}_min`], s[`${kind}_max`]) * mult);
+    const balance = clampMoney((u.balance || 0) + amount);
+    await runStmt(`UPDATE guild_economy_users SET balance = ?, ${stamp} = ? WHERE guild_id = ? AND user_id = ?`, [balance, now, guildId, String(userId)]);
+    return { ok: true, amount, multiplier: mult, balance, ...cur(s) };
+  });
+}
+export const economyWeekly = (g, u, now, roleIds) => economyTimedIncome(g, u, now, 'weekly', roleIds);
+export const economyGather = (g, u, now, kind, roleIds) => economyTimedIncome(g, u, now, kind === 'mine' ? 'mine' : 'fish', roleIds);
 
 export function economyPay(guildId, fromId, toId, amount) {
   return runInTransaction(async () => {
@@ -8945,9 +9151,179 @@ export function economyPay(guildId, fromId, toId, amount) {
 export function getEconomyLeaderboard(guildId, limit = 25) {
   const lim = clampRange(limit, 1, 100, 25);
   return new Promise((resolve, reject) => {
-    db.all('SELECT user_id, balance FROM guild_economy_users WHERE guild_id = ? AND balance > 0 ORDER BY balance DESC LIMIT ?', [guildId, lim], (err, rows) => {
-      if (err) reject(err); else resolve((rows || []).map((r, i) => ({ user_id: r.user_id, balance: r.balance, rank: i + 1 })));
+    // Rank by net worth (wallet + bank).
+    db.all('SELECT user_id, balance, bank, (balance + COALESCE(bank, 0)) AS net FROM guild_economy_users WHERE guild_id = ? AND (balance + COALESCE(bank, 0)) > 0 ORDER BY net DESC LIMIT ?', [guildId, lim], (err, rows) => {
+      if (err) reject(err); else resolve((rows || []).map((r, i) => ({ user_id: r.user_id, balance: r.net, wallet: r.balance, bank: r.bank || 0, rank: i + 1 })));
     });
+  });
+}
+
+/** Beg — small random reward with a success chance. */
+export function economyBeg(guildId, userId, now, roleIds) {
+  return runInTransaction(async () => {
+    const s = shapeEconomy(await dbGet('SELECT * FROM guild_economy_settings WHERE guild_id = ?', [guildId]));
+    if (!s.enabled) return { ok: false, reason: 'disabled' };
+    if (!s.beg_enabled) return { ok: false, reason: 'command_disabled' };
+    await ensureEconomyUserRow(guildId, userId, s.start_balance);
+    const u = await dbGet('SELECT * FROM guild_economy_users WHERE guild_id = ? AND user_id = ?', [guildId, String(userId)]);
+    const elapsed = now - (u.last_beg || 0);
+    if (u.last_beg && elapsed < s.beg_cooldown) return { ok: false, reason: 'cooldown', remaining: s.beg_cooldown - elapsed, balance: u.balance, ...cur(s) };
+    const success = Math.random() * 100 < s.beg_success;
+    let amount = 0, balance = u.balance || 0;
+    if (success) { const mult = pickMultiplier(roleIds, s.role_multipliers); amount = Math.round(randBetween(s.beg_min, s.beg_max) * mult); balance = clampMoney(balance + amount); }
+    await runStmt('UPDATE guild_economy_users SET balance = ?, last_beg = ? WHERE guild_id = ? AND user_id = ?', [balance, now, guildId, String(userId)]);
+    return { ok: true, success, amount, balance, ...cur(s) };
+  });
+}
+
+/** Crime — risky: on success gain, on failure pay a fine (never below 0). */
+export function economyCrime(guildId, userId, now, roleIds) {
+  return runInTransaction(async () => {
+    const s = shapeEconomy(await dbGet('SELECT * FROM guild_economy_settings WHERE guild_id = ?', [guildId]));
+    if (!s.enabled) return { ok: false, reason: 'disabled' };
+    if (!s.crime_enabled) return { ok: false, reason: 'command_disabled' };
+    await ensureEconomyUserRow(guildId, userId, s.start_balance);
+    const u = await dbGet('SELECT * FROM guild_economy_users WHERE guild_id = ? AND user_id = ?', [guildId, String(userId)]);
+    const elapsed = now - (u.last_crime || 0);
+    if (u.last_crime && elapsed < s.crime_cooldown) return { ok: false, reason: 'cooldown', remaining: s.crime_cooldown - elapsed, balance: u.balance, ...cur(s) };
+    const success = Math.random() * 100 < s.crime_success;
+    let amount = 0, fine = 0, balance = u.balance || 0;
+    if (success) { const mult = pickMultiplier(roleIds, s.role_multipliers); amount = Math.round(randBetween(s.crime_min, s.crime_max) * mult); balance = clampMoney(balance + amount); }
+    else { fine = Math.min(balance, randBetween(s.crime_fine_min, s.crime_fine_max)); balance = clampMoney(balance - fine); }
+    await runStmt('UPDATE guild_economy_users SET balance = ?, last_crime = ? WHERE guild_id = ? AND user_id = ?', [balance, now, guildId, String(userId)]);
+    return { ok: true, success, amount, fine, balance, ...cur(s) };
+  });
+}
+
+/** Rob another member's wallet. Success → steal up to rob_max_percent; fail → pay a fine. */
+export function economyRob(guildId, robberId, targetId, now) {
+  return runInTransaction(async () => {
+    const s = shapeEconomy(await dbGet('SELECT * FROM guild_economy_settings WHERE guild_id = ?', [guildId]));
+    if (!s.enabled) return { ok: false, reason: 'disabled' };
+    if (!s.rob_enabled) return { ok: false, reason: 'command_disabled' };
+    if (String(robberId) === String(targetId)) return { ok: false, reason: 'self' };
+    await ensureEconomyUserRow(guildId, robberId, s.start_balance);
+    await ensureEconomyUserRow(guildId, targetId, s.start_balance);
+    const r = await dbGet('SELECT * FROM guild_economy_users WHERE guild_id = ? AND user_id = ?', [guildId, String(robberId)]);
+    const t = await dbGet('SELECT balance FROM guild_economy_users WHERE guild_id = ? AND user_id = ?', [guildId, String(targetId)]);
+    const elapsed = now - (r.last_rob || 0);
+    if (r.last_rob && elapsed < s.rob_cooldown) return { ok: false, reason: 'cooldown', remaining: s.rob_cooldown - elapsed, balance: r.balance, ...cur(s) };
+    if ((t?.balance || 0) < s.rob_min_balance) return { ok: false, reason: 'target_poor', balance: r.balance, ...cur(s) };
+    const success = Math.random() * 100 < s.rob_success;
+    let stolen = 0, fine = 0, robberBal = r.balance || 0;
+    if (success) {
+      stolen = Math.max(1, Math.floor((t.balance || 0) * s.rob_max_percent / 100));
+      stolen = Math.min(stolen, t.balance || 0);
+      robberBal = clampMoney(robberBal + stolen);
+      await runStmt('UPDATE guild_economy_users SET balance = balance - ? WHERE guild_id = ? AND user_id = ?', [stolen, guildId, String(targetId)]);
+    } else {
+      fine = Math.floor((r.balance || 0) * s.rob_fine_percent / 100);
+      fine = Math.min(fine, r.balance || 0);
+      robberBal = clampMoney(robberBal - fine);
+    }
+    await runStmt('UPDATE guild_economy_users SET balance = ?, last_rob = ? WHERE guild_id = ? AND user_id = ?', [robberBal, now, guildId, String(robberId)]);
+    return { ok: true, success, stolen, fine, balance: robberBal, ...cur(s) };
+  });
+}
+
+/**
+ * Gamble a bet on a game. `game ∈ {coinflip|dice|slots}`, `choice` for coinflip
+ * ('heads'|'tails') / dice (1-6). Returns win/payout + new balance.
+ */
+export function economyGamble(guildId, userId, game, bet, choice) {
+  return runInTransaction(async () => {
+    const s = shapeEconomy(await dbGet('SELECT * FROM guild_economy_settings WHERE guild_id = ?', [guildId]));
+    if (!s.enabled) return { ok: false, reason: 'disabled' };
+    if (!s.gambling_enabled || !s[`${game}_enabled`]) return { ok: false, reason: 'command_disabled' };
+    const amt = Math.trunc(Number(bet));
+    if (!Number.isFinite(amt) || amt <= 0) return { ok: false, reason: 'bad_amount' };
+    if (amt < s.min_bet) return { ok: false, reason: 'below_min', min_bet: s.min_bet, ...cur(s) };
+    if (amt > s.max_bet) return { ok: false, reason: 'above_max', max_bet: s.max_bet, ...cur(s) };
+    await ensureEconomyUserRow(guildId, userId, s.start_balance);
+    const u = await dbGet('SELECT balance FROM guild_economy_users WHERE guild_id = ? AND user_id = ?', [guildId, String(userId)]);
+    if ((u?.balance || 0) < amt) return { ok: false, reason: 'insufficient', balance: u?.balance || 0, ...cur(s) };
+
+    let win = false, payout = 0, detail = {};
+    if (game === 'coinflip') {
+      const flip = Math.random() < 0.5 ? 'heads' : 'tails';
+      const pick = (choice === 'tails') ? 'tails' : 'heads';
+      win = flip === pick; payout = win ? amt * 2 : 0; detail = { result: flip, choice: pick };
+    } else if (game === 'dice') {
+      const roll = 1 + Math.floor(Math.random() * 6);
+      const pick = clampRange(choice, 1, 6, 0);
+      win = pick >= 1 && roll === pick; payout = win ? amt * 6 : 0; detail = { roll, choice: pick };
+    } else { // slots
+      const REELS = ['🍒', '🍋', '🍇', '🔔', '💎', '7️⃣'];
+      const spin = [0, 1, 2].map(() => REELS[Math.floor(Math.random() * REELS.length)]);
+      if (spin[0] === spin[1] && spin[1] === spin[2]) { win = true; payout = spin[0] === '7️⃣' ? amt * 20 : (spin[0] === '💎' ? amt * 10 : amt * 5); }
+      else if (spin[0] === spin[1] || spin[1] === spin[2] || spin[0] === spin[2]) { win = true; payout = Math.floor(amt * 1.5); }
+      detail = { reels: spin };
+    }
+    const balance = clampMoney((u.balance || 0) - amt + payout);
+    await runStmt('UPDATE guild_economy_users SET balance = ? WHERE guild_id = ? AND user_id = ?', [balance, guildId, String(userId)]);
+    return { ok: true, game, win, bet: amt, payout, net: payout - amt, balance, ...detail, ...cur(s) };
+  });
+}
+
+/** Move money wallet↔bank. `dir ∈ {deposit|withdraw}`, amount ≤ 0 → all. */
+export function economyBank(guildId, userId, dir, amount) {
+  return runInTransaction(async () => {
+    const s = shapeEconomy(await dbGet('SELECT * FROM guild_economy_settings WHERE guild_id = ?', [guildId]));
+    if (!s.enabled) return { ok: false, reason: 'disabled' };
+    if (!s.bank_enabled) return { ok: false, reason: 'command_disabled' };
+    await ensureEconomyUserRow(guildId, userId, s.start_balance);
+    const u = await dbGet('SELECT balance, bank FROM guild_economy_users WHERE guild_id = ? AND user_id = ?', [guildId, String(userId)]);
+    let wallet = u.balance || 0, bank = u.bank || 0;
+    const reqAmt = Math.trunc(Number(amount));
+    if (dir === 'deposit') {
+      const room = s.bank_max > 0 ? Math.max(0, s.bank_max - bank) : Infinity;
+      let amt = (!Number.isFinite(reqAmt) || reqAmt <= 0) ? wallet : Math.min(reqAmt, wallet);
+      amt = Math.min(amt, room);
+      if (amt <= 0) return { ok: false, reason: s.bank_max > 0 && bank >= s.bank_max ? 'bank_full' : 'insufficient', balance: wallet, bank, ...cur(s) };
+      wallet = clampMoney(wallet - amt); bank = clampMoney(bank + amt);
+      await runStmt('UPDATE guild_economy_users SET balance = ?, bank = ? WHERE guild_id = ? AND user_id = ?', [wallet, bank, guildId, String(userId)]);
+      return { ok: true, dir, amount: amt, balance: wallet, bank, ...cur(s) };
+    }
+    // withdraw
+    let amt = (!Number.isFinite(reqAmt) || reqAmt <= 0) ? bank : Math.min(reqAmt, bank);
+    if (amt <= 0) return { ok: false, reason: 'insufficient', balance: wallet, bank, ...cur(s) };
+    bank = clampMoney(bank - amt); wallet = clampMoney(wallet + amt);
+    await runStmt('UPDATE guild_economy_users SET balance = ?, bank = ? WHERE guild_id = ? AND user_id = ?', [wallet, bank, guildId, String(userId)]);
+    return { ok: true, dir, amount: amt, balance: wallet, bank, ...cur(s) };
+  });
+}
+
+/**
+ * Passive earning. `source ∈ {chat|voice}`. Chat: random per-message reward with
+ * a cooldown. Voice: voice_earn_amount × minutes (bot supplies minutes). Silent
+ * (returns { granted:false }) when disabled/on cooldown — the bot doesn't reply.
+ */
+export function economyPassiveEarn(guildId, userId, source, now, { roleIds = [], minutes = 0 } = {}) {
+  return runInTransaction(async () => {
+    const s = shapeEconomy(await dbGet('SELECT * FROM guild_economy_settings WHERE guild_id = ?', [guildId]));
+    if (!s.enabled) return { granted: false };
+    const mult = pickMultiplier(roleIds, s.role_multipliers);
+    if (source === 'chat') {
+      if (!s.chat_earn_enabled) return { granted: false };
+      await ensureEconomyUserRow(guildId, userId, s.start_balance);
+      const u = await dbGet('SELECT balance, last_chat_earn FROM guild_economy_users WHERE guild_id = ? AND user_id = ?', [guildId, String(userId)]);
+      if (u.last_chat_earn && now - u.last_chat_earn < s.chat_earn_cooldown) return { granted: false };
+      const amount = Math.round(randBetween(s.chat_earn_min, s.chat_earn_max) * mult);
+      const balance = clampMoney((u.balance || 0) + amount);
+      await runStmt('UPDATE guild_economy_users SET balance = ?, last_chat_earn = ? WHERE guild_id = ? AND user_id = ?', [balance, now, guildId, String(userId)]);
+      return { granted: amount > 0, amount, balance };
+    }
+    // voice
+    if (!s.voice_earn_enabled) return { granted: false };
+    const mins = clampRange(minutes, 0, 1440, 0);
+    if (mins <= 0) return { granted: false };
+    await ensureEconomyUserRow(guildId, userId, s.start_balance);
+    const u = await dbGet('SELECT balance FROM guild_economy_users WHERE guild_id = ? AND user_id = ?', [guildId, String(userId)]);
+    const amount = Math.round(s.voice_earn_amount * mins * mult);
+    if (amount <= 0) return { granted: false };
+    const balance = clampMoney((u.balance || 0) + amount);
+    await runStmt('UPDATE guild_economy_users SET balance = ? WHERE guild_id = ? AND user_id = ?', [balance, guildId, String(userId)]);
+    return { granted: true, amount, balance };
   });
 }
 

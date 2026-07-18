@@ -60,6 +60,238 @@
       </div>
     </section>
 
+    <!-- Bank -->
+    <section class="form-card">
+      <h2 class="shop-head__title">{{ t('economy.bankTitle') }}</h2>
+      <p class="row__hint">{{ t('economy.bankHint') }}</p>
+      <div class="row row--toggle">
+        <div>
+          <div class="row__label">{{ t('economy.bankEnableLabel') }}</div>
+          <div class="row__hint">{{ t('economy.bankEnableHint') }}</div>
+        </div>
+        <AppToggle v-model="form.bank_enabled" />
+      </div>
+      <div class="row-grid">
+        <div class="row">
+          <label class="row__label" for="ec-bankmax">{{ t('economy.bankMaxLabel') }}</label>
+          <input id="ec-bankmax" v-model.number="form.bank_max" class="input" type="number" min="0" />
+          <div class="row__hint">{{ t('economy.bankMaxHint') }}</div>
+        </div>
+        <div class="row">
+          <label class="row__label" for="ec-interest">{{ t('economy.interestRateLabel') }}</label>
+          <input id="ec-interest" v-model.number="form.interest_rate" class="input" type="number" min="0" max="100" />
+          <div class="row__hint">{{ t('economy.interestRateHint') }}</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Ways to earn -->
+    <section class="form-card">
+      <h2 class="shop-head__title">{{ t('economy.earnTitle') }}</h2>
+      <p class="row__hint">{{ t('economy.earnHint') }}</p>
+
+      <!-- Weekly -->
+      <div class="subgroup">
+        <div class="row row--toggle">
+          <div class="row__label">{{ t('economy.weeklyTitle') }}</div>
+          <AppToggle v-model="form.weekly_enabled" />
+        </div>
+        <div class="row-grid">
+          <div class="row">
+            <label class="row__label">{{ t('economy.weeklyAmountLabel') }}</label>
+            <input v-model.number="form.weekly_amount" class="input" type="number" min="0" />
+          </div>
+          <div class="row">
+            <label class="row__label">{{ t('economy.weeklyCooldownLabel') }}</label>
+            <input v-model.number="form.weekly_cooldown" class="input" type="number" min="0" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Beg -->
+      <div class="subgroup">
+        <div class="row row--toggle">
+          <div class="row__label">{{ t('economy.begTitle') }}</div>
+          <AppToggle v-model="form.beg_enabled" />
+        </div>
+        <div class="row-grid row-grid--3">
+          <div class="row"><label class="row__label">{{ t('economy.begMinLabel') }}</label><input v-model.number="form.beg_min" class="input" type="number" min="0" /></div>
+          <div class="row"><label class="row__label">{{ t('economy.begMaxLabel') }}</label><input v-model.number="form.beg_max" class="input" type="number" min="0" /></div>
+          <div class="row"><label class="row__label">{{ t('economy.begCooldownLabel') }}</label><input v-model.number="form.beg_cooldown" class="input" type="number" min="0" /></div>
+          <div class="row"><label class="row__label">{{ t('economy.begSuccessLabel') }}</label><input v-model.number="form.beg_success" class="input" type="number" min="0" max="100" /></div>
+        </div>
+      </div>
+
+      <!-- Crime -->
+      <div class="subgroup">
+        <div class="row row--toggle">
+          <div class="row__label">{{ t('economy.crimeTitle') }}</div>
+          <AppToggle v-model="form.crime_enabled" />
+        </div>
+        <div class="row-grid row-grid--3">
+          <div class="row"><label class="row__label">{{ t('economy.crimeMinLabel') }}</label><input v-model.number="form.crime_min" class="input" type="number" min="0" /></div>
+          <div class="row"><label class="row__label">{{ t('economy.crimeMaxLabel') }}</label><input v-model.number="form.crime_max" class="input" type="number" min="0" /></div>
+          <div class="row"><label class="row__label">{{ t('economy.crimeCooldownLabel') }}</label><input v-model.number="form.crime_cooldown" class="input" type="number" min="0" /></div>
+          <div class="row"><label class="row__label">{{ t('economy.crimeFineMinLabel') }}</label><input v-model.number="form.crime_fine_min" class="input" type="number" min="0" /></div>
+          <div class="row"><label class="row__label">{{ t('economy.crimeFineMaxLabel') }}</label><input v-model.number="form.crime_fine_max" class="input" type="number" min="0" /></div>
+          <div class="row"><label class="row__label">{{ t('economy.crimeSuccessLabel') }}</label><input v-model.number="form.crime_success" class="input" type="number" min="0" max="100" /></div>
+        </div>
+      </div>
+
+      <!-- Fishing -->
+      <div class="subgroup">
+        <div class="row row--toggle">
+          <div class="row__label">{{ t('economy.fishTitle') }}</div>
+          <AppToggle v-model="form.fish_enabled" />
+        </div>
+        <div class="row-grid row-grid--3">
+          <div class="row"><label class="row__label">{{ t('economy.fishMinLabel') }}</label><input v-model.number="form.fish_min" class="input" type="number" min="0" /></div>
+          <div class="row"><label class="row__label">{{ t('economy.fishMaxLabel') }}</label><input v-model.number="form.fish_max" class="input" type="number" min="0" /></div>
+          <div class="row"><label class="row__label">{{ t('economy.fishCooldownLabel') }}</label><input v-model.number="form.fish_cooldown" class="input" type="number" min="0" /></div>
+        </div>
+      </div>
+
+      <!-- Mining -->
+      <div class="subgroup">
+        <div class="row row--toggle">
+          <div class="row__label">{{ t('economy.mineTitle') }}</div>
+          <AppToggle v-model="form.mine_enabled" />
+        </div>
+        <div class="row-grid row-grid--3">
+          <div class="row"><label class="row__label">{{ t('economy.mineMinLabel') }}</label><input v-model.number="form.mine_min" class="input" type="number" min="0" /></div>
+          <div class="row"><label class="row__label">{{ t('economy.mineMaxLabel') }}</label><input v-model.number="form.mine_max" class="input" type="number" min="0" /></div>
+          <div class="row"><label class="row__label">{{ t('economy.mineCooldownLabel') }}</label><input v-model.number="form.mine_cooldown" class="input" type="number" min="0" /></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Robbery -->
+    <section class="form-card">
+      <h2 class="shop-head__title">{{ t('economy.robTitle') }}</h2>
+      <p class="row__hint">{{ t('economy.robHint') }}</p>
+      <div class="row row--toggle">
+        <div class="row__label">{{ t('economy.robEnableLabel') }}</div>
+        <AppToggle v-model="form.rob_enabled" />
+      </div>
+      <div class="row-grid">
+        <div class="row"><label class="row__label">{{ t('economy.robCooldownLabel') }}</label><input v-model.number="form.rob_cooldown" class="input" type="number" min="0" /></div>
+        <div class="row"><label class="row__label">{{ t('economy.robSuccessLabel') }}</label><input v-model.number="form.rob_success" class="input" type="number" min="0" max="100" /></div>
+      </div>
+      <div class="row-grid">
+        <div class="row">
+          <label class="row__label">{{ t('economy.robMaxPercentLabel') }}</label>
+          <input v-model.number="form.rob_max_percent" class="input" type="number" min="0" max="100" />
+          <div class="row__hint">{{ t('economy.robMaxPercentHint') }}</div>
+        </div>
+        <div class="row">
+          <label class="row__label">{{ t('economy.robFinePercentLabel') }}</label>
+          <input v-model.number="form.rob_fine_percent" class="input" type="number" min="0" max="100" />
+          <div class="row__hint">{{ t('economy.robFinePercentHint') }}</div>
+        </div>
+      </div>
+      <div class="row">
+        <label class="row__label">{{ t('economy.robMinBalanceLabel') }}</label>
+        <input v-model.number="form.rob_min_balance" class="input" type="number" min="0" />
+        <div class="row__hint">{{ t('economy.robMinBalanceHint') }}</div>
+      </div>
+    </section>
+
+    <!-- Gambling -->
+    <section class="form-card">
+      <h2 class="shop-head__title">{{ t('economy.gamblingTitle') }}</h2>
+      <p class="row__hint">{{ t('economy.gamblingHint') }}</p>
+      <div class="row row--toggle">
+        <div class="row__label">{{ t('economy.gamblingEnableLabel') }}</div>
+        <AppToggle v-model="form.gambling_enabled" />
+      </div>
+      <div class="row-grid">
+        <div class="row"><label class="row__label">{{ t('economy.minBetLabel') }}</label><input v-model.number="form.min_bet" class="input" type="number" min="0" /></div>
+        <div class="row"><label class="row__label">{{ t('economy.maxBetLabel') }}</label><input v-model.number="form.max_bet" class="input" type="number" min="0" /></div>
+      </div>
+      <div class="row row--toggle"><div class="row__label">{{ t('economy.coinflipLabel') }}</div><AppToggle v-model="form.coinflip_enabled" /></div>
+      <div class="row row--toggle"><div class="row__label">{{ t('economy.diceLabel') }}</div><AppToggle v-model="form.dice_enabled" /></div>
+      <div class="row row--toggle"><div class="row__label">{{ t('economy.slotsLabel') }}</div><AppToggle v-model="form.slots_enabled" /></div>
+    </section>
+
+    <!-- Passive earning -->
+    <section class="form-card">
+      <h2 class="shop-head__title">{{ t('economy.passiveTitle') }}</h2>
+      <p class="row__hint">{{ t('economy.passiveHint') }}</p>
+      <div class="subgroup">
+        <div class="row row--toggle">
+          <div class="row__label">{{ t('economy.chatEarnEnableLabel') }}</div>
+          <AppToggle v-model="form.chat_earn_enabled" />
+        </div>
+        <div class="row-grid row-grid--3">
+          <div class="row"><label class="row__label">{{ t('economy.chatEarnMinLabel') }}</label><input v-model.number="form.chat_earn_min" class="input" type="number" min="0" /></div>
+          <div class="row"><label class="row__label">{{ t('economy.chatEarnMaxLabel') }}</label><input v-model.number="form.chat_earn_max" class="input" type="number" min="0" /></div>
+          <div class="row"><label class="row__label">{{ t('economy.chatEarnCooldownLabel') }}</label><input v-model.number="form.chat_earn_cooldown" class="input" type="number" min="0" /></div>
+        </div>
+      </div>
+      <div class="subgroup">
+        <div class="row row--toggle">
+          <div class="row__label">{{ t('economy.voiceEarnEnableLabel') }}</div>
+          <AppToggle v-model="form.voice_earn_enabled" />
+        </div>
+        <div class="row">
+          <label class="row__label">{{ t('economy.voiceEarnAmountLabel') }}</label>
+          <input v-model.number="form.voice_earn_amount" class="input input--narrow" type="number" min="0" />
+          <div class="row__hint">{{ t('economy.voiceEarnAmountHint') }}</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Daily streak -->
+    <section class="form-card">
+      <h2 class="shop-head__title">{{ t('economy.streakTitle') }}</h2>
+      <p class="row__hint">{{ t('economy.streakHint') }}</p>
+      <div class="row row--toggle">
+        <div class="row__label">{{ t('economy.streakEnableLabel') }}</div>
+        <AppToggle v-model="form.daily_streak_enabled" />
+      </div>
+      <div class="row-grid">
+        <div class="row">
+          <label class="row__label">{{ t('economy.streakBonusLabel') }}</label>
+          <input v-model.number="form.daily_streak_bonus" class="input" type="number" min="0" />
+          <div class="row__hint">{{ t('economy.streakBonusHint') }}</div>
+        </div>
+        <div class="row">
+          <label class="row__label">{{ t('economy.streakMaxLabel') }}</label>
+          <input v-model.number="form.daily_streak_max" class="input" type="number" min="0" />
+          <div class="row__hint">{{ t('economy.streakMaxHint') }}</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Role multipliers -->
+    <section class="form-card">
+      <h2 class="shop-head__title">{{ t('economy.multipliersTitle') }}</h2>
+      <p class="row__hint">{{ t('economy.multipliersHint') }}</p>
+
+      <div v-if="form.role_multipliers.length === 0" class="lb-empty">{{ t('economy.multipliersEmpty') }}</div>
+      <div v-else class="mult-list">
+        <div v-for="(row, i) in form.role_multipliers" :key="row._key" class="mult-row">
+          <div class="mult-row__cell">
+            <label class="row__label">{{ t('economy.multiplierRoleLabel') }}</label>
+            <RoleSelector v-model="row.role_id" :guild-id="guildId" />
+          </div>
+          <div class="mult-row__cell">
+            <label class="row__label">{{ t('economy.multiplierValueLabel') }}</label>
+            <input v-model.number="row.multiplier" class="input" type="number" min="0" step="0.1" />
+          </div>
+          <AppButton variant="danger" @click="removeMultiplier(i)">{{ t('common.delete') }}</AppButton>
+        </div>
+      </div>
+
+      <div>
+        <AppButton variant="ghost" @click="addMultiplier">{{ t('economy.addMultiplier') }}</AppButton>
+      </div>
+
+      <div class="form-card__actions">
+        <AppButton variant="gradient" :loading="saving" :disabled="!dirty" @click="save">{{ t('common.saveChanges') }}</AppButton>
+      </div>
+    </section>
+
     <!-- Shop -->
     <section class="form-card">
       <div class="shop-head">
@@ -121,7 +353,32 @@ const toast = useToast()
 const { t } = useI18n()
 const guildId = computed(() => route.params.guild_id)
 
-const form = reactive({ enabled: false, currency_name: 'coins', currency_symbol: '🪙', start_balance: 0, daily_amount: 200, work_min: 50, work_max: 250, work_cooldown: 3600 })
+const form = reactive({
+  enabled: false, currency_name: 'coins', currency_symbol: '🪙',
+  start_balance: 0, daily_amount: 200, work_min: 50, work_max: 250, work_cooldown: 3600,
+  // Bank
+  bank_enabled: false, bank_max: 0, interest_rate: 0,
+  // Weekly
+  weekly_enabled: false, weekly_amount: 1000, weekly_cooldown: 604800,
+  // Beg
+  beg_enabled: false, beg_min: 10, beg_max: 100, beg_cooldown: 300, beg_success: 60,
+  // Crime
+  crime_enabled: false, crime_min: 100, crime_max: 500, crime_fine_min: 50, crime_fine_max: 250, crime_cooldown: 3600, crime_success: 50,
+  // Rob
+  rob_enabled: false, rob_cooldown: 3600, rob_success: 40, rob_max_percent: 50, rob_fine_percent: 20, rob_min_balance: 100,
+  // Fish
+  fish_enabled: false, fish_min: 10, fish_max: 100, fish_cooldown: 300,
+  // Mine
+  mine_enabled: false, mine_min: 10, mine_max: 100, mine_cooldown: 300,
+  // Gambling
+  gambling_enabled: false, min_bet: 10, max_bet: 10000, coinflip_enabled: true, dice_enabled: true, slots_enabled: true,
+  // Passive earning
+  chat_earn_enabled: false, chat_earn_min: 1, chat_earn_max: 5, chat_earn_cooldown: 60,
+  voice_earn_enabled: false, voice_earn_amount: 5,
+  // Modifiers
+  daily_streak_enabled: false, daily_streak_bonus: 50, daily_streak_max: 500,
+  role_multipliers: []
+})
 const shop = ref([])
 const leaderboard = ref([])
 const saving = ref(false)
@@ -131,12 +388,36 @@ const deletingItems = reactive(new Set())
 let initial = JSON.stringify(form)
 const dirty = computed(() => JSON.stringify(form) !== initial)
 
+// Role multipliers repeater. Each row carries a client-only _key for a stable
+// v-model binding; it is stripped before the settings are sent to the backend.
+let multKeySeq = 0
+const nextMultKey = () => `m${multKeySeq++}`
+function normalizeMultipliers(arr) {
+  if (!Array.isArray(arr)) return []
+  return arr
+    .filter(r => r && typeof r === 'object')
+    .map(r => ({ _key: nextMultKey(), role_id: r.role_id ? String(r.role_id) : '', multiplier: Number(r.multiplier) || 1 }))
+}
+function addMultiplier() {
+  form.role_multipliers.push({ _key: nextMultKey(), role_id: '', multiplier: 1 })
+}
+function removeMultiplier(i) {
+  form.role_multipliers.splice(i, 1)
+}
+// Drop incomplete rows and strip the client-only _key for the PUT body.
+function cleanMultipliers() {
+  return form.role_multipliers
+    .filter(r => r.role_id)
+    .map(r => ({ role_id: String(r.role_id), multiplier: Number(r.multiplier) || 1 }))
+}
+
 async function load() {
   if (!guildId.value) return
   try {
     const { data } = await api.get(`/guilds/${guildId.value}/economy`)
     if (data?.success) {
       Object.assign(form, data.settings || {})
+      form.role_multipliers = normalizeMultipliers(form.role_multipliers)
       initial = JSON.stringify(form)
     }
   } catch (err) {
@@ -168,8 +449,13 @@ useAutoRefresh(load, { isDirty: () => dirty.value })
 async function save() {
   saving.value = true
   try {
-    const { data } = await api.put(`/guilds/${guildId.value}/economy`, { ...form })
-    if (data?.success && data.settings) { Object.assign(form, data.settings); initial = JSON.stringify(form) }
+    const payload = { ...form, role_multipliers: cleanMultipliers() }
+    const { data } = await api.put(`/guilds/${guildId.value}/economy`, payload)
+    if (data?.success && data.settings) {
+      Object.assign(form, data.settings)
+      form.role_multipliers = normalizeMultipliers(form.role_multipliers)
+      initial = JSON.stringify(form)
+    }
     toast.success(t('common.allSaved'))
   } catch (err) {
     toast.error(err.response?.data?.error || t('toast.failedToSave'))
@@ -250,5 +536,9 @@ async function deleteItem(it) {
 .lb-table th { color: var(--color-text-soft); font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.06em; }
 .lb-table .num { text-align: right; font-family: var(--font-mono); }
 .lb-table .mono { font-family: var(--font-mono); font-size: 0.82rem; color: var(--color-text-muted); }
-@media (max-width: 560px) { .row-grid, .row-grid--3, .shop-row__grid { grid-template-columns: 1fr; } }
+.subgroup { border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-4); background: var(--color-bg-elevated); }
+.mult-list { display: flex; flex-direction: column; gap: var(--space-3); }
+.mult-row { display: grid; grid-template-columns: 1fr 140px auto; gap: var(--space-3); align-items: end; }
+.mult-row__cell { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+@media (max-width: 560px) { .row-grid, .row-grid--3, .shop-row__grid, .mult-row { grid-template-columns: 1fr; } }
 </style>
