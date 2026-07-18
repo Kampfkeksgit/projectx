@@ -106,6 +106,14 @@ import {
   getEconomyBalance,
   economyDaily,
   economyWork,
+  economyWeekly,
+  economyGather,
+  economyBeg,
+  economyCrime,
+  economyRob,
+  economyGamble,
+  economyBank,
+  economyPassiveEarn,
   economyPay,
   getEconomyLeaderboard,
   getEconomyShop,
@@ -1850,11 +1858,13 @@ router.post('/guilds/:guild_id/economy/balance', requireBotToken, async (req, re
   }
 })
 
+const nowSec = () => Math.floor(Date.now() / 1000)
+
 router.post('/guilds/:guild_id/economy/daily', requireBotToken, async (req, res) => {
   try {
-    const { user_id } = req.body || {}
+    const { user_id, role_ids } = req.body || {}
     if (!user_id) return res.status(400).json({ error: 'user_id required' })
-    return res.json(await economyDaily(req.params.guild_id, user_id, Math.floor(Date.now() / 1000)))
+    return res.json(await economyDaily(req.params.guild_id, user_id, nowSec(), role_ids))
   } catch (error) {
     console.error('Bot economy daily error:', error.message)
     res.status(500).json({ error: 'Failed to claim daily' })
@@ -1863,12 +1873,102 @@ router.post('/guilds/:guild_id/economy/daily', requireBotToken, async (req, res)
 
 router.post('/guilds/:guild_id/economy/work', requireBotToken, async (req, res) => {
   try {
-    const { user_id } = req.body || {}
+    const { user_id, role_ids } = req.body || {}
     if (!user_id) return res.status(400).json({ error: 'user_id required' })
-    return res.json(await economyWork(req.params.guild_id, user_id, Math.floor(Date.now() / 1000)))
+    return res.json(await economyWork(req.params.guild_id, user_id, nowSec(), role_ids))
   } catch (error) {
     console.error('Bot economy work error:', error.message)
     res.status(500).json({ error: 'Failed to work' })
+  }
+})
+
+// weekly / fish / mine share the timed-income helpers.
+router.post('/guilds/:guild_id/economy/weekly', requireBotToken, async (req, res) => {
+  try {
+    const { user_id, role_ids } = req.body || {}
+    if (!user_id) return res.status(400).json({ error: 'user_id required' })
+    return res.json(await economyWeekly(req.params.guild_id, user_id, nowSec(), role_ids))
+  } catch (error) {
+    console.error('Bot economy weekly error:', error.message)
+    res.status(500).json({ error: 'Failed to claim weekly' })
+  }
+})
+
+router.post('/guilds/:guild_id/economy/gather', requireBotToken, async (req, res) => {
+  try {
+    const { user_id, kind, role_ids } = req.body || {}
+    if (!user_id) return res.status(400).json({ error: 'user_id required' })
+    return res.json(await economyGather(req.params.guild_id, user_id, nowSec(), kind === 'mine' ? 'mine' : 'fish', role_ids))
+  } catch (error) {
+    console.error('Bot economy gather error:', error.message)
+    res.status(500).json({ error: 'Failed to gather' })
+  }
+})
+
+router.post('/guilds/:guild_id/economy/beg', requireBotToken, async (req, res) => {
+  try {
+    const { user_id, role_ids } = req.body || {}
+    if (!user_id) return res.status(400).json({ error: 'user_id required' })
+    return res.json(await economyBeg(req.params.guild_id, user_id, nowSec(), role_ids))
+  } catch (error) {
+    console.error('Bot economy beg error:', error.message)
+    res.status(500).json({ error: 'Failed to beg' })
+  }
+})
+
+router.post('/guilds/:guild_id/economy/crime', requireBotToken, async (req, res) => {
+  try {
+    const { user_id, role_ids } = req.body || {}
+    if (!user_id) return res.status(400).json({ error: 'user_id required' })
+    return res.json(await economyCrime(req.params.guild_id, user_id, nowSec(), role_ids))
+  } catch (error) {
+    console.error('Bot economy crime error:', error.message)
+    res.status(500).json({ error: 'Failed to commit crime' })
+  }
+})
+
+router.post('/guilds/:guild_id/economy/rob', requireBotToken, async (req, res) => {
+  try {
+    const { user_id, target_id } = req.body || {}
+    if (!user_id || !target_id) return res.status(400).json({ error: 'user_id and target_id required' })
+    return res.json(await economyRob(req.params.guild_id, user_id, target_id, nowSec()))
+  } catch (error) {
+    console.error('Bot economy rob error:', error.message)
+    res.status(500).json({ error: 'Failed to rob' })
+  }
+})
+
+router.post('/guilds/:guild_id/economy/gamble', requireBotToken, async (req, res) => {
+  try {
+    const { user_id, game, bet, choice } = req.body || {}
+    if (!user_id || !game) return res.status(400).json({ error: 'user_id and game required' })
+    return res.json(await economyGamble(req.params.guild_id, user_id, game, bet, choice))
+  } catch (error) {
+    console.error('Bot economy gamble error:', error.message)
+    res.status(500).json({ error: 'Failed to gamble' })
+  }
+})
+
+router.post('/guilds/:guild_id/economy/bank', requireBotToken, async (req, res) => {
+  try {
+    const { user_id, dir, amount } = req.body || {}
+    if (!user_id || !dir) return res.status(400).json({ error: 'user_id and dir required' })
+    return res.json(await economyBank(req.params.guild_id, user_id, dir === 'withdraw' ? 'withdraw' : 'deposit', amount))
+  } catch (error) {
+    console.error('Bot economy bank error:', error.message)
+    res.status(500).json({ error: 'Failed bank op' })
+  }
+})
+
+// Passive earning (chat per message / voice per minute). Silent when disabled.
+router.post('/guilds/:guild_id/economy/earn', requireBotToken, async (req, res) => {
+  try {
+    const { user_id, source, role_ids, minutes } = req.body || {}
+    if (!user_id || !source) return res.status(400).json({ error: 'user_id and source required' })
+    return res.json(await economyPassiveEarn(req.params.guild_id, user_id, source, nowSec(), { roleIds: role_ids, minutes }))
+  } catch (error) {
+    console.error('Bot economy earn error:', error.message)
+    res.status(500).json({ error: 'Failed to earn' })
   }
 })
 

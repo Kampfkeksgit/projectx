@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 56;
+const CURRENT_SCHEMA_VERSION = 57;
 
 /**
  * Initialize schema version tracking
@@ -115,7 +115,8 @@ async function applyMigrations(fromVersion, toVersion) {
     53: migrationV53,
     54: migrationV54,
     55: migrationV55,
-    56: migrationV56
+    56: migrationV56,
+    57: migrationV57
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -2405,6 +2406,84 @@ function migrationV56() {
   return runSchemaBatch(56, [
     'ALTER TABLE partners ADD COLUMN linked_partner_id TEXT',
     'ALTER TABLE partners ADD COLUMN tags TEXT'
+  ]);
+}
+
+/**
+ * v57 (Economy-Ausbau): Bank, viele neue Verdienst-Wege (weekly/beg/crime/rob/
+ * fish/mine), Gambling (coinflip/dice/slots), passives Verdienen (chat/voice),
+ * Daily-Streak + rollenbasierte Multiplikatoren — alle per-Guild konfigurierbar.
+ * Idempotent; mirrored in initializeDatabase().
+ */
+function migrationV57() {
+  return runSchemaBatch(57, [
+    // --- guild_economy_settings: bank ---
+    'ALTER TABLE guild_economy_settings ADD COLUMN bank_enabled INTEGER DEFAULT 1',
+    'ALTER TABLE guild_economy_settings ADD COLUMN bank_max INTEGER DEFAULT 0',
+    'ALTER TABLE guild_economy_settings ADD COLUMN interest_rate INTEGER DEFAULT 0',
+    // --- weekly ---
+    'ALTER TABLE guild_economy_settings ADD COLUMN weekly_enabled INTEGER DEFAULT 1',
+    'ALTER TABLE guild_economy_settings ADD COLUMN weekly_amount INTEGER DEFAULT 1000',
+    'ALTER TABLE guild_economy_settings ADD COLUMN weekly_cooldown INTEGER DEFAULT 604800',
+    // --- beg ---
+    'ALTER TABLE guild_economy_settings ADD COLUMN beg_enabled INTEGER DEFAULT 1',
+    'ALTER TABLE guild_economy_settings ADD COLUMN beg_min INTEGER DEFAULT 10',
+    'ALTER TABLE guild_economy_settings ADD COLUMN beg_max INTEGER DEFAULT 80',
+    'ALTER TABLE guild_economy_settings ADD COLUMN beg_cooldown INTEGER DEFAULT 300',
+    'ALTER TABLE guild_economy_settings ADD COLUMN beg_success INTEGER DEFAULT 70',
+    // --- crime ---
+    'ALTER TABLE guild_economy_settings ADD COLUMN crime_enabled INTEGER DEFAULT 1',
+    'ALTER TABLE guild_economy_settings ADD COLUMN crime_min INTEGER DEFAULT 150',
+    'ALTER TABLE guild_economy_settings ADD COLUMN crime_max INTEGER DEFAULT 600',
+    'ALTER TABLE guild_economy_settings ADD COLUMN crime_fine_min INTEGER DEFAULT 100',
+    'ALTER TABLE guild_economy_settings ADD COLUMN crime_fine_max INTEGER DEFAULT 400',
+    'ALTER TABLE guild_economy_settings ADD COLUMN crime_cooldown INTEGER DEFAULT 3600',
+    'ALTER TABLE guild_economy_settings ADD COLUMN crime_success INTEGER DEFAULT 55',
+    // --- rob ---
+    'ALTER TABLE guild_economy_settings ADD COLUMN rob_enabled INTEGER DEFAULT 1',
+    'ALTER TABLE guild_economy_settings ADD COLUMN rob_cooldown INTEGER DEFAULT 7200',
+    'ALTER TABLE guild_economy_settings ADD COLUMN rob_success INTEGER DEFAULT 40',
+    'ALTER TABLE guild_economy_settings ADD COLUMN rob_max_percent INTEGER DEFAULT 40',
+    'ALTER TABLE guild_economy_settings ADD COLUMN rob_fine_percent INTEGER DEFAULT 25',
+    'ALTER TABLE guild_economy_settings ADD COLUMN rob_min_balance INTEGER DEFAULT 100',
+    // --- fish / mine (gather) ---
+    'ALTER TABLE guild_economy_settings ADD COLUMN fish_enabled INTEGER DEFAULT 1',
+    'ALTER TABLE guild_economy_settings ADD COLUMN fish_min INTEGER DEFAULT 20',
+    'ALTER TABLE guild_economy_settings ADD COLUMN fish_max INTEGER DEFAULT 150',
+    'ALTER TABLE guild_economy_settings ADD COLUMN fish_cooldown INTEGER DEFAULT 600',
+    'ALTER TABLE guild_economy_settings ADD COLUMN mine_enabled INTEGER DEFAULT 1',
+    'ALTER TABLE guild_economy_settings ADD COLUMN mine_min INTEGER DEFAULT 30',
+    'ALTER TABLE guild_economy_settings ADD COLUMN mine_max INTEGER DEFAULT 200',
+    'ALTER TABLE guild_economy_settings ADD COLUMN mine_cooldown INTEGER DEFAULT 900',
+    // --- gambling ---
+    'ALTER TABLE guild_economy_settings ADD COLUMN gambling_enabled INTEGER DEFAULT 1',
+    'ALTER TABLE guild_economy_settings ADD COLUMN min_bet INTEGER DEFAULT 10',
+    'ALTER TABLE guild_economy_settings ADD COLUMN max_bet INTEGER DEFAULT 10000',
+    'ALTER TABLE guild_economy_settings ADD COLUMN coinflip_enabled INTEGER DEFAULT 1',
+    'ALTER TABLE guild_economy_settings ADD COLUMN dice_enabled INTEGER DEFAULT 1',
+    'ALTER TABLE guild_economy_settings ADD COLUMN slots_enabled INTEGER DEFAULT 1',
+    // --- passive earning ---
+    'ALTER TABLE guild_economy_settings ADD COLUMN chat_earn_enabled INTEGER DEFAULT 0',
+    'ALTER TABLE guild_economy_settings ADD COLUMN chat_earn_min INTEGER DEFAULT 1',
+    'ALTER TABLE guild_economy_settings ADD COLUMN chat_earn_max INTEGER DEFAULT 5',
+    'ALTER TABLE guild_economy_settings ADD COLUMN chat_earn_cooldown INTEGER DEFAULT 60',
+    'ALTER TABLE guild_economy_settings ADD COLUMN voice_earn_enabled INTEGER DEFAULT 0',
+    'ALTER TABLE guild_economy_settings ADD COLUMN voice_earn_amount INTEGER DEFAULT 5',
+    // --- modifiers ---
+    'ALTER TABLE guild_economy_settings ADD COLUMN daily_streak_enabled INTEGER DEFAULT 1',
+    'ALTER TABLE guild_economy_settings ADD COLUMN daily_streak_bonus INTEGER DEFAULT 50',
+    'ALTER TABLE guild_economy_settings ADD COLUMN daily_streak_max INTEGER DEFAULT 500',
+    "ALTER TABLE guild_economy_settings ADD COLUMN role_multipliers TEXT DEFAULT '[]'",
+    // --- guild_economy_users: bank + per-command cooldown stamps + streak ---
+    'ALTER TABLE guild_economy_users ADD COLUMN bank INTEGER DEFAULT 0',
+    'ALTER TABLE guild_economy_users ADD COLUMN last_weekly INTEGER DEFAULT 0',
+    'ALTER TABLE guild_economy_users ADD COLUMN last_beg INTEGER DEFAULT 0',
+    'ALTER TABLE guild_economy_users ADD COLUMN last_crime INTEGER DEFAULT 0',
+    'ALTER TABLE guild_economy_users ADD COLUMN last_rob INTEGER DEFAULT 0',
+    'ALTER TABLE guild_economy_users ADD COLUMN last_fish INTEGER DEFAULT 0',
+    'ALTER TABLE guild_economy_users ADD COLUMN last_mine INTEGER DEFAULT 0',
+    'ALTER TABLE guild_economy_users ADD COLUMN last_chat_earn INTEGER DEFAULT 0',
+    'ALTER TABLE guild_economy_users ADD COLUMN daily_streak INTEGER DEFAULT 0'
   ]);
 }
 
