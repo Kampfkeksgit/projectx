@@ -282,17 +282,26 @@ class Verification(commands.Cog):
         if role is None:
             await interaction.followup.send(t(lang, "verify.roleGone"), ephemeral=True)
             return
+        # Optional: a role to strip on verify (e.g. an "Unverified" gate role).
+        remove_id = settings.get("remove_role_id")
+        remove_role = interaction.guild.get_role(int(remove_id)) if remove_id else None
         member = interaction.user
-        if role in member.roles:
+        has_verified = role in member.roles
+        has_remove = remove_role is not None and remove_role in member.roles
+        # Already fully verified (has the role, nothing left to strip) → no-op.
+        if has_verified and not has_remove:
             await interaction.followup.send(t(lang, "verify.already"), ephemeral=True)
             return
         try:
-            await member.add_roles(role, reason="Verification")
+            if not has_verified:
+                await member.add_roles(role, reason="Verification")
+            if has_remove:
+                await member.remove_roles(remove_role, reason="Verification (remove gate role)")
             await interaction.followup.send(t(lang, "verify.success"), ephemeral=True)
         except discord.Forbidden:
             await interaction.followup.send(t(lang, "verify.forbidden"), ephemeral=True)
         except Exception as exc:
-            print(f"[verify] add role failed in {interaction.guild.id}: {exc}")
+            print(f"[verify] role update failed in {interaction.guild.id}: {exc}")
             await interaction.followup.send(t(lang, "verify.error"), ephemeral=True)
 
 

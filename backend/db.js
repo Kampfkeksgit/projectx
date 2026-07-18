@@ -980,8 +980,8 @@ function initializeDatabase() {
       if (err) console.error('Error creating guild_verification_settings table:', err);
       else console.log('✓ Guild verification settings table initialized');
     });
-    // v45: designable embed + live-update flag (idempotent mirror)
-    for (const col of ['use_embed BOOLEAN DEFAULT 0', 'embed TEXT', 'dirty INTEGER DEFAULT 0']) {
+    // v45: designable embed + live-update flag; v59: role to remove on verify (idempotent mirror)
+    for (const col of ['use_embed BOOLEAN DEFAULT 0', 'embed TEXT', 'dirty INTEGER DEFAULT 0', 'remove_role_id TEXT']) {
       db.run(`ALTER TABLE guild_verification_settings ADD COLUMN ${col}`, (err) => {
         if (err && !/duplicate column name/i.test(err.message)) console.error(`Warning: guild_verification_settings.${col}:`, err.message);
       });
@@ -7495,6 +7495,7 @@ export const VERIFICATION_DEFAULTS = {
   enabled: false,
   channel_id: null,
   verified_role_id: null,
+  remove_role_id: null,
   message: 'Click the button below to verify and unlock the server.',
   button_label: 'Verify',
   use_embed: false,
@@ -7514,6 +7515,7 @@ export function getVerificationSettings(guildId) {
         enabled: !!row.enabled,
         channel_id: row.channel_id ?? null,
         verified_role_id: row.verified_role_id ?? null,
+        remove_role_id: row.remove_role_id ?? null,
         message: row.message ?? VERIFICATION_DEFAULTS.message,
         button_label: row.button_label || 'Verify',
         use_embed: !!row.use_embed,
@@ -7528,24 +7530,29 @@ export function upsertVerificationSettings(guildId, settings) {
     const enabled = settings.enabled ? 1 : 0;
     const channel = isSnowflake(settings.channel_id) ? settings.channel_id : null;
     const role = isSnowflake(settings.verified_role_id) ? settings.verified_role_id : null;
+    // Role to remove on verify — must differ from the verified role (else it would
+    // add then remove the same role).
+    let removeRole = isSnowflake(settings.remove_role_id) ? settings.remove_role_id : null;
+    if (removeRole && removeRole === role) removeRole = null;
     const message = truncate(settings.message || VERIFICATION_DEFAULTS.message, 2000);
     const label = truncate(settings.button_label || 'Verify', 80);
     const useEmbed = settings.use_embed ? 1 : 0;
     const embed = JSON.stringify(sanitizeEmbed(settings.embed));
     db.run(
-      `INSERT INTO guild_verification_settings (guild_id, enabled, channel_id, verified_role_id, message, button_label, use_embed, embed, dirty)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+      `INSERT INTO guild_verification_settings (guild_id, enabled, channel_id, verified_role_id, remove_role_id, message, button_label, use_embed, embed, dirty)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
        ON CONFLICT(guild_id) DO UPDATE SET
          enabled = excluded.enabled,
          channel_id = excluded.channel_id,
          verified_role_id = excluded.verified_role_id,
+         remove_role_id = excluded.remove_role_id,
          message = excluded.message,
          button_label = excluded.button_label,
          use_embed = excluded.use_embed,
          embed = excluded.embed,
          dirty = 1,
          updated_at = CURRENT_TIMESTAMP`,
-      [guildId, enabled, channel, role, message, label, useEmbed, embed],
+      [guildId, enabled, channel, role, removeRole, message, label, useEmbed, embed],
       function (err) {
         if (err) reject(err);
         else resolve(this.changes);
