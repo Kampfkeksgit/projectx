@@ -126,6 +126,41 @@
           <EmbedEditor v-model="form.welcome_embed" />
         </div>
 
+        <!-- ===== Support hours ===== -->
+        <div class="form-card">
+          <div class="card-title">{{ t('tickets.sectionSupportHours') }}</div>
+
+          <div class="row row--toggle">
+            <div>
+              <div class="row__label">{{ t('tickets.supportHoursEnableLabel') }}</div>
+              <div class="row__hint">{{ t('tickets.supportHoursEnableHint') }}</div>
+            </div>
+            <AppToggle v-model="form.support_hours_enabled" />
+          </div>
+
+          <div class="row" :class="{ 'is-disabled': !form.support_hours_enabled }">
+            <label class="row__label" for="tk-sh-tz">{{ t('tickets.supportHoursTzLabel') }}</label>
+            <div class="row__hint">{{ t('tickets.supportHoursTzHint') }}</div>
+            <select id="tk-sh-tz" v-model="form.support_hours_timezone" class="input input--tz" :disabled="!form.support_hours_enabled">
+              <option v-for="tz in TIMEZONES" :key="tz" :value="tz">{{ tz }}</option>
+            </select>
+          </div>
+
+          <div class="sh-grid" :class="{ 'is-disabled': !form.support_hours_enabled }">
+            <div v-for="(day, i) in form.support_hours" :key="i" class="sh-row" :class="{ 'sh-row--off': !day.enabled }">
+              <span class="sh-row__day">{{ DAY_LABELS[i] }}</span>
+              <AppToggle v-model="day.enabled" />
+              <div class="sh-row__times">
+                <input type="time" class="input input--time" v-model="day.start" :disabled="!day.enabled || !form.support_hours_enabled" />
+                <span class="sh-row__dash">–</span>
+                <input type="time" class="input input--time" v-model="day.end" :disabled="!day.enabled || !form.support_hours_enabled" />
+              </div>
+            </div>
+          </div>
+
+          <div class="form-card__note form-card__note--info">{{ t('tickets.supportHoursNote') }}</div>
+        </div>
+
         <!-- ===== Rating ===== -->
         <div class="form-card">
           <div class="card-title">{{ t('tickets.sectionRating') }}</div>
@@ -262,6 +297,39 @@ const guildName = computed(() => {
   return g?.guild_name || g?.name || 'Your Server'
 })
 
+// Kept in sync with GENERAL_TIMEZONES in backend/db.js (reused for support hours).
+const TIMEZONES = [
+  'UTC',
+  'Europe/London', 'Europe/Berlin', 'Europe/Paris', 'Europe/Madrid', 'Europe/Rome',
+  'Europe/Istanbul', 'Europe/Moscow', 'Europe/Warsaw', 'Europe/Athens',
+  'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
+  'America/Sao_Paulo', 'America/Mexico_City',
+  'Asia/Dubai', 'Asia/Kolkata', 'Asia/Shanghai', 'Asia/Tokyo', 'Asia/Singapore',
+  'Australia/Sydney', 'Pacific/Auckland'
+]
+// Weekday labels, index 0 = Monday … 6 = Sunday (matches the backend schedule order).
+const DAY_LABELS = computed(() => [
+  t('tickets.dayMon'), t('tickets.dayTue'), t('tickets.dayWed'), t('tickets.dayThu'),
+  t('tickets.dayFri'), t('tickets.daySat'), t('tickets.daySun')
+])
+const HHMM_RE = /^([01]\d|2[0-3]):([0-5]\d)$/
+
+function defaultSupportHours() {
+  return [0, 1, 2, 3, 4, 5, 6].map((d) => ({ enabled: d <= 4, start: '09:00', end: '17:00' }))
+}
+
+function normalizeSupportHours(value) {
+  const arr = Array.isArray(value) ? value : []
+  return defaultSupportHours().map((def, i) => {
+    const e = (arr[i] && typeof arr[i] === 'object') ? arr[i] : {}
+    return {
+      enabled: !!e.enabled,
+      start: HHMM_RE.test(e.start) ? e.start : def.start,
+      end: HHMM_RE.test(e.end) ? e.end : def.end
+    }
+  })
+}
+
 function defaultEmbed() {
   return { title: '', description: '', color: '#5865F2', thumbnail: '', image: '', footer: '', show_timestamp: false, author_name: '', author_icon_url: '', format: 'embed', accent_color: '#5865F2', blocks: [] }
 }
@@ -284,7 +352,10 @@ function defaultForm() {
     claim_enabled: true,
     close_confirm: true,
     rating_enabled: false,
-    rating_mode: 'channel'
+    rating_mode: 'channel',
+    support_hours_enabled: false,
+    support_hours_timezone: 'UTC',
+    support_hours: defaultSupportHours()
   }
 }
 
@@ -312,7 +383,10 @@ function applySettings(s) {
     claim_enabled: s.claim_enabled !== false,
     close_confirm: s.close_confirm !== false,
     rating_enabled: !!s.rating_enabled,
-    rating_mode: ['channel', 'dm', 'both'].includes(s.rating_mode) ? s.rating_mode : 'channel'
+    rating_mode: ['channel', 'dm', 'both'].includes(s.rating_mode) ? s.rating_mode : 'channel',
+    support_hours_enabled: !!s.support_hours_enabled,
+    support_hours_timezone: TIMEZONES.includes(s.support_hours_timezone) ? s.support_hours_timezone : 'UTC',
+    support_hours: normalizeSupportHours(s.support_hours)
   })
   initial = JSON.stringify(form)
 }
@@ -471,6 +545,19 @@ useAutoRefresh(loadAll, { isDirty: () => dirty.value || !!draftRow.value })
 .input:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-soft); }
 .input--textarea { resize: vertical; min-height: 60px; line-height: 1.5; }
 .input--narrow { max-width: 220px; }
+.input--tz { max-width: 320px; }
+.input--time { width: auto; padding: 0.45rem 0.6rem; font-family: var(--font-mono); }
+.input--time:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Support-hours weekly grid: one row per weekday. */
+.sh-grid { display: flex; flex-direction: column; gap: var(--space-2); }
+.sh-grid.is-disabled { opacity: 0.5; pointer-events: none; }
+.sh-row { display: grid; grid-template-columns: 120px auto 1fr; align-items: center; gap: var(--space-3); padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border); }
+.sh-row:last-child { border-bottom: none; }
+.sh-row__day { font-weight: 600; font-size: 0.9rem; color: var(--color-text); }
+.sh-row__times { display: flex; align-items: center; gap: var(--space-2); }
+.sh-row__dash { color: var(--color-text-muted); }
+.sh-row--off .sh-row__times { opacity: 0.5; }
 
 .segmented { display: inline-flex; gap: 4px; background: var(--color-bg-elevated); border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); padding: 3px; width: fit-content; }
 .segmented__btn { padding: 0.5rem 1rem; border-radius: var(--radius-sm); font-size: 0.88rem; font-weight: 600; color: var(--color-text-muted); }
@@ -512,5 +599,10 @@ useAutoRefresh(loadAll, { isDirty: () => dirty.value || !!draftRow.value })
   .config__grid { grid-template-columns: 1fr; }
   .config__preview { position: static; }
 }
-@media (max-width: 640px) { .row--split { grid-template-columns: 1fr; } }
+@media (max-width: 640px) {
+  .row--split { grid-template-columns: 1fr; }
+  .sh-row { grid-template-columns: 1fr auto; }
+  .sh-row > :nth-child(2) { justify-self: end; }
+  .sh-row__times { grid-column: 1 / -1; }
+}
 </style>
