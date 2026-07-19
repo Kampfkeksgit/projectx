@@ -11,6 +11,7 @@
 
       <nav class="navbar__links" :aria-label="t('nav.brandSubtitle')">
         <router-link to="/team" class="navbar__link">{{ t('nav.linkTeam') }}</router-link>
+        <router-link to="/partners" class="navbar__link">{{ t('nav.linkPartners') }}</router-link>
         <a :href="supportUrl" class="navbar__link" target="_blank" rel="noopener noreferrer">{{ t('nav.linkSupport') }}</a>
         <a :href="docsUrl" class="navbar__link" target="_blank" rel="noopener noreferrer">{{ t('nav.linkDocs') }}</a>
       </nav>

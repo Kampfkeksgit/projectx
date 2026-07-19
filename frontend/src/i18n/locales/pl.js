@@ -28,6 +28,7 @@ export default {
   nav: {
     brandSubtitle: 'Panel bota Discord',
     linkTeam: 'Zespół',
+    linkPartners: 'Partnerzy',
     linkSupport: 'Wsparcie',
     linkDocs: 'Dokumentacja',
     yourServers: 'Twoje serwery',
