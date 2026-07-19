@@ -28,6 +28,7 @@ export default {
   nav: {
     brandSubtitle: 'Discord Bot Dashboard',
     linkTeam: 'Team',
+    linkPartners: 'Partners',
     linkSupport: 'Support',
     linkDocs: 'Docs',
     yourServers: 'Your servers',
