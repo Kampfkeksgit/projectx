@@ -1544,6 +1544,7 @@ export default {
     supportHoursTzLabel: 'Saat dilimi',
     supportHoursTzHint: 'Destek saatleri bu saat diliminde hesaplanır.',
     supportHoursNote: 'Program yalnızca bir talep destek saatlerinin dışında açıldığında karşılama mesajına eklenir.',
+    supportPreviewClosed: '🔴 Destek şu anda müsait değil.',
     dayMon: 'Pazartesi',
     dayTue: 'Salı',
     dayWed: 'Çarşamba',

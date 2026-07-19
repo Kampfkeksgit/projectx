@@ -1544,6 +1544,7 @@ export default {
     supportHoursTzLabel: 'Часовой пояс',
     supportHoursTzHint: 'Часы поддержки вычисляются в этом часовом поясе.',
     supportHoursNote: 'Расписание добавляется в приветственное сообщение только когда тикет открыт вне часов поддержки.',
+    supportPreviewClosed: '🔴 Поддержка сейчас недоступна.',
     dayMon: 'Понедельник',
     dayTue: 'Вторник',
     dayWed: 'Среда',

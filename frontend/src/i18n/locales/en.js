@@ -1586,6 +1586,7 @@ export default {
     supportHoursTzLabel: 'Timezone',
     supportHoursTzHint: 'Support hours are evaluated in this timezone.',
     supportHoursNote: 'The schedule is only added to the welcome message when a ticket is opened outside support hours.',
+    supportPreviewClosed: '🔴 Support is currently unavailable.',
     dayMon: 'Monday',
     dayTue: 'Tuesday',
     dayWed: 'Wednesday',
