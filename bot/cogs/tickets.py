@@ -29,6 +29,14 @@ import asyncio
 import html
 import io
 import time
+from datetime import datetime, timezone
+
+try:
+    from zoneinfo import ZoneInfo
+    _HAS_ZONEINFO = True
+except Exception:  # pragma: no cover — should be present on Python 3.9+
+    ZoneInfo = None
+    _HAS_ZONEINFO = False
 
 import discord
 from discord import app_commands
@@ -77,6 +85,112 @@ a { color:#00a8fc; }
 .empty { color:#949ba4; padding:32px; text-align:center; }
 footer.tx { margin-top:24px; color:#6d7178; font-size:.72rem; text-align:center; }
 </style>"""
+
+
+# Support-hours weekday keys (index 0 = Monday … 6 = Sunday, matching the
+# backend's schedule order and Python's datetime.weekday()).
+DAY_KEYS = ["ticket.dayMon", "ticket.dayTue", "ticket.dayWed", "ticket.dayThu",
+            "ticket.dayFri", "ticket.daySat", "ticket.daySun"]
+
+
+def _parse_hhmm(value):
+    """'HH:MM' -> minutes since midnight, or None."""
+    try:
+        h, m = str(value).split(":")
+        h, m = int(h), int(m)
+        if 0 <= h <= 23 and 0 <= m <= 59:
+            return h * 60 + m
+    except Exception:
+        pass
+    return None
+
+
+def _fmt_minute(minute):
+    return f"{minute // 60:02d}:{minute % 60:02d}"
+
+
+def _normalize_support_days(raw):
+    """Return exactly 7 entries (Mon..Sun) as (enabled, start_min, end_min)."""
+    raw = raw if isinstance(raw, list) else []
+    days = []
+    for i in range(7):
+        e = raw[i] if i < len(raw) and isinstance(raw[i], dict) else {}
+        start = _parse_hhmm(e.get("start"))
+        end = _parse_hhmm(e.get("end"))
+        enabled = bool(e.get("enabled")) and start is not None and end is not None and start != end
+        days.append((enabled, start, end))
+    return days
+
+
+def _is_open_at(days, weekday, minute):
+    """Whether support is open at (weekday, minute-of-day). Handles overnight
+    windows (end <= start means the window spills into the next day)."""
+    enabled, s, en = days[weekday]
+    if enabled:
+        if s < en and s <= minute < en:
+            return True
+        if s > en and minute >= s:  # overnight window, evening portion
+            return True
+    # A window that started yesterday and crosses midnight into today.
+    y_enabled, y_s, y_en = days[(weekday - 1) % 7]
+    if y_enabled and y_s > y_en and minute < y_en:
+        return True
+    return False
+
+
+def _next_open(days, weekday, minute):
+    """(day_index, start_minute) of the next window start at/after now, or None."""
+    for offset in range(0, 8):
+        d = (weekday + offset) % 7
+        enabled, s, _en = days[d]
+        if not enabled:
+            continue
+        if offset == 0 and s <= minute:
+            continue  # today's opening time already passed
+        return (d, s)
+    return None
+
+
+def support_hours_status(settings):
+    """Compute support-hours info at ticket-open time, in the configured timezone.
+
+    Returns None when the feature is off, else {open_now, next, days}.
+    """
+    if not settings.get("support_hours_enabled"):
+        return None
+    days = _normalize_support_days(settings.get("support_hours") or [])
+    # Only surface the feature when at least one day actually has hours entered —
+    # "enabled but nothing configured" should show nothing, not an all-closed grid.
+    if not any(enabled for enabled, _s, _en in days):
+        return None
+    tz = None
+    if _HAS_ZONEINFO:
+        try:
+            tz = ZoneInfo(settings.get("support_hours_timezone") or "UTC")
+        except Exception:
+            tz = None
+    now = datetime.now(tz or timezone.utc)
+    weekday = now.weekday()
+    minute = now.hour * 60 + now.minute
+    return {
+        "open_now": _is_open_at(days, weekday, minute),
+        "next": _next_open(days, weekday, minute),
+        "days": days,
+    }
+
+
+def build_support_hours_lines(status, lang):
+    """Field text: availability status + next-open + the weekly schedule."""
+    open_now = status["open_now"]
+    lines = [t(lang, "ticket.supportOpen") if open_now else t(lang, "ticket.supportClosed")]
+    if not open_now and status["next"]:
+        d, mins = status["next"]
+        lines.append(t(lang, "ticket.supportNextOpen", day=t(lang, DAY_KEYS[d]), time=_fmt_minute(mins)))
+    lines.append("")
+    for i, (enabled, s, en) in enumerate(status["days"]):
+        name = t(lang, DAY_KEYS[i])
+        lines.append(f"{name}: {_fmt_minute(s)}–{_fmt_minute(en)}" if enabled else f"{name}: —")
+    return "\n".join(lines)
 
 
 def parse_emoji(raw):
@@ -517,6 +631,14 @@ class Tickets(commands.Cog):
         if number:
             embed.add_field(name=t(lang, "ticket.fieldTicket"), value=f"#{number}", inline=True)
 
+        # Support hours: when a ticket is opened OUTSIDE the configured hours, show
+        # the weekly schedule + current availability in the welcome message.
+        support = support_hours_status(settings)
+        support_text = None
+        if support and not support["open_now"]:
+            support_text = build_support_hours_lines(support, lang)
+            embed.add_field(name=t(lang, "ticket.supportHoursTitle"), value=support_text[:1024], inline=False)
+
         content_bits = [interaction.user.mention]
         if support_role is not None:
             content_bits.append(support_role.mention)
@@ -526,10 +648,14 @@ class Tickets(commands.Cog):
             welcome_cfg = settings.get("welcome_embed") or {}
             if is_components_v2(welcome_cfg):
                 # V2: mentions become a top text block (content isn't allowed next
-                # to a V2 view); allow the pings through explicitly.
+                # to a V2 view); allow the pings through explicitly. The support-hours
+                # notice (no embed fields in V2) rides along in the same top block.
+                welcome_top = " ".join(content_bits)
+                if support_text:
+                    welcome_top += "\n\n**" + t(lang, "ticket.supportHoursTitle") + "**\n" + support_text
                 view = build_welcome_layout(
                     settings, guild, lang, user=interaction.user, number=number,
-                    category=category, extra_top=" ".join(content_bits),
+                    category=category, extra_top=welcome_top,
                 )
                 if view is not None:
                     await channel.send(

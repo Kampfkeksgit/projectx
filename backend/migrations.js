@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 59;
+const CURRENT_SCHEMA_VERSION = 60;
 
 /**
  * Initialize schema version tracking
@@ -118,7 +118,8 @@ async function applyMigrations(fromVersion, toVersion) {
     56: migrationV56,
     57: migrationV57,
     58: migrationV58,
-    59: migrationV59
+    59: migrationV59,
+    60: migrationV60
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -2515,6 +2516,21 @@ function migrationV58() {
 function migrationV59() {
   return runSchemaBatch(59, [
     'ALTER TABLE guild_verification_settings ADD COLUMN remove_role_id TEXT'
+  ]);
+}
+
+/**
+ * v60 (Tickets: optionale Support-Zeiten): ein wöchentlicher Öffnungszeit-Plan
+ * (pro Wochentag an/aus + Start/Ende) mit IANA-Zeitzone. Öffnet jemand ein Ticket
+ * AUSSERHALB der Support-Zeiten, hängt der Bot dem Welcome-Embed ein Feld an, das
+ * den Zeitplan + „Support gerade (nicht) verfügbar" zeigt. Idempotent; mirrored
+ * in initializeDatabase().
+ */
+function migrationV60() {
+  return runSchemaBatch(60, [
+    'ALTER TABLE guild_ticket_settings ADD COLUMN support_hours_enabled INTEGER DEFAULT 0',
+    "ALTER TABLE guild_ticket_settings ADD COLUMN support_hours_timezone TEXT DEFAULT 'UTC'",
+    'ALTER TABLE guild_ticket_settings ADD COLUMN support_hours TEXT'
   ]);
 }
 

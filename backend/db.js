@@ -1064,7 +1064,11 @@ function initializeDatabase() {
       'ALTER TABLE guild_ticket_settings ADD COLUMN close_confirm BOOLEAN DEFAULT 1',
       'ALTER TABLE guild_ticket_settings ADD COLUMN rating_enabled BOOLEAN DEFAULT 0',
       "ALTER TABLE guild_ticket_settings ADD COLUMN rating_mode TEXT DEFAULT 'channel'",
-      'ALTER TABLE guild_ticket_settings ADD COLUMN log_channel_id TEXT'
+      'ALTER TABLE guild_ticket_settings ADD COLUMN log_channel_id TEXT',
+      // v60 support-hours columns
+      'ALTER TABLE guild_ticket_settings ADD COLUMN support_hours_enabled INTEGER DEFAULT 0',
+      "ALTER TABLE guild_ticket_settings ADD COLUMN support_hours_timezone TEXT DEFAULT 'UTC'",
+      'ALTER TABLE guild_ticket_settings ADD COLUMN support_hours TEXT'
     ].forEach((stmt) => db.run(stmt, (err) => {
       if (err && !/duplicate column name/i.test(err.message)) console.error('Warning: guild_ticket_settings ALTER:', err.message);
     }));
@@ -7785,6 +7789,38 @@ export const TICKET_PANEL_TYPES = ['dropdown', 'buttons'];
 export const TICKET_RATING_MODES = ['channel', 'dm', 'both'];
 export const TICKET_BUTTON_STYLES = ['primary', 'secondary', 'success', 'danger'];
 
+// Support hours: a weekly schedule (index 0 = Monday … 6 = Sunday, matching
+// Python's datetime.weekday()) evaluated in TICKET_DEFAULTS.support_hours_timezone.
+const HHMM_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+function sanitizeHhmm(value, fallback) {
+  return (typeof value === 'string' && HHMM_RE.test(value.trim())) ? value.trim() : fallback;
+}
+
+function defaultSupportHours() {
+  return [0, 1, 2, 3, 4, 5, 6].map((d) => ({
+    enabled: d <= 4, // Mon–Fri open by default (only matters once the toggle is on)
+    start: '09:00',
+    end: '17:00'
+  }));
+}
+
+export function sanitizeSupportHours(value) {
+  let arr = value;
+  if (typeof arr === 'string') {
+    try { arr = JSON.parse(arr); } catch { arr = null; }
+  }
+  if (!Array.isArray(arr)) arr = [];
+  return defaultSupportHours().map((_, i) => {
+    const e = (arr[i] && typeof arr[i] === 'object') ? arr[i] : {};
+    return {
+      enabled: !!e.enabled,
+      start: sanitizeHhmm(e.start, '09:00'),
+      end: sanitizeHhmm(e.end, '17:00')
+    };
+  });
+}
+
 export const TICKET_DEFAULTS = {
   enabled: false,
   panel_channel_id: null,
@@ -7802,14 +7838,18 @@ export const TICKET_DEFAULTS = {
   claim_enabled: true,
   close_confirm: true,
   rating_enabled: false,
-  rating_mode: 'channel'
+  rating_mode: 'channel',
+  support_hours_enabled: false,
+  support_hours_timezone: 'UTC',
+  support_hours: defaultSupportHours()
 };
 
 function ticketDefaults() {
   return {
     ...TICKET_DEFAULTS,
     panel_embed: { ...TICKET_DEFAULTS.panel_embed },
-    welcome_embed: { ...TICKET_DEFAULTS.welcome_embed }
+    welcome_embed: { ...TICKET_DEFAULTS.welcome_embed },
+    support_hours: defaultSupportHours()
   };
 }
 
@@ -7837,7 +7877,10 @@ export function getTicketSettings(guildId) {
         claim_enabled: row.claim_enabled == null ? true : !!row.claim_enabled,
         close_confirm: row.close_confirm == null ? true : !!row.close_confirm,
         rating_enabled: !!row.rating_enabled,
-        rating_mode: ratingMode
+        rating_mode: ratingMode,
+        support_hours_enabled: !!row.support_hours_enabled,
+        support_hours_timezone: GENERAL_TIMEZONES.includes(row.support_hours_timezone) ? row.support_hours_timezone : 'UTC',
+        support_hours: sanitizeSupportHours(row.support_hours)
       });
     });
   });
@@ -7862,12 +7905,16 @@ export function upsertTicketSettings(guildId, settings) {
     const claim = settings.claim_enabled === false ? 0 : 1;
     const confirm = settings.close_confirm === false ? 0 : 1;
     const ratingEnabled = settings.rating_enabled ? 1 : 0;
+    const supportEnabled = settings.support_hours_enabled ? 1 : 0;
+    const supportTz = GENERAL_TIMEZONES.includes(settings.support_hours_timezone) ? settings.support_hours_timezone : 'UTC';
+    const supportHours = JSON.stringify(sanitizeSupportHours(settings.support_hours));
     db.run(
       `INSERT INTO guild_ticket_settings
          (guild_id, enabled, panel_channel_id, category_id, support_role_id, ping_role_id, panel_message, button_label,
           transcript_channel_id, log_channel_id, panel_type, panel_embed, welcome_embed, naming_template,
-          claim_enabled, close_confirm, rating_enabled, rating_mode)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          claim_enabled, close_confirm, rating_enabled, rating_mode,
+          support_hours_enabled, support_hours_timezone, support_hours)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(guild_id) DO UPDATE SET
          enabled = excluded.enabled,
          panel_channel_id = excluded.panel_channel_id,
@@ -7886,10 +7933,14 @@ export function upsertTicketSettings(guildId, settings) {
          close_confirm = excluded.close_confirm,
          rating_enabled = excluded.rating_enabled,
          rating_mode = excluded.rating_mode,
+         support_hours_enabled = excluded.support_hours_enabled,
+         support_hours_timezone = excluded.support_hours_timezone,
+         support_hours = excluded.support_hours,
          updated_at = CURRENT_TIMESTAMP`,
       [guildId, enabled, panelChannel, category, supportRole, pingRole, message, label,
        transcriptChannel, logChannel, panelType, panelEmbed, welcomeEmbed, naming,
-       claim, confirm, ratingEnabled, ratingMode],
+       claim, confirm, ratingEnabled, ratingMode,
+       supportEnabled, supportTz, supportHours],
       function (err) {
         if (err) reject(err);
         else resolve(this.changes);
