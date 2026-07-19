@@ -63,6 +63,9 @@
 
                 <div v-if="embedResolved.description" class="dmp-embed__desc" v-html="embedDescHtml"></div>
 
+                <!-- Extra embed fields (e.g. the ticket support-hours field) -->
+                <slot name="embed-fields" />
+
                 <div v-if="imageIsUrl && !imageErr" class="dmp-embed__image">
                   <img :src="embedResolved.image" alt="" @error="imageErr = true" />
                 </div>
