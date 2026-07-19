@@ -217,6 +217,12 @@
         <div class="preview-block">
           <div class="preview__label">{{ t('tickets.sectionWelcome') }}</div>
           <DiscordMessagePreview mode="embed" :embed="form.welcome_embed" :guild-name="guildName" channel-name="ticket-alex" :ping-user="true">
+            <template #embed-fields>
+              <div v-if="supportHoursPreview" class="dmp-field">
+                <div class="dmp-field__name">{{ supportHoursTitle }}</div>
+                <div class="dmp-field__value">{{ supportHoursPreview }}</div>
+              </div>
+            </template>
             <template #components>
               <div class="dc-row">
                 <span v-if="form.claim_enabled" class="dc-btn dc-btn--success"><span class="dc-btn__emoji">🙋</span>Claim</span>
@@ -363,6 +369,17 @@ const form = reactive(defaultForm())
 const saving = ref(false)
 let initial = JSON.stringify(form)
 const dirty = computed(() => JSON.stringify(form) !== initial)
+
+// Support-hours mock field for the welcome preview — mirrors what the bot appends
+// to the welcome embed when a ticket is opened outside the configured hours.
+const supportHoursTitle = computed(() => `🕐 ${t('tickets.sectionSupportHours')}`)
+const supportHoursPreview = computed(() => {
+  if (!form.support_hours_enabled || !form.support_hours.some((d) => d.enabled)) return ''
+  const schedule = form.support_hours
+    .map((d, i) => `${DAY_LABELS.value[i]}: ${d.enabled ? `${d.start}–${d.end}` : '—'}`)
+    .join('\n')
+  return `${t('tickets.supportPreviewClosed')}\n${schedule}`
+})
 
 function applySettings(s) {
   const d = defaultForm()
@@ -579,6 +596,11 @@ useAutoRefresh(loadAll, { isDirty: () => dirty.value || !!draftRow.value })
 .dc-btn--success { background: #248046; }
 .dc-btn--danger { background: #da373c; }
 .dc-select { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; max-width: 420px; padding: 0 12px; height: 40px; border-radius: 4px; background: #1e1f22; border: 1px solid #2b2d31; color: #949ba4; font-size: 0.88rem; }
+
+/* Mock support-hours embed field inside the welcome preview bubble. */
+.dmp-field { margin-top: 2px; }
+.dmp-field__name { color: #f2f3f5; font-weight: 700; font-size: 0.82rem; margin-bottom: 2px; }
+.dmp-field__value { color: #dbdee1; font-size: 0.84rem; line-height: 1.45; white-space: pre-line; }
 
 .form-card__note { font-size: 0.82rem; border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); line-height: 1.5; color: var(--color-warning); background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); }
 .form-card__note--info { color: var(--color-text-muted); background: var(--color-bg-elevated); border: 1px solid var(--color-border); }

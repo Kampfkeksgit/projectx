@@ -1544,6 +1544,7 @@ export default {
     supportHoursTzLabel: 'Strefa czasowa',
     supportHoursTzHint: 'Godziny wsparcia są obliczane w tej strefie czasowej.',
     supportHoursNote: 'Harmonogram jest dodawany do wiadomości powitalnej tylko wtedy, gdy zgłoszenie zostanie otwarte poza godzinami wsparcia.',
+    supportPreviewClosed: '🔴 Wsparcie jest teraz niedostępne.',
     dayMon: 'Poniedziałek',
     dayTue: 'Wtorek',
     dayWed: 'Środa',
