@@ -1206,8 +1206,80 @@ Empfehlung aus [README.md](README.md): SQLite → PostgreSQL für Multi-Instance
 
 ---
 
+## Changelog-Format (öffentliche Release-Notes)
+
+> Verbindliches Format für öffentliche Release-Notes (Admin → Changelog). Gilt für den `body`-Text, der an ZWEI Stellen mit **demselben** String gerendert wird: die Seite `/changelog` (roher Klartext, `white-space: pre-wrap`, **kein** Markdown/HTML — [Changelog.vue](frontend/src/pages/Changelog.vue)) und das Discord-Embed (Discord **rendert** Markdown — [changelog_announce.py](bot/cogs/changelog_announce.py)). Regel daraus: **nur Zeichen verwenden, die in BEIDEN Welten identisch/sauber wirken.** Das ist NICHT der interne Dev-Changelog aus §14 — hier: kurz, deutsch, endnutzer-orientiert.
+
+### Regeln
+
+- **Sprache:** Deutsch, aktiv, endnutzer-orientiert (Server-Admins/Mitglieder, nicht Entwickler). Nutzen statt Bauteil beschreiben („Mitglieder sehen sofort …" statt „neues Feld/Endpoint/Schema"). Keine internen Begriffe (Schema, Migration, Cog, Endpoint).
+- **Aufbau des `body`:**
+  1. **Optionale Highlight-Zeile** (nur wenn es ein nennenswertes neues Feature gibt): ein Emoji + `Neu: ` + genau EIN Satz mit dem konkreten Nutzen (~90–120 Zeichen, mit Schlusspunkt). Danach genau eine Leerzeile.
+  2. **Kategorie-Blöcke** in fester Reihenfolge — leere Kategorien komplett weglassen: `✨ Neu` → `🔧 Verbessert` → `🐛 Behoben`. Jeder Kategorie-Kopf = Emoji + EIN Wort auf eigener Zeile (kein Doppelpunkt). Direkt darunter die Bullets, KEINE Leerzeile zwischen Kopf und Bullets.
+- **Bullet-Zeichen:** immer `• ` (U+2022 + Leerzeichen), ein Punkt pro Zeile, KEIN Schlusspunkt. **Nie `-` oder `*` am Zeilenanfang** (Discord baut daraus eine Liste, die Website zeigt den rohen Strich → beide Darstellungen driften auseinander). Emoji nur auf Kopf-/Highlight-Ebene, nie am Bullet-Anfang.
+- **Trennung:** genau EINE Leerzeile zwischen Highlight und erstem Block sowie zwischen Blöcken; innerhalb eines Blocks keine Leerzeilen. Das ist die einzige optische Trennung — funktioniert auf beiden Zielen identisch.
+- **Emoji-Vokabel (fest halten):** `✨ Neu` · `🔧 Verbessert` · `🐛 Behoben`. Highlight-Emoji frei (z. B. 🎉 oder ein Themen-Emoji wie 🎫). Konsistenz macht die Marker über Releases hinweg wiedererkennbar.
+- **Längen-Richtwerte:** max. 5 Bullets pro Kategorie (unwichtigste streichen), Bullet-Zeile ≤ ~160 Zeichen (sonst mehrfacher Umbruch mobil/Discord). Gesamt weit unter dem 4096-Zeichen-Limit halten.
+- **Version & Titel:** `title` (Pflicht, ≤256) = knappe Zusammenfassung. `version` (optional) = String wie `v1.6`. **Beides steht in eigenen Feldern** — der `body` beginnt NIEMALS mit Titel, Version oder Datum (sonst doppelt).
+- **Erlaubt (in beiden Zielen identisch):** Emoji, `• `, Leerzeilen, Em-Dash `—`, Pfeil `→`, deutsche Anführungszeichen `„ "`, Groß-/Kleinschreibung.
+- **VERBOTEN** (rendert nur in Discord, erscheint auf der Website wörtlich als Zeichen-Müll): `**fett**`, `*kursiv*`, `__unterstrichen__`, Inline-Code mit Backticks, Überschriften mit `#`/`##`/`###`, Zitate mit `>`, Subtext mit `-#`, Masked-Links `[Text](url)`, Tabellen mit `|`.
+- **Links:** immer als nackte URL (`https://kampfkekse.eu/…`) — in Discord automatisch klickbar, auf der Website lesbar. Kein `[Text](url)`.
+
+### Template (Klartext für den `body`)
+
+```
+{Highlight-Emoji} Neu: {ein Satz — konkreter Nutzen des wichtigsten Features}.
+
+✨ Neu
+• {Nutzen-Punkt}
+• {Nutzen-Punkt}
+
+🔧 Verbessert
+• {Nutzen-Punkt}
+
+🐛 Behoben
+• {Nutzen-Punkt}
+```
+(Highlight-Zeile + einzelne Blöcke sind weglassbar. Nur befüllte Kategorien zeigen, Reihenfolge immer Neu → Verbessert → Behoben.)
+
+### Beispiel (volles Release)
+
+```
+version:  v1.6
+title:    Support-Zeiten für Tickets & kleine Verbesserungen
+
+🎉 Neu: Lege feste Support-Zeiten für deine Tickets fest — außerhalb eurer Zeiten sehen Mitglieder direkt, wann ihr wieder erreichbar seid.
+
+✨ Neu
+• Ticket-Support-Zeiten als Wochenplan mit eigener Zeitzone — inklusive Live-Vorschau beim Einrichten
+• Hinweis im Willkommens-Embed, sobald ein Ticket außerhalb eurer Support-Zeiten geöffnet wird
+• Partner-Bereich jetzt oben in der Navigation, direkt neben Team
+
+🐛 Behoben
+• Handy: Preis-Karten haben wieder sauberen Randabstand
+• Handy: Der Sprach-Umschalter klappt nach oben auf und wird nicht mehr abgeschnitten
+```
+
+### Minimal-Beispiel (kleines Release)
+
+```
+version:  v1.6.1
+title:    Kleiner Handy-Fix
+
+🐛 Behoben
+• Handy: Der Sprach-Umschalter klappt nach oben auf und wird nicht mehr abgeschnitten
+```
+
+### Wenn der User „mach mir ein changelog" sagt
+
+Nutze **exakt dieses Format**: erzeuge `title` (Pflicht, kurz), optional `version`, und den `body` nach den obigen Regeln (Highlight-Zeile optional, feste Kategorie-Blöcke, `• `-Bullets, kein verbotenes Markdown). Nicht nach Layout-Details fragen — dieses Format ist die verbindliche Vorgabe. Auf Wunsch den Eintrag als Entwurf (`published=false`) oder direkt veröffentlicht (`published=true`) in Admin → Changelog eintragen (`POST /api/admin/changelog`).
+
+---
+
 ## 14. Letzte Aktualisierung
 
+- **Datum:** 2026-07-20
+- **Changelog-Format definiert (Doku, kein Code):** Neuer Abschnitt „Changelog-Format (öffentliche Release-Notes)" oben (vor §14) legt das verbindliche Layout für öffentliche Release-Notes fest — plaintext-first, damit derselbe `body` sowohl auf der `/changelog`-Seite (`pre-wrap`, kein Markdown) als auch im Discord-Embed sauber aussieht: optionale Highlight-Zeile + feste Kategorie-Blöcke `✨ Neu`/`🔧 Verbessert`/`🐛 Behoben`, Bullets mit `•` (nicht `-`/`*`, da Discord daraus Listen baut), kein render-uneinheitliches Markdown. Wenn der User „mach mir ein changelog" sagt, folgt Claude exakt diesem Format. Reine Doku-Ergänzung in [CLAUDE.md](CLAUDE.md).
 - **Datum:** 2026-07-19
 - **Tickets: optionale Support-Zeiten (Schema v60):** Das Ticket-Modul bekommt einen wöchentlichen **Support-Zeiten-Plan**. Öffnet jemand ein Ticket **außerhalb** dieser Zeiten, hängt der Bot der Willkommensnachricht ein Feld an, das **den Zeitplan** und **ob gerade Support verfügbar ist** (inkl. „nächste Verfügbarkeit") zeigt.
   - **Schema v60:** 3 idempotente ALTERs auf `guild_ticket_settings` (`support_hours_enabled`, `support_hours_timezone` Default `'UTC'`, `support_hours` JSON) + Mirror. Der Plan ist ein Array von **7 Einträgen `{enabled,start,end}`, Index 0 = Montag … 6 = Sonntag** (= Python `datetime.weekday()`), Zeiten als `HH:MM`. Zeitzone ist eine IANA-Zone (die `GENERAL_TIMEZONES`-Liste wird wiederverwendet). db.js: `sanitizeSupportHours` (normalisiert immer auf 7 Einträge, validiert `HH:MM`, Null-Länge = zu), `TICKET_DEFAULTS`/`getTicketSettings`/`upsertTicketSettings` erweitert; fließt via `getTicketConfig` automatisch an den Bot. **Kein neuer Endpoint** (Cookie `/tickets` GET/PUT + Bot-GET `/settings/tickets`).
