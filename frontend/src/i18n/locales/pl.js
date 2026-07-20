@@ -2106,6 +2106,7 @@ export default {
     version: 'v1.0.0',
     madeWith: 'Stworzone z ❤',
     legalSection: 'Informacje prawne',
+    resourcesSection: 'Zasoby',
     madeBy: 'Stworzone przez zespół ProjectX',
     github: 'GitHub',
     changelog: 'Dziennik zmian'
