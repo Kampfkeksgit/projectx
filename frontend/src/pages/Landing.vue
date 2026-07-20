@@ -850,7 +850,7 @@ const modules = [
   .modules {
     padding: var(--space-12) var(--space-4) var(--space-8);
   }
-  .how, .final-cta {
+  .how, .final-cta, .pricing {
     padding-left: var(--space-4);
     padding-right: var(--space-4);
   }
