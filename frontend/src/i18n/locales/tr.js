@@ -2106,6 +2106,7 @@ export default {
     version: 'v1.0.0',
     madeWith: '❤ ile yapıldı',
     legalSection: 'Yasal',
+    resourcesSection: 'Kaynaklar',
     madeBy: 'ProjectX ekibi tarafından yapıldı',
     github: 'GitHub',
     changelog: 'Değişiklik günlüğü'

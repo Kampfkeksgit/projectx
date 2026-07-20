@@ -2148,6 +2148,7 @@ export default {
     version: 'v1.0.0',
     madeWith: 'Made with ❤',
     legalSection: 'Legal',
+    resourcesSection: 'Resources',
     madeBy: 'Made by the ProjectX team',
     github: 'GitHub',
     changelog: 'Changelog'

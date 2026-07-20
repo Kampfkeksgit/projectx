@@ -13,33 +13,6 @@
           <span class="app-footer__dot" aria-hidden="true">·</span>
           <span class="app-footer__version">{{ t('footer.version') }}</span>
         </div>
-      </div>
-
-      <nav class="app-footer__col app-footer__col--legal" :aria-label="t('footer.legalSection')">
-        <p class="app-footer__col-title">{{ t('footer.legalSection') }}</p>
-        <ul class="app-footer__links">
-          <li>
-            <router-link to="/team">{{ t('team.title') }}</router-link>
-          </li>
-          <li>
-            <router-link to="/partners">{{ t('partners.title') }}</router-link>
-          </li>
-          <li>
-            <router-link to="/changelog">{{ t('footer.changelog') }}</router-link>
-          </li>
-          <li>
-            <router-link to="/legal/impressum">{{ t('legal.impressum.title') }}</router-link>
-          </li>
-          <li>
-            <router-link to="/legal/datenschutz">{{ t('legal.privacy.title') }}</router-link>
-          </li>
-          <li>
-            <router-link to="/legal/agb">{{ t('legal.terms.title') }}</router-link>
-          </li>
-        </ul>
-      </nav>
-
-      <div class="app-footer__col app-footer__col--meta">
         <a
           class="app-footer__github"
           href="https://github.com"
@@ -53,6 +26,36 @@
         </a>
         <p class="app-footer__made">{{ t('footer.madeWith') }}</p>
       </div>
+
+      <nav class="app-footer__col app-footer__col--links" :aria-label="t('footer.resourcesSection')">
+        <p class="app-footer__col-title">{{ t('footer.resourcesSection') }}</p>
+        <ul class="app-footer__links">
+          <li>
+            <router-link to="/team">{{ t('team.title') }}</router-link>
+          </li>
+          <li>
+            <router-link to="/partners">{{ t('partners.title') }}</router-link>
+          </li>
+          <li>
+            <router-link to="/changelog">{{ t('footer.changelog') }}</router-link>
+          </li>
+        </ul>
+      </nav>
+
+      <nav class="app-footer__col app-footer__col--links" :aria-label="t('footer.legalSection')">
+        <p class="app-footer__col-title">{{ t('footer.legalSection') }}</p>
+        <ul class="app-footer__links">
+          <li>
+            <router-link to="/legal/impressum">{{ t('legal.impressum.title') }}</router-link>
+          </li>
+          <li>
+            <router-link to="/legal/datenschutz">{{ t('legal.privacy.title') }}</router-link>
+          </li>
+          <li>
+            <router-link to="/legal/agb">{{ t('legal.terms.title') }}</router-link>
+          </li>
+        </ul>
+      </nav>
     </div>
   </footer>
 </template>
@@ -79,7 +82,7 @@ const year = computed(() => new Date().getFullYear())
   max-width: var(--layout-max);
   margin: 0 auto;
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 2fr 1fr 1fr;
   gap: var(--space-8);
   align-items: flex-start;
 }
@@ -90,14 +93,9 @@ const year = computed(() => new Date().getFullYear())
   gap: var(--space-3);
 }
 
-.app-footer__col--legal {
-  align-items: center;
-  text-align: center;
-}
-
-.app-footer__col--meta {
-  align-items: flex-end;
-  text-align: right;
+.app-footer__col--links {
+  align-items: flex-start;
+  text-align: left;
 }
 
 .app-footer__brand {
@@ -205,8 +203,7 @@ const year = computed(() => new Date().getFullYear())
     text-align: center;
   }
   .app-footer__col,
-  .app-footer__col--legal,
-  .app-footer__col--meta {
+  .app-footer__col--links {
     align-items: center;
     text-align: center;
   }
