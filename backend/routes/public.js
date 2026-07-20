@@ -100,7 +100,7 @@ router.get('/announcement', async (req, res) => {
  * Datenschutz pages to substitute {owner.*} tokens (name/address/email/phone).
  */
 router.get('/legal', async (req, res) => {
-  res.set('Cache-Control', 'public, max-age=300')
+  res.set('Cache-Control', 'public, max-age=30')
   try {
     const info = await getLegalInfo()
     res.json(info)

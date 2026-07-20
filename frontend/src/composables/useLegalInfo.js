@@ -31,8 +31,10 @@ function addressLine(i) {
 export function useLegalInfo() {
   const { t } = useI18n()
 
+  // Always revalidate on call (deduping concurrent requests). The previous value
+  // stays in `info` for instant render and is replaced when the fetch resolves —
+  // so an edit saved in the admin area shows up the next time a legal page opens.
   function load() {
-    if (info.value) return Promise.resolve(info.value)
     if (loadPromise) return loadPromise
     loadPromise = api
       .get('/public/legal')
@@ -41,11 +43,17 @@ export function useLegalInfo() {
         return info.value
       })
       .catch(() => {
-        info.value = {}
+        if (!info.value) info.value = {}
         return info.value
       })
       .finally(() => { loadPromise = null })
     return loadPromise
+  }
+
+  // Push a fresh value into the shared cache (e.g. right after the admin saves),
+  // so the legal pages reflect the change immediately within the same session.
+  function setInfo(data) {
+    info.value = data || {}
   }
 
   /** Replace {owner.*} tokens in a bodyHtml string with the fetched values. */
@@ -60,5 +68,5 @@ export function useLegalInfo() {
       .replace(/\{owner\.phoneLine\}/g, phoneLine)
   }
 
-  return { info, load, resolve }
+  return { info, load, resolve, setInfo }
 }

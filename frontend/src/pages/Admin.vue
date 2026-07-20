@@ -892,11 +892,13 @@ import { useToast } from '../composables/useToast.js'
 import { useAuth } from '../stores/auth.js'
 import { useI18n } from '../i18n/index.js'
 import { useAutoRefresh } from '../composables/useAutoRefresh.js'
+import { useLegalInfo } from '../composables/useLegalInfo.js'
 
 const { t, locale } = useI18n()
 const router = useRouter()
 const toast = useToast()
 const auth = useAuth()
+const { setInfo: setLegalCache } = useLegalInfo()
 
 // All assignable admin tabs. The owner additionally gets the owner-only 'staff'
 // tab (permission management). A staff member only sees tabs they may view.
@@ -1391,6 +1393,8 @@ async function saveLegal() {
   try {
     const { data } = await api.put('/admin/legal', legal.value)
     legal.value = { ...legal.value, ...(data.info || {}) }
+    // Push into the shared legal cache so Impressum/Datenschutz reflect it at once.
+    if (data.info) setLegalCache(data.info)
     toast.success(t('admin.sysSaved'))
   } catch (err) {
     toast.error(err.response?.data?.error || t('admin.actionFailed'))
