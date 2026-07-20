@@ -15,6 +15,8 @@ import {
   getGuildInspect,
   getMaintenanceState,
   setMaintenanceState,
+  getLegalInfo,
+  setLegalInfo,
   getUsersForExport,
   getGuildsForExport,
   getBackup,
@@ -127,6 +129,8 @@ const PERM_RULES = [
   ['PUT',    /^\/maintenance$/,               'system',      'manage'],
   ['GET',    /^\/announcement$/,              'system',      'view'],
   ['PUT',    /^\/announcement$/,              'system',      'manage'],
+  ['GET',    /^\/legal$/,                     'system',      'view'],
+  ['PUT',    /^\/legal$/,                     'system',      'manage'],
   ['POST',   /^\/broadcast$/,                 'system',      'manage'],
   ['GET',    /^\/broadcasts$/,                'system',      'view']
 ]
@@ -518,6 +522,34 @@ router.put('/announcement', async (req, res) => {
   } catch (error) {
     console.error('Admin set announcement error:', error.message)
     res.status(500).json({ error: 'Failed to update announcement' })
+  }
+})
+
+/**
+ * GET /api/admin/legal — operator / legal contact info (Impressum + Datenschutz).
+ * PUT /api/admin/legal Body: { name, street, postal_code, city, country, email, phone }
+ * Editable owner PII; the public legal pages substitute it into the text.
+ */
+router.get('/legal', async (req, res) => {
+  try {
+    const info = await getLegalInfo()
+    res.json({ success: true, info })
+  } catch (error) {
+    console.error('Admin get legal error:', error.message)
+    res.status(500).json({ error: 'Failed to load legal info' })
+  }
+})
+
+router.put('/legal', async (req, res) => {
+  try {
+    const body = req.body || {}
+    await setLegalInfo(body)
+    const info = await getLegalInfo()
+    await logAuditAction(req.user.id, null, 'ADMIN_LEGAL', { name: info.name || null, city: info.city || null })
+    res.json({ success: true, info })
+  } catch (error) {
+    console.error('Admin set legal error:', error.message)
+    res.status(500).json({ error: 'Failed to update legal info' })
   }
 })
 

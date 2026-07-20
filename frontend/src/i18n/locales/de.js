@@ -317,6 +317,16 @@ export default {
     sysMessagePlaceholder: 'z. B. Geplante Wartung — gleich zurück',
     sysSave: 'Speichern',
     sysSaved: 'Wartungseinstellungen gespeichert',
+    legalTitle: 'Impressum- & Datenschutz-Daten',
+    legalDesc: 'Betreiberdaten (Name, Anschrift, Kontakt) für Impressum und Datenschutzerklärung. Diese Angaben erscheinen öffentlich auf den Rechtsseiten und werden nicht mehr im Code gepflegt.',
+    legalName: 'Name / Firma',
+    legalStreet: 'Straße & Hausnummer',
+    legalPostal: 'PLZ',
+    legalCity: 'Stadt',
+    legalCountry: 'Land',
+    legalEmail: 'E-Mail',
+    legalPhone: 'Telefon (optional)',
+    legalHint: 'Sichtbar im Impressum und in der Datenschutzerklärung.',
     maintenanceOn: 'Wartungsmodus ist AN',
     maintenanceOff: 'Wartungsmodus ist AUS',
     exportBtn: 'CSV exportieren',
@@ -2152,6 +2162,7 @@ export default {
   legal: {
     lastUpdated: 'Zuletzt aktualisiert: {date}',
     tocTitle: 'Auf dieser Seite',
+    phoneLabel: 'Telefon',
     impressum: {
       title: 'Impressum',
       intro: 'Angaben gemäß § 5 TMG.',
@@ -2159,12 +2170,12 @@ export default {
         {
           id: 'contact',
           heading: 'Kontaktdaten',
-          bodyHtml: '<p>Anbieter dieser Website:</p><ul><li>Ahmet Can Aydogduoglu</li><li>Friedrich-Frank-Bogen 27a, 21033 Hamburg</li><li>E-Mail: admin@kampfkekse.eu</li></ul>'
+          bodyHtml: '<p>Anbieter dieser Website:</p><ul><li>{owner.name}</li><li>{owner.address}</li><li>E-Mail: {owner.email}</li>{owner.phoneLine}</ul>'
         },
         {
           id: 'responsible',
           heading: 'Verantwortlich für den Inhalt',
-          bodyHtml: '<p>Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV: Ahmet Can Aydogduoglu, Friedrich-Frank-Bogen 27a, 21033 Hamburg.</p>'
+          bodyHtml: '<p>Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV: {owner.name}, {owner.address}.</p>'
         },
         {
           id: 'disclaimer',
@@ -2185,7 +2196,7 @@ export default {
         {
           id: 'controller',
           heading: '1. Verantwortlicher',
-          bodyHtml: '<p>Verantwortlicher im Sinne der DSGVO:</p><ul><li>Ahmet Can Aydogduoglu, Friedrich-Frank-Bogen 27a, 21033 Hamburg</li><li>E-Mail: admin@kampfkekse.eu</li></ul>'
+          bodyHtml: '<p>Verantwortlicher im Sinne der DSGVO:</p><ul><li>{owner.name}, {owner.address}</li><li>E-Mail: {owner.email}</li></ul>'
         },
         {
           id: 'dataCollected',
@@ -2220,7 +2231,7 @@ export default {
         {
           id: 'rights',
           heading: '8. Deine Rechte',
-          bodyHtml: '<p>Dir stehen folgende Rechte bezüglich deiner personenbezogenen Daten zu:</p><ul><li>Recht auf Auskunft — Art. 15 DSGVO</li><li>Recht auf Berichtigung — Art. 16 DSGVO</li><li>Recht auf Löschung — Art. 17 DSGVO</li><li>Recht auf Einschränkung der Verarbeitung — Art. 18 DSGVO</li><li>Recht auf Datenübertragbarkeit — Art. 20 DSGVO</li><li>Widerspruchsrecht — Art. 21 DSGVO</li><li>Beschwerderecht bei einer Aufsichtsbehörde — Art. 77 DSGVO</li></ul><p>Zur Ausübung dieser Rechte erreichst du uns unter: admin@kampfkekse.eu.</p>'
+          bodyHtml: '<p>Dir stehen folgende Rechte bezüglich deiner personenbezogenen Daten zu:</p><ul><li>Recht auf Auskunft — Art. 15 DSGVO</li><li>Recht auf Berichtigung — Art. 16 DSGVO</li><li>Recht auf Löschung — Art. 17 DSGVO</li><li>Recht auf Einschränkung der Verarbeitung — Art. 18 DSGVO</li><li>Recht auf Datenübertragbarkeit — Art. 20 DSGVO</li><li>Widerspruchsrecht — Art. 21 DSGVO</li><li>Beschwerderecht bei einer Aufsichtsbehörde — Art. 77 DSGVO</li></ul><p>Zur Ausübung dieser Rechte erreichst du uns unter: {owner.email}.</p>'
         },
         {
           id: 'cookies',
@@ -2240,7 +2251,7 @@ export default {
         {
           id: 'contact',
           heading: '12. Kontakt',
-          bodyHtml: '<p>Bei Fragen zum Datenschutz erreichst du uns unter: admin@kampfkekse.eu.</p>'
+          bodyHtml: '<p>Bei Fragen zum Datenschutz erreichst du uns unter: {owner.email}.</p>'
         }
       ]
     },

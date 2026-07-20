@@ -4,7 +4,7 @@ import { db } from './db.js';
  * Schema version tracking
  * Allows for future database migrations
  */
-const CURRENT_SCHEMA_VERSION = 60;
+const CURRENT_SCHEMA_VERSION = 61;
 
 /**
  * Initialize schema version tracking
@@ -119,7 +119,8 @@ async function applyMigrations(fromVersion, toVersion) {
     57: migrationV57,
     58: migrationV58,
     59: migrationV59,
-    60: migrationV60
+    60: migrationV60,
+    61: migrationV61
   };
 
   for (let v = fromVersion; v <= toVersion; v++) {
@@ -2531,6 +2532,29 @@ function migrationV60() {
     'ALTER TABLE guild_ticket_settings ADD COLUMN support_hours_enabled INTEGER DEFAULT 0',
     "ALTER TABLE guild_ticket_settings ADD COLUMN support_hours_timezone TEXT DEFAULT 'UTC'",
     'ALTER TABLE guild_ticket_settings ADD COLUMN support_hours TEXT'
+  ]);
+}
+
+/**
+ * v61 (Impressum/Datenschutz-Betreiberdaten aus dem Frontend-Code in die DB):
+ * Seedet die aktuellen, bislang in den Locale-Dateien hartkodierten Betreiber-
+ * daten EINMALIG in system_settings (key `legal_info`), damit die öffentlichen
+ * Legal-Seiten nach dem Deploy sofort befüllt sind. Ab jetzt editierbar im
+ * Admin-Bereich (System). INSERT OR IGNORE → überschreibt nie eine spätere
+ * Owner-Änderung; idempotent.
+ */
+function migrationV61() {
+  const seed = JSON.stringify({
+    name: 'Ahmet Can Aydogduoglu',
+    street: 'Friedrich-Frank-Bogen 27a',
+    postal_code: '21033',
+    city: 'Hamburg',
+    country: 'Deutschland',
+    email: 'admin@kampfkekse.eu',
+    phone: ''
+  }).replace(/'/g, "''");
+  return runSchemaBatch(61, [
+    `INSERT OR IGNORE INTO system_settings (key, value, updated_at) VALUES ('legal_info', '${seed}', CURRENT_TIMESTAMP)`
   ]);
 }
 

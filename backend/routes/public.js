@@ -1,6 +1,6 @@
 import express from 'express'
 import { getPublicStats } from '../state/botStats.js'
-import { PLAN_CATALOG, getMaintenanceState, getAnnouncementState, getTeamMembers, getPartners, getPublishedChangelog } from '../db.js'
+import { PLAN_CATALOG, getMaintenanceState, getAnnouncementState, getLegalInfo, getTeamMembers, getPartners, getPublishedChangelog } from '../db.js'
 
 const router = express.Router()
 
@@ -92,6 +92,20 @@ router.get('/announcement', async (req, res) => {
     res.json(state)
   } catch (error) {
     res.json({ enabled: false, message: '', level: 'info' })
+  }
+})
+
+/**
+ * Public operator / legal contact info — no auth. Consumed by the Impressum and
+ * Datenschutz pages to substitute {owner.*} tokens (name/address/email/phone).
+ */
+router.get('/legal', async (req, res) => {
+  res.set('Cache-Control', 'public, max-age=300')
+  try {
+    const info = await getLegalInfo()
+    res.json(info)
+  } catch (error) {
+    res.json({ name: '', street: '', postal_code: '', city: '', country: '', email: '', phone: '' })
   }
 })
 

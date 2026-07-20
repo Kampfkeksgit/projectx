@@ -317,6 +317,16 @@ export default {
     sysMessagePlaceholder: 'e.g. Scheduled maintenance — back shortly',
     sysSave: 'Save',
     sysSaved: 'Maintenance settings saved',
+    legalTitle: 'Legal / operator details',
+    legalDesc: 'Operator info (name, address, contact) for the Impressum and privacy policy. These values appear publicly on the legal pages and are no longer kept in the code.',
+    legalName: 'Name / company',
+    legalStreet: 'Street & number',
+    legalPostal: 'Postal code',
+    legalCity: 'City',
+    legalCountry: 'Country',
+    legalEmail: 'Email',
+    legalPhone: 'Phone (optional)',
+    legalHint: 'Shown on the Impressum and privacy policy pages.',
     maintenanceOn: 'Maintenance mode is ON',
     maintenanceOff: 'Maintenance mode is OFF',
     exportBtn: 'Export CSV',
@@ -2152,6 +2162,7 @@ export default {
   legal: {
     lastUpdated: 'Last updated: {date}',
     tocTitle: 'On this page',
+    phoneLabel: 'Phone',
     impressum: {
       title: 'Legal Notice',
       intro: 'This page corresponds to the German "Impressum" required by § 5 TMG. The German-language version on this site is authoritative; this English translation is provided for convenience.',
@@ -2159,12 +2170,12 @@ export default {
         {
           id: 'contact',
           heading: 'Contact details',
-          bodyHtml: '<p>Operator of this website:</p><ul><li>Ahmet Can Aydogduoglu</li><li>Friedrich-Frank-Bogen 27a, 21033 Hamburg, Germany</li><li>Email: admin@kampfkekse.eu</li></ul>'
+          bodyHtml: '<p>Operator of this website:</p><ul><li>{owner.name}</li><li>{owner.address}</li><li>Email: {owner.email}</li>{owner.phoneLine}</ul>'
         },
         {
           id: 'responsible',
           heading: 'Responsible for content',
-          bodyHtml: '<p>Responsible for the content pursuant to § 18 (2) MStV: Ahmet Can Aydogduoglu, Friedrich-Frank-Bogen 27a, 21033 Hamburg, Germany.</p>'
+          bodyHtml: '<p>Responsible for the content pursuant to § 18 (2) MStV: {owner.name}, {owner.address}.</p>'
         },
         {
           id: 'disclaimer',
@@ -2185,7 +2196,7 @@ export default {
         {
           id: 'controller',
           heading: '1. Controller',
-          bodyHtml: '<p>Controller within the meaning of the GDPR:</p><ul><li>Ahmet Can Aydogduoglu, Friedrich-Frank-Bogen 27a, 21033 Hamburg, Germany</li><li>Email: admin@kampfkekse.eu</li></ul>'
+          bodyHtml: '<p>Controller within the meaning of the GDPR:</p><ul><li>{owner.name}, {owner.address}</li><li>Email: {owner.email}</li></ul>'
         },
         {
           id: 'dataCollected',
@@ -2220,7 +2231,7 @@ export default {
         {
           id: 'rights',
           heading: '8. Your rights',
-          bodyHtml: '<p>You have the following rights regarding your personal data:</p><ul><li>Right of access — Art. 15 GDPR</li><li>Right to rectification — Art. 16 GDPR</li><li>Right to erasure — Art. 17 GDPR</li><li>Right to restriction of processing — Art. 18 GDPR</li><li>Right to data portability — Art. 20 GDPR</li><li>Right to object — Art. 21 GDPR</li><li>Right to lodge a complaint with a supervisory authority — Art. 77 GDPR</li></ul><p>To exercise any of these rights, please contact us at: admin@kampfkekse.eu.</p>'
+          bodyHtml: '<p>You have the following rights regarding your personal data:</p><ul><li>Right of access — Art. 15 GDPR</li><li>Right to rectification — Art. 16 GDPR</li><li>Right to erasure — Art. 17 GDPR</li><li>Right to restriction of processing — Art. 18 GDPR</li><li>Right to data portability — Art. 20 GDPR</li><li>Right to object — Art. 21 GDPR</li><li>Right to lodge a complaint with a supervisory authority — Art. 77 GDPR</li></ul><p>To exercise any of these rights, please contact us at: {owner.email}.</p>'
         },
         {
           id: 'cookies',
@@ -2240,7 +2251,7 @@ export default {
         {
           id: 'contact',
           heading: '12. Contact',
-          bodyHtml: '<p>For any data-protection question, please email: admin@kampfkekse.eu.</p>'
+          bodyHtml: '<p>For any data-protection question, please email: {owner.email}.</p>'
         }
       ]
     },

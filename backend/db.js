@@ -2836,6 +2836,36 @@ export function setAnnouncementState({ enabled, message = '', level = 'info' }) 
   return setSystemSetting('announcement', payload);
 }
 
+/**
+ * Operator / legal-contact info (Impressum + Datenschutz). Kept in system_settings
+ * (key `legal_info`) instead of hardcoded in the frontend locale files, so the
+ * owner can edit sensitive PII (name, address, email, phone) from the admin area.
+ * The public legal pages fetch this and substitute {owner.*} tokens into the text.
+ */
+export const LEGAL_INFO_FIELDS = ['name', 'street', 'postal_code', 'city', 'country', 'email', 'phone'];
+export const LEGAL_INFO_DEFAULTS = { name: '', street: '', postal_code: '', city: '', country: '', email: '', phone: '' };
+
+export async function getLegalInfo() {
+  const raw = await getSystemSetting('legal_info');
+  if (!raw) return { ...LEGAL_INFO_DEFAULTS };
+  try {
+    const p = JSON.parse(raw);
+    const out = { ...LEGAL_INFO_DEFAULTS };
+    for (const k of LEGAL_INFO_FIELDS) out[k] = typeof p[k] === 'string' ? p[k] : '';
+    return out;
+  } catch {
+    return { ...LEGAL_INFO_DEFAULTS };
+  }
+}
+
+export function setLegalInfo(input = {}) {
+  const clean = {};
+  for (const k of LEGAL_INFO_FIELDS) {
+    clean[k] = String(input[k] == null ? '' : input[k]).trim().slice(0, 200);
+  }
+  return setSystemSetting('legal_info', JSON.stringify(clean));
+}
+
 // ----- Owner broadcast queue (v39) -----
 
 export const BROADCAST_STATUSES = ['pending', 'sending', 'done', 'failed'];

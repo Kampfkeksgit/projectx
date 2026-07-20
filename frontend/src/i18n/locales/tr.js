@@ -317,6 +317,16 @@ export default {
     sysMessagePlaceholder: 'örn. Planlı bakım — kısa süre içinde geri döneceğiz',
     sysSave: 'Kaydet',
     sysSaved: 'Bakım ayarları kaydedildi',
+    legalTitle: 'Yasal / işletmeci bilgileri',
+    legalDesc: 'Künye ve gizlilik politikası için işletmeci bilgileri (ad, adres, iletişim). Bu değerler yasal sayfalarda herkese açık görünür ve artık kodda tutulmaz.',
+    legalName: 'Ad / şirket',
+    legalStreet: 'Sokak & numara',
+    legalPostal: 'Posta kodu',
+    legalCity: 'Şehir',
+    legalCountry: 'Ülke',
+    legalEmail: 'E-posta',
+    legalPhone: 'Telefon (isteğe bağlı)',
+    legalHint: 'Künye ve gizlilik politikası sayfalarında görünür.',
     maintenanceOn: 'Bakım modu AÇIK',
     maintenanceOff: 'Bakım modu KAPALI',
     exportBtn: 'CSV dışa aktar',
@@ -2110,6 +2120,7 @@ export default {
   legal: {
     lastUpdated: 'Son güncelleme: {date}',
     tocTitle: 'Bu sayfada',
+    phoneLabel: 'Telefon',
     impressum: {
       title: 'Yasal Bildirim',
       intro: 'Bu sayfa, § 5 TMG uyarınca gerekli olan Almanca "Impressum"a karşılık gelir. Bu sitedeki Almanca sürüm bağlayıcıdır; bu İngilizce çeviri kolaylık sağlamak için sunulmuştur.',
@@ -2117,12 +2128,12 @@ export default {
         {
           id: 'contact',
           heading: 'İletişim bilgileri',
-          bodyHtml: '<p>Bu web sitesinin işletmecisi:</p><ul><li>Ahmet Can Aydogduoglu</li><li>Friedrich-Frank-Bogen 27a, 21033 Hamburg, Almanya</li><li>E-posta: admin@kampfkekse.eu</li></ul>'
+          bodyHtml: '<p>Bu web sitesinin işletmecisi:</p><ul><li>{owner.name}</li><li>{owner.address}</li><li>E-posta: {owner.email}</li>{owner.phoneLine}</ul>'
         },
         {
           id: 'responsible',
           heading: 'İçerikten sorumlu',
-          bodyHtml: '<p>§ 18 (2) MStV uyarınca içerikten sorumlu: Ahmet Can Aydogduoglu, Friedrich-Frank-Bogen 27a, 21033 Hamburg, Almanya.</p>'
+          bodyHtml: '<p>§ 18 (2) MStV uyarınca içerikten sorumlu: {owner.name}, {owner.address}.</p>'
         },
         {
           id: 'disclaimer',
@@ -2143,7 +2154,7 @@ export default {
         {
           id: 'controller',
           heading: '1. Veri sorumlusu',
-          bodyHtml: '<p>GDPR anlamında veri sorumlusu:</p><ul><li>Ahmet Can Aydogduoglu, Friedrich-Frank-Bogen 27a, 21033 Hamburg, Almanya</li><li>E-posta: admin@kampfkekse.eu</li></ul>'
+          bodyHtml: '<p>GDPR anlamında veri sorumlusu:</p><ul><li>{owner.name}, {owner.address}</li><li>E-posta: {owner.email}</li></ul>'
         },
         {
           id: 'dataCollected',
@@ -2178,7 +2189,7 @@ export default {
         {
           id: 'rights',
           heading: '8. Haklarınız',
-          bodyHtml: '<p>Kişisel verilerinizle ilgili aşağıdaki haklara sahipsiniz:</p><ul><li>Erişim hakkı — Art. 15 GDPR</li><li>Düzeltme hakkı — Art. 16 GDPR</li><li>Silme hakkı — Art. 17 GDPR</li><li>İşlemenin kısıtlanması hakkı — Art. 18 GDPR</li><li>Veri taşınabilirliği hakkı — Art. 20 GDPR</li><li>İtiraz hakkı — Art. 21 GDPR</li><li>Bir denetim makamına şikâyette bulunma hakkı — Art. 77 GDPR</li></ul><p>Bu haklardan herhangi birini kullanmak için lütfen bizimle iletişime geçin: admin@kampfkekse.eu.</p>'
+          bodyHtml: '<p>Kişisel verilerinizle ilgili aşağıdaki haklara sahipsiniz:</p><ul><li>Erişim hakkı — Art. 15 GDPR</li><li>Düzeltme hakkı — Art. 16 GDPR</li><li>Silme hakkı — Art. 17 GDPR</li><li>İşlemenin kısıtlanması hakkı — Art. 18 GDPR</li><li>Veri taşınabilirliği hakkı — Art. 20 GDPR</li><li>İtiraz hakkı — Art. 21 GDPR</li><li>Bir denetim makamına şikâyette bulunma hakkı — Art. 77 GDPR</li></ul><p>Bu haklardan herhangi birini kullanmak için lütfen bizimle iletişime geçin: {owner.email}.</p>'
         },
         {
           id: 'cookies',
@@ -2198,7 +2209,7 @@ export default {
         {
           id: 'contact',
           heading: '12. İletişim',
-          bodyHtml: '<p>Herhangi bir veri koruma sorusu için lütfen e-posta gönderin: admin@kampfkekse.eu.</p>'
+          bodyHtml: '<p>Herhangi bir veri koruma sorusu için lütfen e-posta gönderin: {owner.email}.</p>'
         }
       ]
     },
