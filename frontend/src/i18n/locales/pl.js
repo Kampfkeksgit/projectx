@@ -317,6 +317,16 @@ export default {
     sysMessagePlaceholder: 'np. Zaplanowana konserwacja — wracamy wkrótce',
     sysSave: 'Zapisz',
     sysSaved: 'Zapisano ustawienia konserwacji',
+    legalTitle: 'Dane prawne / operatora',
+    legalDesc: 'Dane operatora (imię, adres, kontakt) do noty prawnej (Impressum) i polityki prywatności. Wartości te są widoczne publicznie na stronach prawnych i nie są już przechowywane w kodzie.',
+    legalName: 'Imię / firma',
+    legalStreet: 'Ulica i numer',
+    legalPostal: 'Kod pocztowy',
+    legalCity: 'Miasto',
+    legalCountry: 'Kraj',
+    legalEmail: 'E-mail',
+    legalPhone: 'Telefon (opcjonalnie)',
+    legalHint: 'Widoczne na stronach Impressum i polityki prywatności.',
     maintenanceOn: 'Tryb konserwacji jest WŁĄCZONY',
     maintenanceOff: 'Tryb konserwacji jest WYŁĄCZONY',
     exportBtn: 'Eksportuj CSV',
@@ -2110,6 +2120,7 @@ export default {
   legal: {
     lastUpdated: 'Ostatnia aktualizacja: {date}',
     tocTitle: 'Na tej stronie',
+    phoneLabel: 'Telefon',
     impressum: {
       title: 'Nota prawna',
       intro: 'Ta strona odpowiada niemieckiemu „Impressum” wymaganemu przez § 5 TMG. Wersja niemieckojęzyczna na tej stronie jest wiążąca; to tłumaczenie polskie jest udostępnione dla wygody.',
@@ -2117,12 +2128,12 @@ export default {
         {
           id: 'contact',
           heading: 'Dane kontaktowe',
-          bodyHtml: '<p>Operator tej witryny:</p><ul><li>Ahmet Can Aydogduoglu</li><li>Friedrich-Frank-Bogen 27a, 21033 Hamburg, Niemcy</li><li>E-mail: admin@kampfkekse.eu</li></ul>'
+          bodyHtml: '<p>Operator tej witryny:</p><ul><li>{owner.name}</li><li>{owner.address}</li><li>E-mail: {owner.email}</li>{owner.phoneLine}</ul>'
         },
         {
           id: 'responsible',
           heading: 'Odpowiedzialny za treść',
-          bodyHtml: '<p>Odpowiedzialny za treść zgodnie z § 18 (2) MStV: Ahmet Can Aydogduoglu, Friedrich-Frank-Bogen 27a, 21033 Hamburg, Niemcy.</p>'
+          bodyHtml: '<p>Odpowiedzialny za treść zgodnie z § 18 (2) MStV: {owner.name}, {owner.address}.</p>'
         },
         {
           id: 'disclaimer',
@@ -2143,7 +2154,7 @@ export default {
         {
           id: 'controller',
           heading: '1. Administrator',
-          bodyHtml: '<p>Administrator w rozumieniu RODO:</p><ul><li>Ahmet Can Aydogduoglu, Friedrich-Frank-Bogen 27a, 21033 Hamburg, Niemcy</li><li>E-mail: admin@kampfkekse.eu</li></ul>'
+          bodyHtml: '<p>Administrator w rozumieniu RODO:</p><ul><li>{owner.name}, {owner.address}</li><li>E-mail: {owner.email}</li></ul>'
         },
         {
           id: 'dataCollected',
@@ -2178,7 +2189,7 @@ export default {
         {
           id: 'rights',
           heading: '8. Twoje prawa',
-          bodyHtml: '<p>Masz następujące prawa dotyczące Twoich danych osobowych:</p><ul><li>Prawo dostępu — Art. 15 RODO</li><li>Prawo do sprostowania — Art. 16 RODO</li><li>Prawo do usunięcia — Art. 17 RODO</li><li>Prawo do ograniczenia przetwarzania — Art. 18 RODO</li><li>Prawo do przenoszenia danych — Art. 20 RODO</li><li>Prawo do sprzeciwu — Art. 21 RODO</li><li>Prawo do wniesienia skargi do organu nadzorczego — Art. 77 RODO</li></ul><p>Aby skorzystać z któregokolwiek z tych praw, skontaktuj się z nami pod adresem: admin@kampfkekse.eu.</p>'
+          bodyHtml: '<p>Masz następujące prawa dotyczące Twoich danych osobowych:</p><ul><li>Prawo dostępu — Art. 15 RODO</li><li>Prawo do sprostowania — Art. 16 RODO</li><li>Prawo do usunięcia — Art. 17 RODO</li><li>Prawo do ograniczenia przetwarzania — Art. 18 RODO</li><li>Prawo do przenoszenia danych — Art. 20 RODO</li><li>Prawo do sprzeciwu — Art. 21 RODO</li><li>Prawo do wniesienia skargi do organu nadzorczego — Art. 77 RODO</li></ul><p>Aby skorzystać z któregokolwiek z tych praw, skontaktuj się z nami pod adresem: {owner.email}.</p>'
         },
         {
           id: 'cookies',
@@ -2198,7 +2209,7 @@ export default {
         {
           id: 'contact',
           heading: '12. Kontakt',
-          bodyHtml: '<p>W przypadku jakiegokolwiek pytania dotyczącego ochrony danych napisz na adres: admin@kampfkekse.eu.</p>'
+          bodyHtml: '<p>W przypadku jakiegokolwiek pytania dotyczącego ochrony danych napisz na adres: {owner.email}.</p>'
         }
       ]
     },

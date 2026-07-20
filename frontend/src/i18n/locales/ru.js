@@ -317,6 +317,16 @@ export default {
     sysMessagePlaceholder: 'напр. Плановое обслуживание — скоро вернёмся',
     sysSave: 'Сохранить',
     sysSaved: 'Настройки обслуживания сохранены',
+    legalTitle: 'Юридические данные / оператор',
+    legalDesc: 'Данные оператора (имя, адрес, контакты) для выходных данных (Impressum) и политики конфиденциальности. Эти значения публично отображаются на юридических страницах и больше не хранятся в коде.',
+    legalName: 'Имя / компания',
+    legalStreet: 'Улица и номер',
+    legalPostal: 'Почтовый индекс',
+    legalCity: 'Город',
+    legalCountry: 'Страна',
+    legalEmail: 'Эл. почта',
+    legalPhone: 'Телефон (необязательно)',
+    legalHint: 'Отображается на страницах Impressum и политики конфиденциальности.',
     maintenanceOn: 'Режим обслуживания ВКЛЮЧЁН',
     maintenanceOff: 'Режим обслуживания ВЫКЛЮЧЕН',
     exportBtn: 'Экспорт CSV',
@@ -2110,6 +2120,7 @@ export default {
   legal: {
     lastUpdated: 'Последнее обновление: {date}',
     tocTitle: 'На этой странице',
+    phoneLabel: 'Телефон',
     impressum: {
       title: 'Правовая информация',
       intro: 'Эта страница соответствует немецкому «Impressum», требуемому § 5 TMG. Версия на немецком языке на этом сайте является основной; этот перевод предоставлен для удобства.',
@@ -2117,12 +2128,12 @@ export default {
         {
           id: 'contact',
           heading: 'Контактные данные',
-          bodyHtml: '<p>Оператор этого веб-сайта:</p><ul><li>Ahmet Can Aydogduoglu</li><li>Friedrich-Frank-Bogen 27a, 21033 Hamburg, Germany</li><li>Эл. почта: admin@kampfkekse.eu</li></ul>'
+          bodyHtml: '<p>Оператор этого веб-сайта:</p><ul><li>{owner.name}</li><li>{owner.address}</li><li>Эл. почта: {owner.email}</li>{owner.phoneLine}</ul>'
         },
         {
           id: 'responsible',
           heading: 'Ответственный за содержание',
-          bodyHtml: '<p>Ответственный за содержание согласно § 18 (2) MStV: Ahmet Can Aydogduoglu, Friedrich-Frank-Bogen 27a, 21033 Hamburg, Germany.</p>'
+          bodyHtml: '<p>Ответственный за содержание согласно § 18 (2) MStV: {owner.name}, {owner.address}.</p>'
         },
         {
           id: 'disclaimer',
@@ -2143,7 +2154,7 @@ export default {
         {
           id: 'controller',
           heading: '1. Контролёр',
-          bodyHtml: '<p>Контролёр в значении GDPR:</p><ul><li>Ahmet Can Aydogduoglu, Friedrich-Frank-Bogen 27a, 21033 Hamburg, Germany</li><li>Эл. почта: admin@kampfkekse.eu</li></ul>'
+          bodyHtml: '<p>Контролёр в значении GDPR:</p><ul><li>{owner.name}, {owner.address}</li><li>Эл. почта: {owner.email}</li></ul>'
         },
         {
           id: 'dataCollected',
@@ -2178,7 +2189,7 @@ export default {
         {
           id: 'rights',
           heading: '8. Ваши права',
-          bodyHtml: '<p>У вас есть следующие права в отношении ваших персональных данных:</p><ul><li>Право на доступ — Art. 15 GDPR</li><li>Право на исправление — Art. 16 GDPR</li><li>Право на удаление — Art. 17 GDPR</li><li>Право на ограничение обработки — Art. 18 GDPR</li><li>Право на переносимость данных — Art. 20 GDPR</li><li>Право на возражение — Art. 21 GDPR</li><li>Право подать жалобу в надзорный орган — Art. 77 GDPR</li></ul><p>Чтобы воспользоваться любым из этих прав, свяжитесь с нами по адресу: admin@kampfkekse.eu.</p>'
+          bodyHtml: '<p>У вас есть следующие права в отношении ваших персональных данных:</p><ul><li>Право на доступ — Art. 15 GDPR</li><li>Право на исправление — Art. 16 GDPR</li><li>Право на удаление — Art. 17 GDPR</li><li>Право на ограничение обработки — Art. 18 GDPR</li><li>Право на переносимость данных — Art. 20 GDPR</li><li>Право на возражение — Art. 21 GDPR</li><li>Право подать жалобу в надзорный орган — Art. 77 GDPR</li></ul><p>Чтобы воспользоваться любым из этих прав, свяжитесь с нами по адресу: {owner.email}.</p>'
         },
         {
           id: 'cookies',
@@ -2198,7 +2209,7 @@ export default {
         {
           id: 'contact',
           heading: '12. Контакт',
-          bodyHtml: '<p>По любому вопросу о защите данных пишите на: admin@kampfkekse.eu.</p>'
+          bodyHtml: '<p>По любому вопросу о защите данных пишите на: {owner.email}.</p>'
         }
       ]
     },

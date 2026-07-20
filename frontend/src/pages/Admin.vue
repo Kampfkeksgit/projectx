@@ -722,6 +722,25 @@
             </li>
           </ul>
         </div>
+
+        <!-- Legal / operator details (Impressum + Datenschutz) -->
+        <div class="panel panel--form">
+          <h3 class="panel__title">{{ t('admin.legalTitle') }}</h3>
+          <p class="panel__desc">{{ t('admin.legalDesc') }}</p>
+          <div class="team-form__grid">
+            <label class="tf"><span class="modal__label">{{ t('admin.legalName') }}</span><input v-model="legal.name" class="modal__input" maxlength="200" /></label>
+            <label class="tf"><span class="modal__label">{{ t('admin.legalEmail') }}</span><input v-model="legal.email" class="modal__input" maxlength="200" type="email" /></label>
+            <label class="tf"><span class="modal__label">{{ t('admin.legalStreet') }}</span><input v-model="legal.street" class="modal__input" maxlength="200" /></label>
+            <label class="tf"><span class="modal__label">{{ t('admin.legalPhone') }}</span><input v-model="legal.phone" class="modal__input" maxlength="200" /></label>
+            <label class="tf"><span class="modal__label">{{ t('admin.legalPostal') }}</span><input v-model="legal.postal_code" class="modal__input" maxlength="200" /></label>
+            <label class="tf"><span class="modal__label">{{ t('admin.legalCity') }}</span><input v-model="legal.city" class="modal__input" maxlength="200" /></label>
+            <label class="tf"><span class="modal__label">{{ t('admin.legalCountry') }}</span><input v-model="legal.country" class="modal__input" maxlength="200" /></label>
+          </div>
+          <p class="panel__desc" style="margin-top: var(--space-3)">{{ t('admin.legalHint') }}</p>
+          <div class="panel__actions">
+            <AppButton v-if="can('system', 'manage')" variant="primary" :loading="savingLegal" @click="saveLegal">{{ t('admin.sysSave') }}</AppButton>
+          </div>
+        </div>
       </div>
 
       <!-- STAFF / permissions (owner-only) -->
@@ -944,6 +963,10 @@ const savingPremium = ref(false)
 
 const maintenance = ref({ enabled: false, message: '' })
 const savingMaintenance = ref(false)
+
+// Legal / operator details (Impressum + Datenschutz)
+const legal = ref({ name: '', street: '', postal_code: '', city: '', country: '', email: '', phone: '' })
+const savingLegal = ref(false)
 
 // Kommunikation (Kat. 3)
 const announcement = ref({ enabled: false, message: '', level: 'info' })
@@ -1170,14 +1193,16 @@ async function load() {
       if (!clChannelDirty()) clChannel.value = clChannelInitial.value = data.channel_id || ''
       else clChannelInitial.value = data.channel_id || ''
     } else if (tab.value === 'system') {
-      const [mnt, ann, bc] = await Promise.all([
+      const [mnt, ann, bc, lgl] = await Promise.all([
         api.get('/admin/maintenance'),
         api.get('/admin/announcement'),
-        api.get('/admin/broadcasts')
+        api.get('/admin/broadcasts'),
+        api.get('/admin/legal')
       ])
       maintenance.value = { enabled: !!mnt.data.enabled, message: mnt.data.message || '' }
       announcement.value = { enabled: !!ann.data.enabled, message: ann.data.message || '', level: ann.data.level || 'info' }
       broadcasts.value = bc.data.broadcasts || []
+      legal.value = { ...legal.value, ...(lgl.data.info || {}) }
     } else if (tab.value === 'staff') {
       const { data } = await api.get('/admin/staff')
       staff.value = data.staff || []
@@ -1359,6 +1384,17 @@ async function saveMaintenance() {
   } catch (err) {
     toast.error(err.response?.data?.error || t('admin.actionFailed'))
   } finally { savingMaintenance.value = false }
+}
+
+async function saveLegal() {
+  savingLegal.value = true
+  try {
+    const { data } = await api.put('/admin/legal', legal.value)
+    legal.value = { ...legal.value, ...(data.info || {}) }
+    toast.success(t('admin.sysSaved'))
+  } catch (err) {
+    toast.error(err.response?.data?.error || t('admin.actionFailed'))
+  } finally { savingLegal.value = false }
 }
 
 async function createCode() {
