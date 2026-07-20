@@ -156,6 +156,21 @@ void props
   font-weight: 500;
 }
 
+/* The switcher sits low in the bottom sheet — flip its dropdown to open UPWARD
+   so all locales stay on-screen instead of overflowing past the bottom edge.
+   Cap the height + scroll as a safety net for future/long locale lists. */
+.m-sheet__row :deep(.lang__menu) {
+  top: auto;
+  bottom: calc(100% + 8px);
+  max-height: min(50vh, 320px);
+  overflow-y: auto;
+}
+/* The open animation nudges from below when opening upward. */
+.m-sheet__row :deep(.menu-enter-from),
+.m-sheet__row :deep(.menu-leave-to) {
+  transform: translateY(4px);
+}
+
 .m-sheet__actions {
   display: flex;
   flex-direction: column;
